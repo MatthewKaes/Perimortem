@@ -526,32 +526,28 @@ Terminal is relative to the Workspace boundary. LLVM IR or an emitted MLIR
 module can be a completed Tetrodotoxin product while remaining an intermediate
 representation for the lowering pipeline that consumes it next.
 
-The Package Archive is the canonical semantic Terminal product for
-Tetrodotoxin use without source. Package defines the envelope, Package identity,
-pinned dependencies, member routes, Dialect names, selected payload profile,
-and native artifact locators. Each persistent Dialect defines the payload and
-reconstruction procedure needed to create a new Monograph.
+The Package product is the canonical semantic Terminal result for Tetrodotoxin
+use without source. Package defines one complete envelope containing its exact
+coordinate, member routes, Dialect names, Resources, and Import graph. Each
+persistent Dialect defines the complete payload and reconstruction procedure
+needed to create a new Monograph.
 
-`Complete` and `Contract` are the two Archive profiles. A Complete payload
-retains the public and private query contract selected by its Dialect. An
-Contract payload retains only the public contract needed by dependent
-consumers. For Library this includes public Types, Layouts, Fields, Callable
-signatures, folded constants, ABI requests, publication relationships, and
-exact artifact locators. Neither profile stores executable bodies. Debug/source
-correlation and compiled code remain separate Terminal products.
+The product retains public and private query facts but no executable bodies,
+native provider mapping, artifact inventory, or compiled locations. For
+Library this includes Types, Layouts, Fields, Callable signatures, folded
+Constants, foreign symbol requirements, and publication relationships.
+Debug/source correlation and compiled code remain separate Terminal products.
 
-The selected profile applies recursively to every actual embedded layer. A
-Complete Scene or Shader contains the complete query contract of its Library
-child. A Contract payload contains that child's public contract and artifact
-locators. Shader also retains its Pipeline contract route, storage roles, bridge
-facts, and artifact locators. The neighboring Pipeline member retains its own
-payload.
+Every actual embedded layer belongs to that same complete graph. A Scene or
+Shader contains the complete query facts of its Library child. Shader also
+retains its Pipeline route, storage roles, and bridge facts. The neighboring
+Pipeline member retains its own payload.
 
 A compiled Package behaves like a `foreign "TTX"` graph. Its restored owners
-answer the same Type, Addressable, Callable, and constant queries that consumers
-would ask of the live provider, while stable ABI symbols reach the separately
-compiled implementation. This is why Package persistence does not need a
-second executable graph.
+answer the same Type, Addressable, Callable, and Constant queries that consumers
+would ask of the live provider. A later build tool supplies ordinary native
+libraries for retained foreign symbols. Package persistence therefore needs no
+second executable graph or native-provider registry.
 
 Replaying declaration text in a later Workspace would not provide the same
 continuity. The same spelling can select a different Type or Layout after a

@@ -7,6 +7,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -32,14 +33,14 @@ class Invocation {
   }
 
   auto invoke(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Callable& callable,
       Perimortem::Core::View::Vector<LLVMValueRef> inputs,
       Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source) const
       -> Bool;
   auto fit_input(
       const Ttx::Model::Addressable& parameter,
-      const Ttx::Model::Pack& source,
+      const Tetrodotoxin::Library::Language::Model::Pack& source,
       Count offset,
       Count size) const -> Perimortem::Core::Option<LLVMValueRef>;
   auto get_size(
@@ -79,7 +80,8 @@ class Invocation {
       const Ttx::Model::Type& receiver_type,
       const Ttx::Model::Pack& receiver_source,
       LLVMValueRef receiver,
-      const Ttx::Model::Pack& element_default) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& element_default) const
+      -> Bool;
   auto object_reserve(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
@@ -87,7 +89,8 @@ class Invocation {
       const Ttx::Model::Pack& receiver_source,
       LLVMValueRef receiver,
       LLVMValueRef count,
-      const Ttx::Model::Pack& element_default) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& element_default) const
+      -> Bool;
   auto borrow_fixed(
       const Ttx::Model::Pack& result,
       const Ttx::Model::Type& result_type,
@@ -102,13 +105,13 @@ class Invocation {
       LLVMValueRef start,
       LLVMValueRef count) const -> Bool;
   auto construct(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Type& type,
-      const Ttx::Model::Pack& values) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& values) const -> Bool;
   auto construct_provider(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Type& type,
-      const Ttx::Model::Pack& arguments,
+      const Tetrodotoxin::Library::Language::Model::Pack& arguments,
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<const Ttx::Model::Addressable>> parameters)
       const -> Bool;

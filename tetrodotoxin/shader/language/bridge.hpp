@@ -8,8 +8,8 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
@@ -63,7 +63,6 @@ class Bridge : public Ttx::Concept::Abstract {
 
   TTX_NAME(definition.get_name());
   TTX_DOCUMENTATION(definition.get_documentation());
-  TTX_INVALID_CONTEXT;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 

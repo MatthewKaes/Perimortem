@@ -65,7 +65,7 @@ class Signal : public Ttx::Concept::Abstract {
     return *this;
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   TTX_NAME(name);

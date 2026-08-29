@@ -5,14 +5,20 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
+
+#include "ttx/concept/constant.hpp"
+#include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/alias.hpp"
+#include "ttx/model/context.hpp"
 #include "ttx/model/documentations/block.hpp"
 #include "ttx/model/documentations/comment.hpp"
 #include "ttx/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
+using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Validation;
@@ -21,18 +27,33 @@ static Harness TtxAbstract = {
   .name = "Abstract"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxAbstract, invalid_absorbs) {
-  const Invalid& invalid = Invalid::get_invalid();
+PERIMORTEM_UNIT_TEST(TtxAbstract, unknown_is_provisional) {
+  Memory::Allocator::Arena arena;
+  Ttx::Model::Context context(arena);
+  const Unknown& unknown = Unknown::get_unknown();
 
-  EXPECT_TEXT(invalid.get_name(), "Invalid"_view);
-  EXPECT(&invalid == &Invalid::get_invalid());
-  EXPECT(&invalid.resolve() == &invalid);
-  EXPECT(&invalid.resolve_context("Anything::Else"_view) == &invalid);
-  EXPECT(invalid.get_documentation().is_empty());
+  EXPECT_TEXT(unknown.get_name(), "Unknown"_view);
+  EXPECT(&unknown == &Unknown::get_unknown());
+  EXPECT(&unknown.resolve() == &unknown);
+  EXPECT(&unknown.get_type() == &unknown);
+  EXPECT(&unknown.resolve_concept("Anything::Else"_view) == &unknown);
+  EXPECT(unknown.get_concepts(context).get_layout().is_empty());
+  EXPECT(unknown.get_documentation().is_empty());
+  EXPECT_NOT(unknown.is<Constant>());
+}
+
+PERIMORTEM_UNIT_TEST(TtxAbstract, none_is_axiomatic) {
+  const None& none = None::get_none();
+
+  EXPECT_TEXT(none.get_name(), "None"_view);
+  EXPECT(none.is<Constant>());
+  EXPECT(&none.resolve() == &none);
+  EXPECT(&none.get_type() == &none);
+  EXPECT(&none.resolve_concept("Anything"_view) == &none);
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
-  const Invalid& invalid = Invalid::get_invalid();
+  const Unknown& invalid = Unknown::get_unknown();
   Alias alias("Failure"_view, invalid);
   const Abstract& selected = alias;
 
@@ -48,7 +69,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, reference_cv) {
-  const Invalid& invalid = Invalid::get_invalid();
+  const Unknown& invalid = Unknown::get_unknown();
   Alias alias("Failure"_view, invalid);
   Reference<Alias> mutable_reference(alias);
   Reference<const Alias> read_reference(alias);
@@ -88,10 +109,10 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
 
     auto get_name() const -> View::Bytes override { return name; }
     auto resolve() const -> const Abstract& override {
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
-    auto resolve_context(View::Bytes) const -> const Abstract& override {
-      return Invalid::get_invalid();
+    auto resolve_concept(View::Bytes) const -> const Abstract& override {
+      return Unknown::get_unknown();
     }
     auto get_documentation() const -> const Documentation& override {
       return documentation;
@@ -117,11 +138,11 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
           documentation(documentation) {}
 
     auto get_name() const -> View::Bytes override { return name; }
-    auto resolve_context(View::Bytes route) const -> const Abstract& override {
+    auto resolve_concept(View::Bytes route) const -> const Abstract& override {
       if (route == child_name) {
         return child;
       }
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
     auto get_documentation() const -> const Documentation& override {
       return documentation;
@@ -173,15 +194,15 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
   EXPECT_TEXT(palette.resolve().get_name(), "Graphics"_view);
   EXPECT(&palette.resolve() == &graphics);
   EXPECT(&colors.resolve() == &colors.resolve().resolve());
-  EXPECT(&palette.resolve_context("Color"_view) == &Invalid::get_invalid());
-  EXPECT(&colors.resolve_context("Color"_view) == &Invalid::get_invalid());
-  EXPECT(&colors.resolve().resolve_context("Color"_view) == &color);
-  EXPECT(&palette.resolve_context("Missing"_view) == &Invalid::get_invalid());
+  EXPECT(&palette.resolve_concept("Color"_view) == &None::get_none());
+  EXPECT(&colors.resolve_concept("Color"_view) == &None::get_none());
+  EXPECT(&colors.resolve().resolve_concept("Color"_view) == &color);
+  EXPECT(&palette.resolve_concept("Missing"_view) == &None::get_none());
   EXPECT(&deferred.resolve() == &color);
-  EXPECT(&color.resolve() == &Invalid::get_invalid());
-  EXPECT(&staged.resolve() == &Invalid::get_invalid());
-  EXPECT(&staged.resolve_context("Member"_view) == &Invalid::get_invalid());
-  EXPECT(&staged_nested.resolve() == &Invalid::get_invalid());
+  EXPECT(&color.resolve() == &Unknown::get_unknown());
+  EXPECT(&staged.resolve() == &Unknown::get_unknown());
+  EXPECT(&staged.resolve_concept("Member"_view) == &Unknown::get_unknown());
+  EXPECT(&staged_nested.resolve() == &Unknown::get_unknown());
 
   EXPECT(staged.bind(graphics));
   EXPECT(staged.bind(graphics));
@@ -189,6 +210,6 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
 
   EXPECT(&staged.resolve() == &graphics);
   EXPECT(&staged_nested.resolve() == &graphics);
-  EXPECT(&staged.resolve_context("Color"_view) == &Invalid::get_invalid());
-  EXPECT(&staged.resolve().resolve_context("Color"_view) == &color);
+  EXPECT(&staged.resolve_concept("Color"_view) == &None::get_none());
+  EXPECT(&staged.resolve().resolve_concept("Color"_view) == &color);
 }

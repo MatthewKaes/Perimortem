@@ -16,6 +16,30 @@ cc_library(
 )
 
 cc_library(
+    name = "publisher",
+    srcs = ["publisher.cpp"],
+    hdrs = ["publisher.hpp"],
+    deps = [
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
+        "//ttx:concept",
+    ],
+)
+
+cc_library(
+    name = "dependencies",
+    srcs = ["dependencies.cpp"],
+    hdrs = ["dependencies.hpp"],
+    deps = [
+        "//perimortem:headless",
+        "//tetrodotoxin:environment",
+        "//tetrodotoxin:package",
+        "//tetrodotoxin/language",
+        "//ttx",
+    ],
+)
+
+cc_library(
     name = "lsp",
     srcs = glob(
         [
@@ -30,6 +54,7 @@ cc_library(
         exclude = ["lsp/position_encoding.hpp"],
     ),
     deps = [
+        ":dependencies",
         ":position_encoding",
         "//perimortem:headless",
         "//tetrodotoxin:environment",
@@ -40,6 +65,7 @@ cc_library(
         "//tetrodotoxin/render",
         "//tetrodotoxin/scene",
         "//tetrodotoxin/shader",
+        "//tetrodotoxin/terminal:graph_text",
         "//ttx",
     ],
 )
@@ -47,31 +73,25 @@ cc_library(
 cc_binary(
     name = "puffer",
     srcs = [
-        "application.cpp",
-        "application.hpp",
         "command.cpp",
         "command.hpp",
-        "dependencies.cpp",
-        "dependencies.hpp",
         "main.cpp",
-        "package.cpp",
-        "package.hpp",
+        "source.cpp",
+        "source.hpp",
     ],
     deps = [
+        ":dependencies",
         ":lsp",
+        ":publisher",
         "//perimortem:headless",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:library",
-        "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
         "//tetrodotoxin/app",
         "//tetrodotoxin/render",
         "//tetrodotoxin/scene",
         "//tetrodotoxin/shader",
-        "//tetrodotoxin/terminal:application",
-        "//tetrodotoxin/terminal:graphics",
-        "//tetrodotoxin/terminal:llvm",
-        "//tetrodotoxin/terminal:vulkan",
+        "//tetrodotoxin/terminal:abi",
         "//ttx",
     ],
 )

@@ -4,7 +4,8 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -51,12 +52,12 @@ auto Language::Flow::Block::link(Cursor& cursor) -> Bool {
     auto name = statement.get_binding_name();
 
     // Catch shadowed names and report them back to the user as an error.
-    // Checking for shadowing is straight forward as resolve_context will expose
+    // Checking for shadowing is straight forward as resolve_concept will expose
     // any name duplicates with the benefit of giving us the shadowed object for
     // logging help info.
     const Abstract& shadowed =
-        name ? resolve_context(*name) : Invalid::get_invalid();
-    if (!shadowed.is<Invalid>()) {
+        name ? resolve_concept(*name) : Unknown::get_unknown();
+    if (!shadowed.is<Unknown>() && !shadowed.is<None>()) {
       auto report = cursor.create_report(statement.get_anchor());
       report << "Library Local name shadows a reachable lexical binding."_view;
       auto& note = report.get_hint();
@@ -111,7 +112,7 @@ auto Language::Flow::Block::reaches_next_statement() const -> Bool {
          ordered.get_data()[ordered.get_size() - 1].reaches_next();
 }
 
-auto Language::Flow::Block::resolve_context(View::Bytes route) const
+auto Language::Flow::Block::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   // The active prefix follows source order. A Local becomes queryable
   // only after every preceding Statement links. Keeping this phase fact on the
@@ -128,13 +129,13 @@ auto Language::Flow::Block::resolve_context(View::Bytes route) const
 
     auto binding = statement.get_binding();
     if (!binding) {
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
 
     return *binding;
   }
 
-  return lexical_context.resolve_context(route);
+  return lexical_context.resolve_concept(route);
 }
 
 auto Language::Flow::Block::resolve_authored_context(
@@ -164,5 +165,5 @@ auto Language::Flow::Block::resolve_authored_context(
 
   auto loop = lexical_context.select<RangeLoop>();
   return loop ? loop->resolve_authored_context(route, offset)
-              : lexical_context.resolve_context(route);
+              : lexical_context.resolve_concept(route);
 }

@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -91,8 +91,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
       "private from_source := source.source_static;\n"
       "private from_type := Data.static_value;\n"
       "private from_instance := data.instance_value;\n"
-      "private const_from_type := Data.fixed;\n"
-      "private const_from_instance := data.fixed;"_view;
+      "private const_from_type := Data.fixed;"_view;
   auto workspace_toolchain = create_library_toolchain();
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -101,7 +100,7 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
 
   const auto& source = monograph->get_source();
   const auto& data = static_cast<const Library::Language::Types::Composite&>(
-      source.resolve_context("Data"_view));
+      source.resolve_concept("Data"_view));
   auto fields = data.get_addressables();
   auto field = fields.begin();
   ASSERT(field != fields.end());
@@ -113,12 +112,11 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
   ASSERT(layout_state);
   EXPECT(&*layout_state == &state_identity);
   EXPECT(
-      &data.resolve_type_access(
-          data, "static_value"_view,
-          Library::Language::Model::Type::Access::Static) == &static_identity);
+      &data.resolve_concept("static"_view)
+           .resolve_concept("static_value"_view) == &static_identity);
   EXPECT(
-      &data.resolve_context("instance_value"_view) ==
-      &Ttx::Concept::Invalid::get_invalid());
+      &data.resolve_concept("instance"_view)
+           .resolve_concept("instance_value"_view) == &state_identity);
   EXPECT(errors.is_empty());
 
   static constexpr Static::Vector<View::Bytes, 2> rejected = {{

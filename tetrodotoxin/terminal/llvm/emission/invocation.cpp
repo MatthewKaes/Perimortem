@@ -45,6 +45,12 @@ static auto call_fail_toolchain(
   return body.get_program().fail_toolchain(message);
 }
 
+static auto call_select_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
 static auto call_select_result_type(
     const Ttx::Concept::Layout& layout,
     Count index) -> Core::Option<const Ttx::Model::Type&> {
@@ -55,10 +61,10 @@ static auto call_select_result_type(
 
   auto addressable = entry->select<Ttx::Model::Addressable>();
   if (addressable) {
-    return addressable->get_type();
+    return call_select_type(addressable->get_type());
   }
 
-  return entry->resolve().select<Ttx::Model::Type>();
+  return call_select_type(*entry);
 }
 
 static auto call_select_input_values(
@@ -80,7 +86,7 @@ static auto call_assemble_input(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
     const Ttx::Model::Addressable& parameter,
-    const Ttx::Model::Pack& source,
+    const Tetrodotoxin::Library::Language::Model::Pack& source,
     Count offset,
     Count size) -> Core::Option<LLVMValueRef> {
   auto values = call_select_input_values(body, source, offset, size);
@@ -91,12 +97,13 @@ static auto call_assemble_input(
     return {};
   }
 
-  const Ttx::Model::Type& type = parameter.get_type();
+  auto type = call_select_type(parameter.get_type());
+  BAIL_IF(!type);
   Bool complete_source =
       Bool(offset == 0 && size == source.get_layout().get_size());
   return complete_source
-             ? carriers.fit_and_assemble(body, type, source, *values)
-             : carriers.assemble(body, type, *values);
+             ? carriers.fit_and_assemble(body, *type, source, *values)
+             : carriers.assemble(body, *type, *values);
 }
 
 static auto call_release_owned(
@@ -183,7 +190,7 @@ static auto call_publish_results(
 
 auto Llvm::Emission::Invocation::fit_input(
     const Ttx::Model::Addressable& parameter,
-    const Ttx::Model::Pack& source,
+    const Library::Language::Model::Pack& source,
     Count offset,
     Count size) const -> Core::Option<LLVMValueRef> {
   auto carriers = call_select_carriers(body);
@@ -193,7 +200,7 @@ auto Llvm::Emission::Invocation::fit_input(
 }
 
 auto Llvm::Emission::Invocation::invoke(
-    const Ttx::Model::Pack& result,
+    const Library::Language::Model::Pack& result,
     const Ttx::Model::Callable& callable,
     Core::View::Vector<LLVMValueRef> inputs,
     Core::Option<const Ttx::Model::Pack&> receiver_source) const -> Bool {
@@ -220,9 +227,11 @@ auto Llvm::Emission::Invocation::invoke(
     auto addressable = parameter
                            ? parameter->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-    auto native = addressable ? carriers->get_type(addressable->get_type())
-                              : Core::Option<LLVMTypeRef>();
-    if (!addressable || !native ||
+    auto type = addressable ? call_select_type(addressable->get_type())
+                            : Core::Option<const Ttx::Model::Type&>();
+    auto native =
+        type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+    if (!addressable || !type || !native ||
         LLVMTypeOf(inputs.get_data()[index]) != *native) {
       return call_fail_toolchain(
           body,
@@ -258,9 +267,10 @@ auto Llvm::Emission::Invocation::invoke(
         return False;
       }
 
-      const Ttx::Model::Type& type = addressable->get_type();
-      auto native = carriers->get_type(type);
-      if (!native) {
+      auto type = call_select_type(addressable->get_type());
+      auto native =
+          type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+      if (!type || !native) {
         return call_fail_toolchain(
             body,
             "LLVM cannot pass a parameter indirectly without its carrier."_view);
@@ -271,7 +281,7 @@ auto Llvm::Emission::Invocation::invoke(
       Core::Option<LLVMValueRef> selected_address;
       if (self_reference && receiver_source) {
         auto target = native_body.find_target_address(*receiver_source);
-        if (target && &target->get_type() == &type) {
+        if (target && &target->get_type() == &*type) {
           selected_address = target->get_address();
         }
       }
@@ -287,9 +297,9 @@ auto Llvm::Emission::Invocation::invoke(
       }
 
       if (!selected_address) {
-        if (self_reference && carriers->owns_resources(type) &&
+        if (self_reference && carriers->owns_resources(*type) &&
             !native_body.take_owned(argument) &&
-            !carriers->retain(native_body, type, argument)) {
+            !carriers->retain(native_body, *type, argument)) {
           return False;
         }
 
@@ -302,13 +312,13 @@ auto Llvm::Emission::Invocation::invoke(
         }
 
         if (self_reference) {
-          temporary_self_type = type;
+          temporary_self_type = *type;
           temporary_self_address = address;
         }
       } else if (
-          self_reference && carriers->owns_resources(type) &&
+          self_reference && carriers->owns_resources(*type) &&
           native_body.take_owned(argument) &&
-          !carriers->release(native_body, type, argument)) {
+          !carriers->release(native_body, *type, argument)) {
         return False;
       }
 
@@ -362,10 +372,10 @@ auto Llvm::Emission::Invocation::invoke(
   }
 
   if (self_result) {
-    if (returns_void || returned_storage ||
+    auto self_type = call_select_type(self_result->get_type());
+    if (returns_void || returned_storage || !self_type ||
         LLVMGetTypeKind(LLVMTypeOf(invoked)) != LLVMPointerTypeKind ||
-        !native_body.publish_target_address(
-            result, self_result->get_type(), invoked)) {
+        !native_body.publish_target_address(result, *self_type, invoked)) {
       return call_fail_toolchain(
           body, "LLVM could not publish one returned Self reference."_view);
     }
@@ -678,7 +688,8 @@ static auto reserve_object(
     const Ttx::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
-    const Ttx::Model::Pack& element_default) -> Core::Option<LLVMValueRef> {
+    const Tetrodotoxin::Library::Language::Model::Pack& element_default)
+    -> Core::Option<LLVMValueRef> {
   auto target = body.find_target_address(receiver_source);
   auto element = carriers.get_element(receiver_type);
   auto native_element =
@@ -759,7 +770,7 @@ auto Llvm::Emission::Invocation::object_access(
     const Ttx::Model::Type& receiver_type,
     const Ttx::Model::Pack& receiver_source,
     LLVMValueRef receiver,
-    const Ttx::Model::Pack& element_default) const -> Bool {
+    const Library::Language::Model::Pack& element_default) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto count =
       carriers ? object_capacity_value(body, *carriers, receiver_type, receiver)
@@ -781,7 +792,7 @@ auto Llvm::Emission::Invocation::object_reserve(
     const Ttx::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
-    const Ttx::Model::Pack& element_default) const -> Bool {
+    const Library::Language::Model::Pack& element_default) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto selected = carriers
                       ? reserve_object(
@@ -966,9 +977,9 @@ auto Llvm::Emission::Invocation::slice_view(
 // signedness that cannot be recovered from an LLVM integer Type.
 
 auto Llvm::Emission::Invocation::construct(
-    const Ttx::Model::Pack& result,
+    const Library::Language::Model::Pack& result,
     const Ttx::Model::Type& type,
-    const Ttx::Model::Pack& values) const -> Bool {
+    const Library::Language::Model::Pack& values) const -> Bool {
   Llvm::Module::Body& native_body = body;
   Llvm::Module::Program& native_program = body.get_program();
   const Llvm::Module::Carriers& carriers = native_program.get_carriers();
@@ -989,9 +1000,9 @@ auto Llvm::Emission::Invocation::construct(
 }
 
 auto Llvm::Emission::Invocation::construct_provider(
-    const Ttx::Model::Pack& result,
+    const Library::Language::Model::Pack& result,
     const Ttx::Model::Type& type,
-    const Ttx::Model::Pack& arguments,
+    const Library::Language::Model::Pack& arguments,
     Core::View::Vector<Ttx::Concept::Reference<const Ttx::Model::Addressable>>
         parameters) const -> Bool {
   auto& program = body.get_program();

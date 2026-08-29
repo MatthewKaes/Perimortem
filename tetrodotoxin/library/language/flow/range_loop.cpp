@@ -4,7 +4,8 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -41,8 +42,7 @@ auto Language::Flow::RangeLoop::create_authored(
     Language::Model::Pack& input,
     Anchor anchor) -> RangeLoop& {
   return domain.construct_from<RangeLoop>([&]() -> RangeLoop {
-    return RangeLoop(
-        domain, lexical_context, bindings, input, anchor);
+    return RangeLoop(domain, lexical_context, bindings, input, anchor);
   });
 }
 
@@ -69,8 +69,8 @@ auto Language::Flow::RangeLoop::link(
       domain);
   selected_types.reset(authored_bindings.get_size());
   for (const AuthoredBinding& binding : authored_bindings.get_view()) {
-    const Abstract& shadowed = lexical_context.resolve_context(binding.name);
-    if (!shadowed.is<Invalid>()) {
+    const Abstract& shadowed = lexical_context.resolve_concept(binding.name);
+    if (!shadowed.is<Unknown>() && !shadowed.is<None>()) {
       auto report =
           cursor.create_report(Anchor::create(Span(binding.name_token)));
       report << "Library for binding shadows a reachable lexical binding."_view;
@@ -110,7 +110,7 @@ auto Language::Flow::RangeLoop::link(
   if (!binding_layout) {
     for (Count index = 0; index < authored_bindings.get_size(); index++) {
       const AuthoredBinding& source = authored_bindings[index];
-      auto binding = Parameter::create_authored(
+      auto binding = Ttx::Model::Layouts::Addressable::create_authored(
           domain, source.name, selected_types[index].get());
       BAIL_IF(!binding);
       bindings.insert(*binding);
@@ -136,7 +136,7 @@ auto Language::Flow::RangeLoop::link(
   if (direct_type) {
     selected_input = *direct_type;
   } else {
-    auto expression = retained_input.select<Language::Expression>();
+    auto expression = retained_input.select_identity<Language::Expression>();
     if (expression) {
       selected_input =
           expression->get_result().resolve().select<Language::Model::Type>();
@@ -173,21 +173,23 @@ auto Language::Flow::RangeLoop::finalize(Cursor& cursor) -> void {
       [&](Reference<Block>& selected) { selected.get().finalize(cursor); });
 }
 
-auto Language::Flow::RangeLoop::resolve_context(View::Bytes route) const
+auto Language::Flow::RangeLoop::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  for (const Reference<Parameter>& binding : bindings.get_view()) {
+  for (const Reference<Ttx::Model::Layouts::Addressable>& binding :
+       bindings.get_view()) {
     if (binding.get().get_name() == route) {
       return binding.get();
     }
   }
 
-  return lexical_context.resolve_context(route);
+  return lexical_context.resolve_concept(route);
 }
 
 auto Language::Flow::RangeLoop::resolve_authored_context(
     View::Bytes route,
     Count offset) const -> const Abstract& {
-  for (const Reference<Parameter>& binding : bindings.get_view()) {
+  for (const Reference<Ttx::Model::Layouts::Addressable>& binding :
+       bindings.get_view()) {
     if (binding.get().get_name() == route) {
       return binding.get();
     }

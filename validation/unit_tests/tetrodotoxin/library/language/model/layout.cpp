@@ -12,10 +12,10 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/layout.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -62,7 +62,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
   auto monograph = interpret_source(workspace, errors);
   ASSERT(monograph);
 
-  const Abstract& box = monograph->get_source().resolve_context("Box"_view);
+  const Abstract& box = monograph->get_source().resolve_concept("Box"_view);
   ASSERT(box.is<Language::Types::Composite>());
 
   Allocator::Arena arena;
@@ -86,12 +86,14 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
 
   const Abstract& self = layout->resolve_named("self"_view);
   const Abstract& input = layout->resolve_named("input"_view);
-  ASSERT(self.is<Language::Parameter>());
-  ASSERT(input.is<Language::Parameter>());
-  EXPECT(&static_cast<const Language::Parameter&>(self).get_type() == &box);
+  ASSERT(self.is<Ttx::Model::Layouts::Addressable>());
+  ASSERT(input.is<Ttx::Model::Layouts::Addressable>());
   EXPECT(
-      &static_cast<const Language::Parameter&>(input).get_type() ==
-      &monograph->resolve_context("Bool"_view));
+      &static_cast<const Ttx::Model::Layouts::Addressable&>(self).get_type() ==
+      &box);
+  EXPECT(
+      &static_cast<const Ttx::Model::Layouts::Addressable&>(input).get_type() ==
+      &monograph->resolve_concept("Bool"_view));
   EXPECT(parse_errors.is_empty());
   EXPECT(errors.is_empty());
 }
@@ -172,8 +174,8 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting) {
   EXPECT(source->fits(*reordered));
   auto count = source->get_fitted(*reordered, 0);
   auto flag = source->get_fitted(*reordered, 1);
-  const Abstract& u64 = monograph->resolve_context("U64"_view);
-  const Abstract& boolean = monograph->resolve_context("Bool"_view);
+  const Abstract& u64 = monograph->resolve_concept("U64"_view);
+  const Abstract& boolean = monograph->resolve_concept("Bool"_view);
   EXPECT(count.visit(
       [&](const Abstract& selected) -> Bool { return Bool(&selected == &u64); },
       [](Ttx::Concept::Layout::Errors) { return False; }));

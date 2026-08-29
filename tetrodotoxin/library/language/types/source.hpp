@@ -60,7 +60,10 @@ class Source : public Composite {
 
   constexpr auto get_foreign() const -> const Foreign& { return foreign; }
 
-  auto bind_static(Ttx::Concept::Abstract& binding, Category category) -> Bool;
+  auto bind_static(
+      Ttx::Concept::Abstract& binding,
+      Category category,
+      Bool published = False) -> Bool;
 
   auto can_bind_static(const Ttx::Concept::Abstract& binding, Category category)
       const -> Bool;
@@ -75,25 +78,13 @@ class Source : public Composite {
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto resolve_public_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_type_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_type_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
       -> const Ttx::Concept::Abstract& override;
 
   auto resolve_local(

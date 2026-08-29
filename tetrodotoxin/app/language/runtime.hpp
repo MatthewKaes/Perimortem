@@ -126,7 +126,7 @@ class Runtime : public Ttx::Concept::Abstract {
     return windowed;
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
+  auto resolve_concept(Perimortem::Core::View::Bytes) const
       -> const Ttx::Concept::Abstract& override;
 
  private:

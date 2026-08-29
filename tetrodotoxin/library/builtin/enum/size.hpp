@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Enum {
@@ -24,7 +24,6 @@ class Size : public Language::Model::Addressable {
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_type() const
       -> const Language::Model::Types::Unsigned& override {

@@ -40,7 +40,6 @@ class LoopControl : public Ttx::Concept::Abstract {
 
   TTX_NAME("LoopControl"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 
   constexpr auto get_kind() const -> Kind { return kind; }
 

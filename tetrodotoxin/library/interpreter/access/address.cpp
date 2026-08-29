@@ -11,7 +11,7 @@ using namespace Tetrodotoxin::Library;
 auto Interpreter::Access::Address::parse(
     const Abstract&,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.consume();
   Token addressable = cursor.require(
       Code::Type::Addressable,

@@ -6,7 +6,8 @@
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -34,7 +35,7 @@ class Payload final : public Language::Model::Addressable {
 
   auto resolve() const -> const Abstract& override {
     return type ? static_cast<const Abstract&>(*this)
-                : static_cast<const Abstract&>(Invalid::get_invalid());
+                : static_cast<const Abstract&>(Unknown::get_unknown());
   }
 
   auto get_type() const -> const Language::Model::Type& override {
@@ -56,13 +57,13 @@ class PatternContext final : public Abstract {
   TTX_NAME("Option pattern"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == payload.get_name() &&
-        &payload.resolve() != &Invalid::get_invalid()) {
+        &payload.resolve() != &Unknown::get_unknown()) {
       return payload;
     }
 
-    return parent.resolve_context(route);
+    return parent.resolve_concept(route);
   }
 
  private:
@@ -72,7 +73,7 @@ class PatternContext final : public Abstract {
 
 auto Language::Flow::Match::create_authored(
     Allocator::Arena& domain,
-    Expression& input,
+    Model::Pack& input,
     Anchor anchor) -> Match& {
   return domain.construct_from<Match>(
       [&]() -> Match { return Match(domain, input, anchor); });
@@ -88,13 +89,13 @@ auto Language::Flow::Match::create_pattern(
 }
 
 auto Language::Flow::Match::retain_value_case(
-    Expression& expression,
+    Model::Pack& value,
     Block& body,
     Model::Addressable& payload,
     Anchor anchor) -> void {
   cases.insert({
     .kind = CaseKind::Value,
-    .expression = Reference<Expression>(expression),
+    .value = Ttx::Model::PackReference<Model::Pack>(value),
     .body = Reference<Block>(body),
     .payload = Reference<Model::Addressable>(payload),
     .anchor = anchor,
@@ -103,12 +104,12 @@ auto Language::Flow::Match::retain_value_case(
 }
 
 auto Language::Flow::Match::retain_constant_case(
-    Expression& expression,
+    Model::Pack& value,
     Block& body,
     Anchor anchor) -> void {
   cases.insert({
     .kind = CaseKind::Constant,
-    .expression = Reference<Expression>(expression),
+    .value = Ttx::Model::PackReference<Model::Pack>(value),
     .body = Reference<Block>(body),
     .payload = {},
     .anchor = anchor,
@@ -136,11 +137,11 @@ auto Language::Flow::Match::link(
     return True;
   }
 
-  Expression& retained_input = input.get();
+  Model::Pack& retained_input = input.get();
   BAIL_IF(!retained_input.link(cursor, lexical_context, access_scope));
   // Match consumes one value domain. Type selection can link for contextual
   // access but cannot lend a fabricated value merely to enter pattern flow.
-  if (&retained_input.resolve() != &retained_input) {
+  if (!retained_input.is_complete()) {
     cursor.create_expression_error(
         retained_input.get_anchor(),
         "Library match input did not produce value flow."_view,
@@ -182,9 +183,9 @@ auto Language::Flow::Match::link(
 
       auto binding = entry.payload->get().select<Payload>();
       const Abstract& shadowed =
-          binding ? lexical_context.resolve_context(binding->get_name())
-                  : Invalid::get_invalid();
-      if (!shadowed.is<Invalid>()) {
+          binding ? lexical_context.resolve_concept(binding->get_name())
+                  : Unknown::get_unknown();
+      if (!shadowed.is<Unknown>() && !shadowed.is<None>()) {
         auto report = cursor.create_report(entry.anchor);
         report
             << "Library match payload shadows a reachable lexical binding."_view;
@@ -230,51 +231,52 @@ auto Language::Flow::Match::link(
     return True;
   }
 
-  // Case Expressions settle before bodies so every Constant and duplicate is
-  // known before Match publishes any control coverage. The authored Expression
-  // remains the fold owner while Match retains only the resulting exact value.
+  // Case Expressions settle before bodies so every
+  // Tetrodotoxin::Library::Language::Constant and duplicate is known before
+  // Match publishes any control coverage. The authored Expression remains the
+  // fold owner while Match retains only the resulting exact value.
   for (Count index = 0; index < cases.get_size(); index++) {
     Case& entry = cases[index];
     entry.kind = CaseKind::Constant;
 
-    Expression& expression = entry.expression->get();
-    Bool case_failed = !expression.link(cursor, lexical_context, access_scope);
+    Model::Pack& value = entry.value->get();
+    Bool case_failed = !value.link(cursor, lexical_context, access_scope);
     // Cases obey the same value boundary as the input before constant folding
     // inspects any Layout or payload.
-    if (!case_failed && &expression.resolve() != &expression) {
+    if (!case_failed && !value.is_complete()) {
       cursor.create_expression_error(
-          expression.get_anchor(),
+          value.get_anchor(),
           "Library match case did not produce value flow."_view,
           "Use a runtime value for each constant case."_view);
       case_failed = True;
     }
 
     if (!case_failed) {
-      const Abstract& case_type = expression.get_type().resolve();
+      const Abstract& case_type = value.get_type().resolve();
       if (!case_type.is<Language::Model::Type>() ||
-          &case_type != &*input_type ||
-          expression.get_layout().get_size() != 1) {
+          &case_type != &*input_type || value.get_layout().get_size() != 1) {
         cursor.create_expression_error(
-            expression.get_anchor(),
+            value.get_anchor(),
             "Library match case must have the input's exact scalar Type."_view,
             "Keep every case in the same completed value domain."_view);
         case_failed = True;
       }
     }
 
-    Option<Constant&> selected;
+    Option<Tetrodotoxin::Library::Language::Constant&> selected;
     if (!case_failed) {
-      expression.fold().visit(
+      Expression::fold(value).visit(
           [&](const Option<Model::Pack&>& folded) {
             if (folded) {
-              selected = folded->select<Constant>();
+              selected = folded->select_identity<
+                  Tetrodotoxin::Library::Language::Constant>();
             }
           },
           [&](const Expression::Error&) { case_failed = True; });
       if (!selected) {
         cursor.create_expression_error(
-            expression.get_anchor(),
-            "Library match case did not fold to one Constant."_view,
+            value.get_anchor(),
+            "Library match case did not fold to one Tetrodotoxin::Library::Language::Constant."_view,
             "Use a complete immutable case value."_view);
         case_failed = True;
       }
@@ -283,8 +285,8 @@ auto Language::Flow::Match::link(
     if (selected) {
       if (entry.constant && &entry.constant->get() != &*selected) {
         cursor.create_expression_error(
-            expression.get_anchor(),
-            "Library match case selected a different Constant identity."_view,
+            value.get_anchor(),
+            "Library match case selected a different Tetrodotoxin::Library::Language::Constant identity."_view,
             "Repeat linking with the same completed declaration graph."_view);
         case_failed = True;
       }
@@ -293,14 +295,15 @@ auto Language::Flow::Match::link(
         const Case& retained = cases[previous];
         if (retained.constant && retained.constant->get() == *selected) {
           cursor.create_expression_error(
-              expression.get_anchor(),
-              "Library match cannot retain one Constant case twice."_view,
+              value.get_anchor(),
+              "Library match cannot retain one Tetrodotoxin::Library::Language::Constant case twice."_view,
               "Remove the later equal case."_view);
           case_failed = True;
           break;
         }
       }
-      entry.constant = Reference<const Constant>(*selected);
+      entry.constant =
+          Reference<const Tetrodotoxin::Library::Language::Constant>(*selected);
     }
 
     case_failed |= !entry.body.get().link(cursor);
@@ -346,9 +349,9 @@ auto Language::Flow::Match::finalize(Cursor& cursor) -> void {
   input.get().finalize(cursor);
   for (Count index = 0; index < cases.get_size(); index++) {
     Case& entry = cases[index];
-    entry.expression.visit(
+    entry.value.visit(
         []() {},
-        [&](Reference<Expression>& selected) {
+        [&](Ttx::Model::PackReference<Model::Pack>& selected) {
           selected.get().finalize(cursor);
         });
     entry.body.get().finalize(cursor);
@@ -377,14 +380,18 @@ auto Language::Flow::Match::reaches_next_statement() const -> Bool {
 }
 
 auto Language::Flow::Match::get_case_constant(Count index) const
-    -> Option<const Constant&> {
+    -> Option<const Tetrodotoxin::Library::Language::Constant&> {
   if (index >= cases.get_size()) {
     return {};
   }
 
   return cases.get_view().get_data()[index].constant.visit(
-      []() -> Option<const Constant&> { return {}; },
-      [](const Reference<const Constant>& selected) -> Option<const Constant&> {
+      []() -> Option<const Tetrodotoxin::Library::Language::Constant&> {
+        return {};
+      },
+      [](const Reference<const Tetrodotoxin::Library::Language::Constant>&
+             selected)
+          -> Option<const Tetrodotoxin::Library::Language::Constant&> {
         return selected.get();
       });
 }

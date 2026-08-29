@@ -136,11 +136,40 @@ static auto write_raw_type_name(
   return True;
 }
 
+static auto require_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
+static auto require_kind(
+    const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
+    const Ttx::Concept::Abstract& answer)
+    -> Core::Option<Tetrodotoxin::Terminal::Abi::Representation::Type::Kind> {
+  auto type = require_type(answer);
+  return type ? types.get_kind(*type)
+              : Core::Option<
+                    Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
+}
+
+static auto require_element(
+    const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
+    const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Tetrodotoxin::Library::Language::Model::Type&> {
+  auto type = require_type(answer);
+  return type ? types.get_element(*type)
+              : Core::Option<
+                    const Tetrodotoxin::Library::Language::Model::Type&>();
+}
+
 static auto write_cpp_type(
     Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type) -> Bool {
+    const Ttx::Concept::Abstract& answer) -> Bool {
+  auto selected = require_type(answer);
+  BAIL_IF(!selected);
+  const Ttx::Model::Type& type = *selected;
   auto kind = types.get_kind(type);
   if (!kind) {
     return False;
@@ -276,10 +305,9 @@ static auto require_result_type(const Ttx::Concept::Layout& layout, Count index)
   auto entry = layout.get_abstract(index);
   auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-  return addressable
-             ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
-         : entry ? entry->resolve().select<Ttx::Model::Type>()
-                 : Core::Option<const Ttx::Model::Type&>();
+  return addressable ? require_type(addressable->get_type())
+         : entry     ? require_type(*entry)
+                     : Core::Option<const Ttx::Model::Type&>();
 }
 
 static auto has_prefix(Core::View::Bytes value, Core::View::Bytes prefix)
@@ -307,9 +335,8 @@ static auto single_parameter_type(
   }
   auto parameter = require_parameter(
       function.get_parameters(), explicit_parameter_start(function));
-  return parameter
-             ? Core::Option<const Ttx::Model::Type&>(parameter->get_type())
-             : Core::Option<const Ttx::Model::Type&>();
+  return parameter ? require_type(parameter->get_type())
+                   : Core::Option<const Ttx::Model::Type&>();
 }
 
 static auto single_result_type(
@@ -390,8 +417,8 @@ static auto find_storage_field(
     Core::Option<Tetrodotoxin::Terminal::Abi::Representation::Type::Kind> kind;
     Core::Option<const Tetrodotoxin::Library::Language::Model::Type&> selected;
     if (field) {
-      kind = types.get_kind(field->get_type());
-      selected = types.get_element(field->get_type());
+      kind = require_kind(types, field->get_type());
+      selected = require_element(types, field->get_type());
     }
     if (field && kind &&
         *kind == Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::
@@ -514,7 +541,7 @@ static auto has_object_fields(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&
@@ -807,9 +834,11 @@ static auto write_raw_argument(
     Stream::Textual<Memory::Managed::Bytes>& output,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type,
+    const Ttx::Concept::Abstract& answer,
     Core::View::Bytes name) -> Bool {
-  auto kind = types.get_kind(type);
+  auto type = require_type(answer);
+  BAIL_IF(!type);
+  auto kind = types.get_kind(*type);
   if (!kind) {
     return False;
   }
@@ -839,7 +868,7 @@ static auto write_raw_argument(
   if (*kind ==
       Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure) {
     output << "*reinterpret_cast<const "_view;
-    if (!write_raw_type_name(arena, output, types, unit, type)) {
+    if (!write_raw_type_name(arena, output, types, unit, *type)) {
       return False;
     }
     output << " *>(&"_view << name << ")"_view;
@@ -1178,7 +1207,7 @@ static auto write_lifecycle_definitions(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&
@@ -1216,7 +1245,7 @@ static auto write_lifecycle_definitions(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&
@@ -1244,7 +1273,7 @@ static auto write_lifecycle_definitions(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&
@@ -1281,7 +1310,7 @@ static auto write_lifecycle_definitions(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&
@@ -1306,7 +1335,7 @@ static auto write_lifecycle_definitions(
   for (Count index = 0; index < fields->get_size(); index++) {
     auto field = require_parameter(*fields, index);
     auto kind =
-        field ? types.get_kind(field->get_type())
+        field ? require_kind(types, field->get_type())
               : Core::Option<
                     Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
     if (kind &&

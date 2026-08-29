@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/value.hpp"
@@ -58,14 +58,16 @@ static auto select_named(const Layout& layout, Core::View::Bytes name)
 // publishes the selected order and returns the original producer on reflection.
 static auto create_layout(
     Memory::Allocator::Arena& domain,
+    const Language::Access::Swizzle& source,
     const Language::Model::Pack& receiver,
     Core::View::Vector<Count> selections) -> const Ttx::Concept::Layout& {
   class Layout final : public Ttx::Concept::Layout {
    public:
     constexpr Layout(
+        const Language::Access::Swizzle& source,
         const Language::Model::Pack& receiver,
         Core::View::Vector<Count> selections)
-        : receiver(receiver), selections(selections) {}
+        : source(source), receiver(receiver), selections(selections) {}
 
     constexpr auto get_size() const -> Count override {
       return selections.get_size();
@@ -74,7 +76,7 @@ static auto create_layout(
     constexpr auto get_abstract(Count index) const
         -> Core::Option<const Abstract&> override {
       BAIL_IF(index >= get_size());
-      return receiver.get_layout().get_abstract(selections[index]);
+      return source;
     }
 
     auto fits_entry(
@@ -120,23 +122,16 @@ static auto create_layout(
       if (!fits_at(target, target_offset)) {
         return Errors::IncompatibleFit;
       }
-      return get_abstract(target_index)
-          .visit(
-              []() -> Utility::Result<const Abstract&, Errors> {
-                return Errors::IncompatibleFit;
-              },
-              [](const Abstract& producer)
-                  -> Utility::Result<const Abstract&, Errors> {
-                return producer;
-              });
+      return source;
     }
 
    private:
+    const Language::Access::Swizzle& source;
     const Language::Model::Pack& receiver;
     Core::View::Vector<Count> selections;
   };
 
-  return domain.construct<Layout>(receiver, selections);
+  return domain.construct<Layout>(source, receiver, selections);
 }
 
 auto Language::Access::Swizzle::create_authored(
@@ -158,7 +153,7 @@ auto Language::Access::Swizzle::link(
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
   // Swizzle exists only for value selection. Type access remains available to
   // its own postfix operator without lending a fabricated Layout here.
-  if (&receiver.resolve() != &receiver) {
+  if (!receiver.is_complete()) {
     cursor.create_expression_error(
         get_anchor(), "Swizzle receiver did not produce value flow."_view,
         "Use Type results only with contextual Type access."_view);
@@ -167,7 +162,7 @@ auto Language::Access::Swizzle::link(
 
   const Ttx::Concept::Layout& receiver_layout = receiver.get_layout();
   Bool direct_selection = names.is_empty() || is_named(receiver_layout);
-  auto receiver_expression = receiver.select<Expression>();
+  auto receiver_expression = receiver.select_identity<Expression>();
   Memory::Managed::Vector<Count> selected_indices(domain);
   Memory::Managed::Vector<Reference<const Abstract>> candidates(domain);
 
@@ -201,15 +196,9 @@ auto Language::Access::Swizzle::link(
       return False;
     }
 
-    // The receiver Type's real Layout owns the candidate set. Caller scope
-    // only supplies authority to the Type's exact Self access query.
-    const Abstract& host = access_scope.visit(
-        [&]() -> const Abstract& { return lexical_context; },
-        [](const Abstract& selected) -> const Abstract& { return selected; });
+    const Abstract& instance = receiver_type->resolve_concept("instance"_view);
     for (Core::View::Bytes name : names) {
-      auto candidate = receiver_type
-                           ->resolve_type_access(
-                               host, name, Language::Model::Type::Access::Self)
+      auto candidate = instance.resolve_concept(name)
                            .resolve()
                            .select<Language::Model::Addressable>();
       if (!candidate) {
@@ -262,7 +251,7 @@ auto Language::Access::Swizzle::link(
     for (Count selected : selected_indices.get_view()) {
       selections.insert(selected);
     }
-    output = create_layout(domain, receiver, selections.get_view());
+    output = create_layout(domain, *this, receiver, selections.get_view());
   } else {
     // Type based selection must evaluate a member relative to its scalar
     // receiver. These Address Expressions are the selected value producers,
@@ -294,34 +283,25 @@ auto Language::Access::Swizzle::get_documentation() const
 
 auto Language::Access::Swizzle::get_type() const -> const Abstract& {
   if (!output || output->get_size() != 1) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
-  return output->get_abstract(0).visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Abstract& output) -> const Abstract& {
-        return output.visit<Language::Model::Pack>(
-            [](const Language::Model::Pack& producer) -> const Abstract& {
-              return producer.get_type();
-            },
-            [](const Abstract&) -> const Abstract& {
-              return Invalid::get_invalid();
-            });
-      });
+  return get_value_type(0);
 }
 
-auto Language::Access::Swizzle::get_produced(Count index) const
-    -> Core::Option<Ttx::Model::Pack::Produced> {
-  BAIL_IF(!output || index >= output->get_size());
-
-  if (!projections.is_empty()) {
-    auto producer = projections.at(index).get().select<Language::Model::Pack>();
-    return producer ? producer->get_produced(0)
-                    : Core::Option<Ttx::Model::Pack::Produced>();
+auto Language::Access::Swizzle::get_value_type(Count index) const
+    -> const Abstract& {
+  if (!output || index >= output->get_size()) {
+    return Unknown::get_unknown();
   }
 
-  BAIL_IF(index >= selections.get_size());
-  return receiver.get_produced(selections.at(index));
+  if (!projections.is_empty()) {
+    auto producer = Language::Model::Pack::from(projections.at(index).get());
+    return producer ? producer->get_value_type(0)
+                    : static_cast<const Abstract&>(Unknown::get_unknown());
+  }
+
+  return receiver.get_value_type(selections.at(index));
 }
 
 auto Language::Access::Swizzle::get_layout() const
@@ -331,10 +311,10 @@ auto Language::Access::Swizzle::get_layout() const
 
 auto Language::Access::Swizzle::resolve() const -> const Abstract& {
   if (!output) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
-  return static_cast<const Ttx::Model::Pack&>(*this);
+  return *this;
 }
 
 auto Language::Access::Swizzle::finalize(Cursor& cursor) -> void {

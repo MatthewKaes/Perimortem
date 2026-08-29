@@ -50,15 +50,25 @@ static auto fail_header(Core::View::Bytes message) -> Bool {
   return False;
 }
 
+static auto require_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
+static auto require_addressable_type(const Ttx::Model::Addressable& addressable)
+    -> Core::Option<const Ttx::Model::Type&> {
+  return require_type(addressable.get_type());
+}
+
 static auto require_result_type(const Ttx::Concept::Layout& layout, Count index)
     -> Core::Option<const Ttx::Model::Type&> {
   auto entry = layout.get_abstract(index);
   auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-  return addressable
-             ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
-         : entry ? entry->resolve().select<Ttx::Model::Type>()
-                 : Core::Option<const Ttx::Model::Type&>();
+  return addressable ? require_addressable_type(*addressable)
+         : entry     ? require_type(*entry)
+                     : Core::Option<const Ttx::Model::Type&>();
 }
 
 static auto require_parameter(const Ttx::Concept::Layout& layout, Count index)
@@ -209,9 +219,12 @@ static auto collect_type(
 
     for (Count index = 0; index < fields->get_size(); index++) {
       auto field = require_parameter(*fields, index);
-      if (!field || !collect_type(
-                        arena, ordered, collected, names, types, unit,
-                        field->get_type(), origin)) {
+      auto field_type = field ? require_addressable_type(*field)
+                              : Core::Option<const Ttx::Model::Type&>();
+      if (!field || !field_type ||
+          !collect_type(
+              arena, ordered, collected, names, types, unit, *field_type,
+              origin)) {
         return fail_header(
             "The C header found a Structure field without a completed carrier."_view);
       }
@@ -285,9 +298,12 @@ static auto collect_callable(
   const Ttx::Concept::Layout& parameters = callable.get_parameters();
   for (Count index = 0; index < parameters.get_size(); index++) {
     auto parameter = require_parameter(parameters, index);
-    if (!parameter || !collect_type(
-                          arena, ordered, collected, names, types, unit,
-                          parameter->get_type(), origin)) {
+    auto parameter_type = parameter ? require_addressable_type(*parameter)
+                                    : Core::Option<const Ttx::Model::Type&>();
+    if (!parameter || !parameter_type ||
+        !collect_type(
+            arena, ordered, collected, names, types, unit, *parameter_type,
+            origin)) {
       return fail_header(
           "The C header found a Callable parameter without a completed carrier."_view);
     }
@@ -430,14 +446,16 @@ static auto write_type_definition(
 
     for (Count index = 0; index < fields->get_size(); index++) {
       auto field = require_parameter(*fields, index);
+      auto field_type = field ? require_addressable_type(*field)
+                              : Core::Option<const Ttx::Model::Type&>();
       auto name = fields->get_name(index);
-      if (!field) {
+      if (!field || !field_type) {
         return fail_header(
             "The C header found a Structure field without an Addressable."_view);
       }
 
       output << "  "_view;
-      if (!write_type_name(output, types, names, field->get_type())) {
+      if (!write_type_name(output, types, names, *field_type)) {
         return False;
       }
 
@@ -664,8 +682,10 @@ static auto write_signature(
     }
 
     auto parameter = require_parameter(parameters, index);
-    if (!parameter ||
-        !write_type_name(output, types, names, parameter->get_type())) {
+    auto parameter_type = parameter ? require_addressable_type(*parameter)
+                                    : Core::Option<const Ttx::Model::Type&>();
+    if (!parameter || !parameter_type ||
+        !write_type_name(output, types, names, *parameter_type)) {
       return fail_header(
           "The C header found a parameter without an exact carrier."_view);
     }
@@ -691,28 +711,40 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Library::Language::Monograph& monograph,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports)
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports,
+    Core::View::Vector<Ttx::Concept::Reference<
+        const Tetrodotoxin::Library::Language::Model::Type>> roots)
     -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
   Memory::Managed::Vector<const Ttx::Model::Type*> ordered(arena);
   Memory::Managed::Map<const Ttx::Model::Type*, Bool> collected(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Representation::TypeName>
       names(arena);
 
-  for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
-       monograph.get_source().get_types(
-           Tetrodotoxin::Language::Visibility::Public)) {
-    auto type = declaration.get().select<Ttx::Model::Type>();
-    auto kind =
-        type ? types.get_kind(*type)
-             : Core::Option<
-                   Tetrodotoxin::Terminal::Abi::Representation::Type::Kind>();
-    if (type && kind &&
-        *kind !=
-            Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Context &&
-        !collect_type(
-            arena, ordered, collected, names, types, unit, *type,
-            HeaderOrigin(unit.get_package(), unit.get_member()))) {
-      return {};
+  auto collect_root = [&](const Ttx::Model::Type& type) -> Bool {
+    auto kind = types.get_kind(type);
+    return !kind ||
+           *kind == Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::
+                        Context ||
+           collect_type(
+               arena, ordered, collected, names, types, unit, type,
+               HeaderOrigin(unit.get_package(), unit.get_member()));
+  };
+  if (roots.is_empty()) {
+    for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& declaration :
+         monograph.get_source().get_types(
+             Tetrodotoxin::Language::Visibility::Public)) {
+      auto type = declaration.get().select<Ttx::Model::Type>();
+      if (type && !collect_root(*type)) {
+        return {};
+      }
+    }
+  } else {
+    for (const Ttx::Concept::Reference<
+             const Tetrodotoxin::Library::Language::Model::Type>& root :
+         roots) {
+      if (!collect_root(root.get())) {
+        return {};
+      }
     }
   }
 
@@ -730,10 +762,10 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
            Tetrodotoxin::Library::Language::Foreign::State>& retained :
        foreign.get_states()) {
     const Ttx::Model::Addressable& addressable = retained.get();
-    if (!collect_type(
-            arena, ordered, collected, names, types, unit,
-            addressable.get_type(),
-            HeaderOrigin(unit.get_package(), unit.get_member()))) {
+    auto type = require_addressable_type(addressable);
+    if (!type || !collect_type(
+                     arena, ordered, collected, names, types, unit, *type,
+                     HeaderOrigin(unit.get_package(), unit.get_member()))) {
       return {};
     }
   }
@@ -813,7 +845,8 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
       output << "const "_view;
     }
 
-    if (!write_type_name(output, types, names, addressable.get_type())) {
+    auto type = require_addressable_type(addressable);
+    if (!type || !write_type_name(output, types, names, *type)) {
       return {};
     }
 

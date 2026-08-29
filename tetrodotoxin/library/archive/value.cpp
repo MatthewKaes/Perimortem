@@ -140,7 +140,7 @@ static auto write_constant(
 
 auto Archive::write_folded(Writer& writer, const Language::Model::Pack& value)
     -> Bool {
-  auto constant = value.select<Language::Constant>();
+  auto constant = value.select_identity<Language::Constant>();
   if (constant) {
     return write_constant(writer, *constant);
   }
@@ -159,8 +159,8 @@ auto Archive::write_folded(Writer& writer, const Language::Model::Pack& value)
 
   for (Count index = 0; index < layout.get_size(); index++) {
     Bool selected_named = Bool(layout.get_name(index));
-    auto produced = value.get_produced(index);
-    auto selected = produced ? produced->producer.select<Language::Constant>()
+    auto producer = layout.get_abstract(index);
+    auto selected = producer ? producer->select<Language::Constant>()
                              : Core::Option<const Language::Constant&>();
     BAIL_IF(
         selected_named != named || !selected ||
@@ -171,7 +171,7 @@ auto Archive::write_folded(Writer& writer, const Language::Model::Pack& value)
 
 static auto resolve_type(const Abstract& context, Core::View::Bytes name)
     -> Core::Option<const Language::Model::Type&> {
-  return context.resolve_context(name)
+  return context.resolve_concept(name)
       .resolve()
       .select<Language::Model::Type>();
 }
@@ -182,7 +182,7 @@ static auto materialize_type(
     Core::View::Vector<Language::Generic::Argument> arguments)
     -> Core::Option<const Language::Model::Type&> {
   auto generic =
-      context.resolve_context(formula).resolve().select<Language::Generic>();
+      context.resolve_concept(formula).resolve().select<Language::Generic>();
   BAIL_IF(!generic);
   return generic->materialize(arguments).visit(
       [](const Language::Model::Type& selected)
@@ -197,7 +197,7 @@ static auto restore_bytes_type(const Abstract& context, Count extent)
   BAIL_IF(!element);
 
   if (extent == 0) {
-    auto view = context.resolve_context("View"_view)
+    auto view = context.resolve_concept("View"_view)
                     .resolve()
                     .select<Language::Generic>();
     BAIL_IF(!view);
@@ -214,7 +214,7 @@ static auto restore_bytes_type(const Abstract& context, Count extent)
                 -> Core::Option<const Language::Model::Type&> { return {}; });
   }
 
-  auto fixed = context.resolve_context("Fixed"_view)
+  auto fixed = context.resolve_concept("Fixed"_view)
                    .resolve()
                    .select<Language::Generic>();
   BAIL_IF(!fixed);
@@ -257,7 +257,8 @@ auto Archive::read_folded(
       names.insert(arena.proxy(*name));
     }
 
-    Memory::Managed::Vector<Reference<Language::Model::Pack>> entries(arena);
+    Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
+        entries(arena);
     for (Count index = 0; index < *count; index++) {
       auto entry = read_folded(contents, arena, lexical_context);
       BAIL_IF(!entry);
@@ -333,7 +334,7 @@ auto Archive::read_folded(
     Memory::Managed::Bytes complete_route(arena, "$["_view);
     complete_route.concat(*route);
     complete_route.append(']');
-    auto resource = lexical_context.resolve_context(complete_route.get_view())
+    auto resource = lexical_context.resolve_concept(complete_route.get_view())
                         .resolve()
                         .select<Tetrodotoxin::Language::Resource>();
     BAIL_IF(!resource);

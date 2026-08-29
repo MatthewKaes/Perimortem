@@ -17,9 +17,6 @@ using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Tetrodotoxin;
 
-using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
-using Patcher = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
-
 enum class LibraryWriterAttributeValue : U8 {
   Empty,
   Bytes,
@@ -29,51 +26,42 @@ enum class LibraryWriterAttributeValue : U8 {
   Flag,
 };
 
-Library::Archive::Writer::Writer(
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    : profile(profile) {
-  Appender appender(bytes);
+Library::Archive::Writer::Writer() {
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << "TTXL"_view;
-  appender << U16(1);
-  appender << U8(profile);
-  appender << U8(0);
+  appender << U16(2);
+  appender << U16(0);
 }
 
 auto Library::Archive::Writer::write(
-    const Library::Language::Monograph& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Dynamic::Bytes> {
+    const Library::Language::Monograph& monograph) -> Option<Dynamic::Bytes> {
   BAIL_IF(!monograph.get_source().is_finalized());
-  Writer writer(profile);
+  Writer writer;
   BAIL_IF(!Archive::write(writer, monograph.get_source()));
   return writer.take();
 }
 
 auto Library::Archive::Writer::encode_declarations(
-    const Library::Language::Types::Composite& composite,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    const Library::Language::Types::Composite& composite)
     -> Option<Dynamic::Bytes> {
   BAIL_IF(!composite.is_finalized());
 
-  Writer writer(profile);
-  Bool public_only =
-      profile == Tetrodotoxin::Language::Persistence::Profile::Contract;
-  BAIL_IF(!Archive::write_declarations(writer, composite, public_only));
+  Writer writer;
+  BAIL_IF(!Archive::write_declarations(writer, composite));
   return writer.take();
 }
 
 auto Library::Archive::Writer::encode_type_reference(
-    const Library::Language::TypeReference& reference,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    const Library::Language::TypeReference& reference)
     -> Option<Dynamic::Bytes> {
-  Writer writer(profile);
+  Writer writer;
   BAIL_IF(!Archive::write(writer, reference));
   return writer.take();
 }
 
 auto Library::Archive::Writer::begin(Tag tag, Bool optional) -> Record {
   Count offset = bytes.get_size();
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U16(tag);
   appender << U16(optional ? 1 : 0);
   appender << U32(0);
@@ -87,39 +75,40 @@ auto Library::Archive::Writer::finish(Record record) -> Bool {
   Count payload_size = bytes.get_size() - offset - 8;
   BAIL_IF(payload_size > U32(-1));
 
-  Patcher patcher(bytes.get_access().slice(offset + 4, 4));
+  Perimortem::Core::Writer::Binary<Data::ByteOrder::Little> patcher(
+      bytes.get_access().slice(offset + 4, 4));
   patcher << U32(payload_size);
   return patcher.is_valid();
 }
 
 auto Library::Archive::Writer::write(U8 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(U16 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(U32 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(U64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(S64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(R64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Library::Archive::Writer::write(View::Bytes value) -> Bool {
   BAIL_IF(value.get_size() > U32(-1));
 
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U32(value.get_size());
   appender << value;
   return True;

@@ -78,11 +78,22 @@ auto Language::Binding::get_documentation() const -> const Documentation& {
           -> const Documentation& { return selected.get_documentation(); });
 }
 
-auto Language::Binding::get_type() const -> const Ttx::Model::Type& {
-  return type->get();
+auto Language::Binding::get_type() const -> const Abstract& {
+  if (type) {
+    return type->get();
+  }
+  if (!type_reference || !definition) {
+    return Unknown::get_unknown();
+  }
+
+  const Abstract& root = Declarations::resolve_lexical_context(
+      definition->get_host(), type_reference->get_root());
+  auto selected = type_reference->resolve_restored_selected(root);
+  return selected ? static_cast<const Abstract&>(*selected)
+                  : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
 auto Language::Binding::resolve() const -> const Abstract& {
   return type ? static_cast<const Abstract&>(*this)
-              : static_cast<const Abstract&>(Invalid::get_invalid());
+              : static_cast<const Abstract&>(Unknown::get_unknown());
 }

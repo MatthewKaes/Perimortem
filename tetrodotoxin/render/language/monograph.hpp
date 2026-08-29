@@ -50,20 +50,13 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto finalize_restored() -> Bool override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes name) const
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_addressables() const {

@@ -13,7 +13,8 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/generics/range.hpp"
 #include "tetrodotoxin/library/language/types/s16.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -39,7 +40,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, direct_contract) {
   ASSERT_EQ(range.get_layout().get_size(), Count(1));
   EXPECT(&*range.get_layout().get_abstract(0) == &range);
   EXPECT_NOT(range.get_documentation().is_empty());
-  EXPECT(&range.resolve_context("member"_view) == &Invalid::get_invalid());
+  EXPECT(&range.resolve_concept("member"_view) == &None::get_none());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
@@ -47,7 +48,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, formula_legality) {
   Dialect dialect;
   auto& root = create_library_monograph(domain, dialect);
   const auto& formula =
-      static_cast<const Generic&>(root.resolve_context("Range"_view));
+      static_cast<const Generic&>(root.resolve_concept("Range"_view));
   const Static::Vector<Generic::Argument, 1> signed_argument = {{
     Generic::Argument(resolve_library_signed(root, "S8"_view)),
   }};
@@ -133,7 +134,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, stable_identity) {
   Dialect dialect;
   auto& root = create_library_monograph(domain, dialect);
   const auto& formula =
-      static_cast<const Generic&>(root.resolve_context("Range"_view));
+      static_cast<const Generic&>(root.resolve_concept("Range"_view));
   const Static::Vector<Generic::Argument, 1> first_argument = {{
     Generic::Argument(resolve_library_unsigned(root, "U8"_view)),
   }};

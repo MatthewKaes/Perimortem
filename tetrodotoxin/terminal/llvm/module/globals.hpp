@@ -10,6 +10,7 @@
 #include "perimortem/memory/dynamic/vector.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
@@ -42,7 +43,7 @@ class Globals {
   auto end_initializer(
       Emission& body,
       const Ttx::Model::Addressable& addressable,
-      const Ttx::Model::Pack& value) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& value) const -> Bool;
 
   auto find_address(const Ttx::Model::Addressable& addressable) const
       -> Perimortem::Core::Option<LLVMValueRef>;

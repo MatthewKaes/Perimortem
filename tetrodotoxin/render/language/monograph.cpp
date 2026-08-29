@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/render/language/monograph.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Perimortem::Core;
@@ -45,7 +46,7 @@ auto Language::Monograph::retain_import(
                .resolve_type(
                    description.get_name(),
                    Tetrodotoxin::Language::Visibility::Private)
-               .is<Invalid>());
+               .is<Unknown>());
   return Tetrodotoxin::Language::Monograph::retain_import(
       description, associations);
 }
@@ -76,32 +77,30 @@ auto Language::Monograph::finalize_restored() -> Bool {
   return finalized;
 }
 
-auto Language::Monograph::resolve_context(View::Bytes name) const
+auto Language::Monograph::resolve_concept(View::Bytes name) const
     -> const Abstract& {
+  if (name == "static"_view) {
+    return declarations.get_authority();
+  }
+  if (name == "instance"_view) {
+    return None::get_none();
+  }
   const Abstract& local = declarations.resolve_type(
       name, Tetrodotoxin::Language::Visibility::Public);
-  return local.is<Invalid>()
-             ? Tetrodotoxin::Language::Monograph::resolve_context(name)
+  return local.is<Unknown>() || local.is<None>()
+             ? Tetrodotoxin::Language::Monograph::resolve_concept(name)
              : local;
+}
+
+auto Language::Monograph::get_concepts(Context& context) const -> const Pack& {
+  return declarations.get_concepts(context);
 }
 
 auto Language::Monograph::resolve_lexical_context(View::Bytes name) const
     -> const Abstract& {
   const Abstract& local = declarations.resolve_type(
       name, Tetrodotoxin::Language::Visibility::Private);
-  return local.is<Invalid>()
+  return local.is<Unknown>() || local.is<None>()
              ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(name)
              : local;
-}
-
-auto Language::Monograph::resolve_access(const Abstract&, View::Bytes name)
-    const -> const Abstract& {
-  return declarations.resolve_addressable(
-      name, Tetrodotoxin::Language::Visibility::Public);
-}
-
-auto Language::Monograph::resolve_call(const Abstract&, View::Bytes name) const
-    -> const Abstract& {
-  return declarations.resolve_callable(
-      name, Tetrodotoxin::Language::Visibility::Public);
 }

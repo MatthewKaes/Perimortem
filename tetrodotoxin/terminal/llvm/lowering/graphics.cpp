@@ -55,9 +55,10 @@ auto Llvm::Lowering::Graphics::lower(
     const auto& selected = hosted.get_data()[index];
     auto field_index =
         program.get_carriers().get_field_index(selected.get_field());
-    auto field_type =
-        program.get_carriers().get_type(selected.get_field().get_type());
-    BAIL_IF(!field_index || !field_type);
+    auto type = selected.get_field().get_type().select<Ttx::Model::Type>();
+    auto field_type = type ? program.get_carriers().get_type(*type)
+                           : Core::Option<LLVMTypeRef>();
+    BAIL_IF(!field_index || !type || !field_type);
 
     llvm::BasicBlock& match =
         *llvm::BasicBlock::Create(context, "child", &function);

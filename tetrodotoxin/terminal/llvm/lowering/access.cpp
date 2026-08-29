@@ -32,7 +32,7 @@ using namespace Tetrodotoxin::Library::Language;
 static auto lower_address(
     const Llvm::Lowering::Execution& execution,
     const Expression& expression,
-    const Expression& receiver) -> Bool {
+    const Model::Pack& receiver) -> Bool {
   auto selected =
       expression.get_result().resolve().select<Model::Addressable>();
   auto instance = receiver.get_result().resolve().select<Model::Addressable>();
@@ -102,7 +102,8 @@ static auto lower_call(
     inputs.insert(*value);
   }
 
-  Core::Option<const Ttx::Model::Pack&> receiver_source;
+  Core::Option<const Tetrodotoxin::Library::Language::Model::Pack&>
+      receiver_source;
   if (callable->declares_self() && !call.get_fitted_inputs().is_empty()) {
     const Tetrodotoxin::Library::Language::Access::Call::Input& input =
         call.get_fitted_inputs().get_data()[0];
@@ -113,9 +114,14 @@ static auto lower_call(
 
   auto builtin = Llvm::Lowering::Builtins::lower(
       execution, *callable, call, inputs.get_view(), receiver_source);
+  Core::Option<const Ttx::Model::Pack&> generic_receiver =
+      receiver_source.visit(
+          []() -> Core::Option<const Ttx::Model::Pack&> { return {}; },
+          [](const Tetrodotoxin::Library::Language::Model::Pack& source)
+              -> Core::Option<const Ttx::Model::Pack&> { return source; });
   return builtin ? *builtin
                  : execution.get_invocation().invoke(
-                       call, *callable, inputs.get_view(), receiver_source);
+                       call, *callable, inputs.get_view(), generic_receiver);
 }
 
 static auto lower_slice(
@@ -240,12 +246,24 @@ auto Llvm::Lowering::Access::lower(
       expression.select<Tetrodotoxin::Library::Language::Access::Swizzle>();
   if (swizzle) {
     BAIL_IF(!execution.lower(swizzle->get_receiver()));
+    Memory::Dynamic::Vector<LLVMValueRef> selected;
     for (const Ttx::Concept::Reference<const Ttx::Concept::Abstract>&
              projection : swizzle->get_projections()) {
-      auto pack = projection.get().select<Model::Pack>();
+      auto pack = Model::Pack::from(projection.get());
       BAIL_IF(!pack || !execution.lower(*pack));
+      auto value = execution.get_body().find_value(*pack);
+      BAIL_IF(!value);
+      selected.insert(*value);
     }
-    return execution.get_storage().compose(*swizzle);
+    if (swizzle->get_projections().is_empty()) {
+      auto receiver = execution.get_body().find_values(swizzle->get_receiver());
+      BAIL_IF(!receiver);
+      for (Count source : swizzle->get_selections()) {
+        BAIL_IF(source >= receiver->get_size());
+        selected.insert(receiver->get_data()[source]);
+      }
+    }
+    return execution.get_body().publish_values(*swizzle, selected.get_view());
   }
   if (expression.is<Tetrodotoxin::Library::Language::Access::Type>()) {
     return True;

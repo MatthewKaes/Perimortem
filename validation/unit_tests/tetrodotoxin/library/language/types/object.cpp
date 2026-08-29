@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -68,7 +68,7 @@ PERIMORTEM_UNIT_TEST(ObjectTests, field_writability) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& selected = monograph->resolve_context("Session"_view);
+  const Abstract& selected = monograph->resolve_concept("Session"_view);
   ASSERT(selected.is<Language::Types::Object>());
   const auto& object = static_cast<const Language::Types::Object&>(selected);
   auto fields = object.get_addressables();
@@ -197,13 +197,13 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface) {
   ASSERT((*source_callables).get().is<Language::Function>());
   const auto& root =
       static_cast<const Language::Function&>((*source_callables).get());
-  const Abstract& holder = monograph->resolve_context("Holder"_view);
+  const Abstract& holder = monograph->resolve_concept("Holder"_view);
   EXPECT(hidden.is<Language::Types::Object>());
   ASSERT(holder.is<Language::Types::Object>());
-  EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&holder.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&holder.resolve_context("reveal"_view) == &Invalid::get_invalid());
-  EXPECT(&monograph->resolve_context("root"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph->resolve_concept("Hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&holder.resolve_concept("hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&holder.resolve_concept("reveal"_view) == &Unknown::get_unknown());
+  EXPECT(&monograph->resolve_concept("root"_view) == &Unknown::get_unknown());
   const auto& holder_object =
       static_cast<const Language::Types::Object&>(holder);
   auto fields = holder_object.get_addressables();
@@ -213,9 +213,9 @@ PERIMORTEM_UNIT_TEST(ObjectTests, private_surface) {
   ASSERT((*callables).get().is<Language::Function>());
   const auto& reveal =
       static_cast<const Language::Function&>((*callables).get());
-  EXPECT(&reveal.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&reveal.resolve_context("Hidden"_view) == &hidden);
-  EXPECT(&root.resolve_context("Hidden"_view) == &hidden);
+  EXPECT(&reveal.resolve_concept("hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&reveal.resolve_concept("Hidden"_view) == &hidden);
+  EXPECT(&root.resolve_concept("Hidden"_view) == &hidden);
   EXPECT(errors.is_empty());
 }
 
@@ -251,8 +251,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_identity) {
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
-  const Abstract& child_identity = monograph->resolve_context("Child"_view);
-  const Abstract& holder_identity = monograph->resolve_context("Holder"_view);
+  const Abstract& child_identity = monograph->resolve_concept("Child"_view);
+  const Abstract& holder_identity = monograph->resolve_concept("Holder"_view);
   ASSERT(child_identity.is<Language::Types::Object>());
   ASSERT(holder_identity.is<Language::Types::Object>());
   const auto& child =
@@ -270,7 +270,8 @@ PERIMORTEM_UNIT_TEST(ObjectTests, inferred_identity) {
   EXPECT(&child_field.get_type() == &child);
   EXPECT(&copy_field.get_type() == &child);
   ASSERT(copy_field.get_initializer());
-  ASSERT(copy_field.get_initializer()->is<Language::Expressions::Identifier>());
+  ASSERT(copy_field.get_initializer()
+             ->is_identity<Language::Expressions::Identifier>());
   const auto& identifier =
       static_cast<const Language::Expressions::Identifier&>(
           *copy_field.get_initializer());

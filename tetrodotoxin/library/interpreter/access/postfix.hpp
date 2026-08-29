@@ -21,19 +21,19 @@ class Postfix {
   static auto parse_type(
       const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
-      Language::Expression& receiver)
+      Language::Model::Pack& receiver)
       -> Perimortem::Core::Option<Language::Expression&>;
 
   static auto parse_propagate(
       const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
-      Language::Expression& receiver)
+      Language::Model::Pack& receiver)
       -> Perimortem::Core::Option<Language::Expression&>;
 
   static auto parse_unwrap(
       const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
-      Language::Expression& receiver)
+      Language::Model::Pack& receiver)
       -> Perimortem::Core::Option<Language::Expression&>;
 };
 

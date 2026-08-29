@@ -8,11 +8,12 @@
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Flag is the Constant contract for a binary logical value. Either value fits
-// every resolved Flag Type regardless of the toolchain's chosen storage width.
-class Flag : public Constant {
+// Flag is the Tetrodotoxin::Library::Language::Constant contract for a binary
+// logical value. Either value fits every resolved Flag Type regardless of the
+// toolchain's chosen storage width.
+class Flag : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Flag, Constant);
+  TTX_CONTRACT(Flag, Tetrodotoxin::Library::Language::Constant);
   using Value = Bool;
 
   static auto create_authored(
@@ -20,7 +21,7 @@ class Flag : public Constant {
       const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Flag& {
-    return Expression::create_authored<Flag>(
+    return Constant::create_authored<Flag>(
         domain, anchor,
         [&](auto source) -> Flag { return Flag(type, value, source); });
   }
@@ -29,7 +30,7 @@ class Flag : public Constant {
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value) -> Flag& {
-    return Expression::create_synthetic<Flag>(
+    return Constant::create_synthetic<Flag>(
         domain, [&](auto source) -> Flag { return Flag(type, value, source); });
   }
 
@@ -40,7 +41,12 @@ class Flag : public Constant {
 
   virtual constexpr auto get_value() const -> Value { return value; }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool override {
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return value ? "true"_view : "false"_view;
+  }
+
+  constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
+      const -> Bool override {
     return rhs.visit<Flag>(
         [this, &rhs](const Flag& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
@@ -63,7 +69,9 @@ class Flag : public Constant {
       const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), value(value) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor),
+        type(type),
+        value(value) {}
 
  private:
   const Tetrodotoxin::Library::Language::Model::Types::Flag& type;

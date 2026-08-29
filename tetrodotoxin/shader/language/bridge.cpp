@@ -4,7 +4,7 @@
 #include "tetrodotoxin/shader/language/bridge.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -87,5 +87,5 @@ auto Shader::Language::Bridge::link_restored(const Abstract& context) -> Bool {
 auto Shader::Language::Bridge::resolve() const -> const Abstract& {
   return cpu_type && gpu_type
              ? static_cast<const Abstract&>(*this)
-             : static_cast<const Abstract&>(Invalid::get_invalid());
+             : static_cast<const Abstract&>(Unknown::get_unknown());
 }

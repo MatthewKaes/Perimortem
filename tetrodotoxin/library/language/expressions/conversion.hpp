@@ -67,7 +67,7 @@ class Conversion : public Expression {
 
   Perimortem::Memory::Allocator::Arena& arena;
   Ttx::Concept::Reference<const Model::Types::Value> target;
-  Ttx::Concept::Reference<Model::Pack> source;
+  Ttx::Model::PackReference<Model::Pack> source;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

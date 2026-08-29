@@ -27,7 +27,10 @@ class Header {
       const Tetrodotoxin::Library::Language::Monograph& monograph,
       const Tetrodotoxin::Terminal::Abi::Unit& unit,
       Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export>
-          exports) -> Perimortem::Core::Option<Header>;
+          exports,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+          const Tetrodotoxin::Library::Language::Model::Type>> roots = {})
+      -> Perimortem::Core::Option<Header>;
 
   static auto identify(
       Perimortem::Memory::Allocator::Arena& arena,

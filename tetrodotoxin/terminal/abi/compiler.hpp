@@ -20,6 +20,16 @@ namespace Tetrodotoxin::Terminal::Abi {
 // in the source Monograph.
 class Compiler {
  public:
+  auto compile_graph(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Tetrodotoxin::Library::Language::Monograph& monograph,
+      const Ttx::Concept::Abstract& root,
+      const Abi::Unit& unit,
+      Ttx::Lexical::Errors& errors,
+      Perimortem::Core::View::Bytes source_path,
+      Perimortem::Core::View::Bytes source_text) const
+      -> Perimortem::Core::Option<Products>;
+
   auto compile(
       Perimortem::Memory::Allocator::Arena& arena,
       const Tetrodotoxin::Library::Language::Monograph& monograph,
@@ -27,6 +37,8 @@ class Compiler {
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes source_path,
       Perimortem::Core::View::Bytes source_text,
+      Perimortem::Core::View::Vector<Ttx::Concept::Reference<
+          const Tetrodotoxin::Library::Language::Model::Type>> roots = {},
       Perimortem::Core::View::Vector<Ttx::Concept::Reference<
           const Tetrodotoxin::Library::Language::Model::Callable>> excluded =
           {},

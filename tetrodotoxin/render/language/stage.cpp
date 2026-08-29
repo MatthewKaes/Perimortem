@@ -4,7 +4,8 @@
 #include "tetrodotoxin/render/language/stage.hpp"
 
 #include "tetrodotoxin/render/language/attributes.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -50,12 +51,13 @@ auto Language::Stage::link_restored() -> Bool {
 
 auto Language::Stage::resolve() const -> const Abstract& {
   return linked ? static_cast<const Abstract&>(*this)
-                : static_cast<const Abstract&>(Invalid::get_invalid());
+                : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
-auto Language::Stage::resolve_context(View::Bytes name) const
+auto Language::Stage::resolve_concept(View::Bytes name) const
     -> const Abstract& {
   const Abstract& parameter = parameters.resolve_named(name);
-  return parameter.is<Invalid>() ? definition.get_host().resolve_context(name)
-                                 : parameter;
+  return parameter.is<Unknown>() || parameter.is<None>()
+             ? definition.get_host().resolve_concept(name)
+             : parameter;
 }

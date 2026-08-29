@@ -4,7 +4,10 @@
 #include "tetrodotoxin/terminal/abi/compiler.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
+#include "perimortem/core/math.hpp"
 
+#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/attribute.hpp"
@@ -17,9 +20,54 @@
 #include "tetrodotoxin/terminal/abi/cpp/header.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/model/context.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library::Language;
+
+class AbiGraphNode {
+ public:
+  constexpr AbiGraphNode(
+      const Ttx::Concept::Abstract& semantic,
+      Core::View::Bytes route,
+      Count depth)
+      : semantic(semantic), route(route), depth(depth) {}
+
+  Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic;
+  Core::View::Bytes route;
+  Count depth;
+};
+
+static auto compare_bytes(Core::View::Bytes left, Core::View::Bytes right)
+    -> S32 {
+  Count size = Core::Math::min(left.get_size(), right.get_size());
+  for (Count index = 0; index < size; index++) {
+    if (left[index] != right[index]) {
+      return left[index] < right[index] ? -1 : 1;
+    }
+  }
+  if (left.get_size() == right.get_size()) {
+    return 0;
+  }
+  return left.get_size() < right.get_size() ? -1 : 1;
+}
+
+static auto append_route(
+    Memory::Allocator::Arena& arena,
+    Core::View::Bytes route,
+    Core::View::Bytes name) -> Core::View::Bytes {
+  if (name == "static"_view || name == "instance"_view) {
+    return route;
+  }
+  Memory::Managed::Bytes appended(arena, route);
+  if (!appended.get_view().is_empty()) {
+    appended.concat("::"_view);
+  }
+  appended.concat(name);
+  return appended.get_view();
+}
 
 static auto fail_interface(
     Ttx::Lexical::Errors& errors,
@@ -194,6 +242,104 @@ static auto collect_type(
   return True;
 }
 
+auto Tetrodotoxin::Terminal::Abi::Compiler::compile_graph(
+    Memory::Allocator::Arena& arena,
+    const Library::Language::Monograph& monograph,
+    const Ttx::Concept::Abstract& root,
+    const Tetrodotoxin::Terminal::Abi::Unit& unit,
+    Ttx::Lexical::Errors& errors,
+    Core::View::Bytes source_path,
+    Core::View::Bytes source_text) const
+    -> Core::Option<Tetrodotoxin::Terminal::Abi::Products> {
+  Memory::Dynamic::Vector<AbiGraphNode> nodes;
+  Memory::Dynamic::Vector<Count> pending;
+  auto retain = [&](const Ttx::Concept::Abstract& semantic,
+                    Core::View::Bytes route, Count depth) {
+    for (Count index = 0; index < nodes.get_size(); index++) {
+      AbiGraphNode& selected = nodes.get_access().get_data()[index];
+      if (&selected.semantic.get() != &semantic) {
+        continue;
+      }
+      Bool better =
+          depth < selected.depth ||
+          (depth == selected.depth && compare_bytes(route, selected.route) < 0);
+      if (better) {
+        selected.route = arena.proxy(route);
+        selected.depth = depth;
+        pending.emplace(Count(index));
+      }
+      return;
+    }
+    Count index = nodes.get_size();
+    nodes.emplace(AbiGraphNode(semantic, arena.proxy(route), depth));
+    pending.emplace(Count(index));
+  };
+
+  retain(root, {}, 0);
+  Ttx::Model::Context context(arena);
+  Count next = 0;
+  while (next < pending.get_size()) {
+    Count index = pending.get_view().get_data()[next++];
+    const AbiGraphNode& node = nodes.get_view().get_data()[index];
+    Ttx::Concept::Reference<const Ttx::Concept::Abstract> semantic_reference =
+        node.semantic;
+    Core::View::Bytes route = node.route;
+    Count depth = node.depth;
+    const Ttx::Concept::Abstract& semantic = semantic_reference.get();
+    const Ttx::Concept::Abstract& resolved = semantic.resolve();
+    if (!resolved.is<Ttx::Concept::Unknown>() &&
+        !resolved.is<Ttx::Concept::None>()) {
+      retain(resolved, route, depth);
+    }
+
+    const Ttx::Concept::Layout& concepts =
+        semantic.get_concepts(context).get_layout();
+    for (Count concept_index = 0; concept_index < concepts.get_size();
+         concept_index++) {
+      auto selected = concepts.get_abstract(concept_index);
+      if (!selected) {
+        continue;
+      }
+      Core::View::Bytes name =
+          concepts.get_name(concept_index)
+              .visit(
+                  [&]() { return selected->get_name(); },
+                  [](Core::View::Bytes retained) { return retained; });
+      Bool authority = name == "static"_view || name == "instance"_view;
+      retain(
+          *selected, append_route(arena, route, name),
+          depth + (authority ? 0 : 1));
+    }
+  }
+
+  Memory::Managed::Vector<
+      Ttx::Concept::Reference<const Library::Language::Model::Type>>
+      roots(arena);
+  Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Unit::TypeBinding>
+      bindings(arena);
+  for (const AbiGraphNode& node : nodes.get_view()) {
+    auto type =
+        node.semantic.get().resolve().select<Library::Language::Model::Type>();
+    if (!type || roots.get_view().contains([&](const auto& selected) {
+          return &selected.get() == &*type;
+        })) {
+      continue;
+    }
+    roots.insert(*type);
+    if (!node.route.is_empty()) {
+      bindings.insert(
+          Tetrodotoxin::Terminal::Abi::Unit::TypeBinding(
+              *type, unit.get_package(), unit.get_member(), node.route));
+    }
+  }
+
+  Tetrodotoxin::Terminal::Abi::Unit selected =
+      unit.with_types(bindings.get_view());
+  return compile(
+      arena, monograph, selected, errors, source_path, source_text,
+      roots.get_view());
+}
+
 auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
     Memory::Allocator::Arena& arena,
     const Library::Language::Monograph& monograph,
@@ -202,6 +348,8 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
     Core::View::Bytes source_path,
     Core::View::Bytes source_text,
     Core::View::Vector<
+        Ttx::Concept::Reference<const Library::Language::Model::Type>> roots,
+    Core::View::Vector<
         Ttx::Concept::Reference<const Library::Language::Model::Callable>>
         excluded,
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Projection> projections)
@@ -209,15 +357,26 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Export> exports(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Publication>
       publications(arena);
-  if (!collect_type(
-          arena, unit, monograph.get_source(), exports, publications, errors,
-          source_path, source_text, excluded)) {
-    return {};
+  if (roots.is_empty()) {
+    if (!collect_type(
+            arena, unit, monograph.get_source(), exports, publications, errors,
+            source_path, source_text, excluded)) {
+      return {};
+    }
+  } else {
+    for (const Ttx::Concept::Reference<const Library::Language::Model::Type>&
+             root : roots) {
+      if (!collect_type(
+              arena, unit, root.get(), exports, publications, errors,
+              source_path, source_text, excluded)) {
+        return {};
+      }
+    }
   }
 
   Tetrodotoxin::Terminal::Abi::Representation::Type types;
   auto c_header = Tetrodotoxin::Terminal::Abi::C::Header::create(
-      arena, types, monograph, unit, exports.get_view());
+      arena, types, monograph, unit, exports.get_view(), roots);
   auto cpp_header = Tetrodotoxin::Terminal::Abi::Cpp::Header::create(
       arena, types, unit, exports.get_view());
   if (!c_header || !cpp_header) {

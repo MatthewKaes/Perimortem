@@ -117,9 +117,8 @@ and convert with `new[R32](parameters.time_milliseconds)` inside its Shader.
 
 A Shader Package member can be reconstructed from a source-free Archive. The
 payload retains its private executable owner because the public Material is
-generated from it, but Package lookup publishes only the Material surface. A
-Contract profile retains the public semantic agreement needed by dependents;
-generated SPIR-V and native ABI products remain Terminal artifacts.
+generated from it, but Package lookup publishes only the Material surface.
+Generated SPIR-V and native ABI products remain independent Terminal facts.
 
 See [Pipeline](../render/README.md) for the declarative requirement,
 [Library](../library/README.md) for executable semantics, and

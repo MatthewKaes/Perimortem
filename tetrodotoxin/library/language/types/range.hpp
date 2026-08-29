@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
@@ -29,8 +29,6 @@ class Range : public Model::Type {
 
   auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
       -> Bool override;
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;

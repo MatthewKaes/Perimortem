@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
@@ -33,8 +33,6 @@ class View : public Contiguous {
       -> Perimortem::Core::Option<Model::Pack&> override;
 
   auto accepts(const Model::Pack& source) const -> Bool override;
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& override {
     return element;

@@ -15,7 +15,7 @@ using namespace Tetrodotoxin::Library;
 auto Interpreter::Access::Postfix::parse_type(
     const Abstract&,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.consume();
   if (!cursor.is_one_of({{Code::Type::Type, Code::Type::Addressable}})) {
     cursor.create_token_error(
@@ -40,7 +40,7 @@ auto Interpreter::Access::Postfix::parse_type(
 auto Interpreter::Access::Postfix::parse_propagate(
     const Abstract&,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.require(
       Code::Type::QuestionOp, "Library propagation requires postfix `?`."_view);
   BAIL_IF(!operation);
@@ -54,7 +54,7 @@ auto Interpreter::Access::Postfix::parse_propagate(
 auto Interpreter::Access::Postfix::parse_unwrap(
     const Abstract&,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.require(
       Code::Type::NotOp, "Library Option unwrap requires postfix `!`."_view);
   BAIL_IF(!operation);

@@ -13,27 +13,20 @@ using namespace Perimortem::Serialization;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
-
-Scene::Archive::Writer::Writer(
-    Tetrodotoxin::Language::Persistence::Profile profile) {
-  Appender appender(bytes);
+Scene::Archive::Writer::Writer() {
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << "TTSC"_view;
-  appender << U16(2);
-  appender << U8(profile);
-  appender << U8(0);
+  appender << U16(3);
+  appender << U16(0);
 }
 
-auto Scene::Archive::Writer::encode(
-    const Scene::Language::Monograph& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+auto Scene::Archive::Writer::encode(const Scene::Language::Monograph& monograph)
     -> Option<Dynamic::Bytes> {
   BAIL_IF(!monograph.is_finalized());
-  auto child =
-      Library::Archive::Writer::write(monograph.get_library(), profile);
+  auto child = Library::Archive::Writer::write(monograph.get_library());
   BAIL_IF(!child);
 
-  Writer writer(profile);
+  Writer writer;
   BAIL_IF(
       !writer.write(child->get_view()) ||
       monograph.get_signals().get_size() > U32(-1));
@@ -47,8 +40,7 @@ auto Scene::Archive::Writer::encode(
     const auto& payload = signal.get_payload_reference();
     writer.write(U8(payload ? 1 : 0));
     if (payload) {
-      auto encoded =
-          Library::Archive::Writer::encode_type_reference(*payload, profile);
+      auto encoded = Library::Archive::Writer::encode_type_reference(*payload);
       BAIL_IF(!encoded || !writer.write(encoded->get_view()));
     }
   }
@@ -71,20 +63,20 @@ auto Scene::Archive::Writer::encode(
 }
 
 auto Scene::Archive::Writer::write(U8 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Scene::Archive::Writer::write(U16 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Scene::Archive::Writer::write(U32 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Scene::Archive::Writer::write(View::Bytes value) -> Bool {
   BAIL_IF(value.get_size() > U32(-1));
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U32(value.get_size());
   appender << value;
   return True;

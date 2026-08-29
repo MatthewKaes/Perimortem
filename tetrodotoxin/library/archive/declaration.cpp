@@ -3,10 +3,7 @@
 
 #include "tetrodotoxin/library/archive/declaration.hpp"
 
-#include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/library/archive/reference.hpp"
 #include "tetrodotoxin/library/archive/value.hpp"
@@ -107,18 +104,6 @@ auto Library::Archive::write(
   return writer.finish(record);
 }
 
-auto Library::Archive::write_field_slot(
-    Writer& writer,
-    const Library::Language::Field& field,
-    Count ordinal) -> Bool {
-  auto record = writer.begin(Tag::FieldSlot);
-  writer.write(U64(ordinal));
-  auto reference = field.get_type_reference();
-  writer.write(U8(reference ? 1 : 0));
-  BAIL_IF(reference && !Archive::write(writer, *reference));
-  return writer.finish(record);
-}
-
 auto Library::Archive::read_field(
     Reader& reader,
     Allocator::Arena& arena,
@@ -156,43 +141,6 @@ auto Library::Archive::read_field(
   return Library::Language::Field::create(
       arena, definition, Library::Language::Writability(*encoded_writability),
       type_reference, initializer);
-}
-
-auto Library::Archive::read_field_slot(
-    Reader& reader,
-    Allocator::Arena& arena,
-    Abstract& host,
-    Count ordinal) -> Option<Library::Language::Field&> {
-  auto record = reader.read_record();
-  BAIL_IF(
-      !record || record->get_tag() != U16(Tag::FieldSlot) ||
-      record->is_optional());
-
-  Reader contents(record->get_payload());
-  auto encoded_ordinal = contents.read_u64();
-  auto has_type = contents.read_u8();
-  BAIL_IF(
-      !encoded_ordinal || *encoded_ordinal != ordinal || !has_type ||
-      *has_type > 1);
-
-  Option<Library::Language::TypeReference> type_reference;
-  if (*has_type == 1) {
-    auto restored = read_type_reference(contents, arena, host);
-    BAIL_IF(!restored);
-    type_reference = *restored;
-  }
-  BAIL_IF(!contents.is_complete());
-
-  Managed::Bytes name(arena, "$slot"_view);
-  Perimortem::Serialization::Stream::Textual<Managed::Bytes> stream(name);
-  stream << ordinal;
-  auto& definition = Tetrodotoxin::Language::Definition::create_synthetic(
-      arena, Documentation::get_empty(), host, name.get_view(),
-      Tetrodotoxin::Language::Visibility::Private,
-      Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
-  return Library::Language::Field::create(
-      arena, definition, Library::Language::Writability::Internal,
-      type_reference, Option<Library::Language::Model::Pack&>());
 }
 
 auto Library::Archive::write(

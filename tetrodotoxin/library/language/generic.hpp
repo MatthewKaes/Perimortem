@@ -114,7 +114,7 @@ class Generic : public Ttx::Concept::Abstract {
   // links.
   auto validate_materializations(Ttx::Lexical::Cursor& cursor) const -> Bool;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
  protected:

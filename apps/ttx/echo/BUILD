@@ -3,25 +3,13 @@
 
 """Canonical Echo TTX application sources."""
 
-load("//toolchain:tetrodotoxin.bzl", "ttx_application", "ttx_package")
+load("//toolchain:tetrodotoxin.bzl", "ttx_source")
 
 package(default_visibility = ["//visibility:private"])
 
-ttx_package(
+ttx_source(
     name = "package",
-    package_name = "Perimortem.Echo",
-    manifest = "package.ttx",
-    version = [
-        1,
-        0,
-    ],
+    src = "package.ttx",
     visibility = ["//visibility:public"],
     deps = ["//packages/ttx:perimortem_system"],
-)
-
-ttx_application(
-    name = "echo",
-    app_member = "AppSource",
-    package = ":package",
-    visibility = ["//visibility:public"],
 )

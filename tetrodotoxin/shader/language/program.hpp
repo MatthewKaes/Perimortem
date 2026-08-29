@@ -176,7 +176,7 @@ class Program : public Tetrodotoxin::Library::Language::Types::Structure {
       Tetrodotoxin::Library::Language::Types::Composite& host,
       Tetrodotoxin::Library::Language::Writability writability,
       Bool retain_role) -> Bool;
-  auto project_type(const Ttx::Model::Type& requirement) const
+  auto project_type(const Ttx::Concept::Abstract& requirement) const
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Library::Language::Model::Type&>;
   auto restore_projected_structure(

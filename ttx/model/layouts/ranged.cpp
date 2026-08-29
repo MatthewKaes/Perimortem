@@ -12,7 +12,7 @@ static auto resolves_for_fitting(const Concept::Abstract& value)
     -> const Concept::Abstract& {
   // Direct staged identities remain valid Layout facts before their lifecycle
   // owners can make resolve() succeed. Preserve them so two unrelated
-  // incomplete Types never compare as the same shared Invalid identity.
+  // incomplete Types never compare as the same shared Unknown identity.
   if (value.is<Type>()) {
     return value;
   }

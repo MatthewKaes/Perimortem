@@ -12,8 +12,9 @@ auto Builtin::Fixed::View::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
     const Language::Model::Type& result) -> View& {
-  Language::Parameter& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, receiver);
+  Ttx::Model::Layouts::Addressable& self =
+      Ttx::Model::Layouts::Addressable::create_synthetic(
+          domain, "self"_view, receiver);
   return domain.construct_from<View>(
       [&]() -> View { return View(self, result); });
 }
@@ -25,7 +26,7 @@ auto Builtin::Fixed::View::fold_call(
     -> Core::Option<Language::Model::Pack&> {
   BAIL_IF(!receiver || !arguments.get_layout().is_empty());
 
-  auto bytes = receiver->select<Language::Constants::Bytes>();
+  auto bytes = receiver->select_identity<Language::Constants::Bytes>();
   BAIL_IF(!bytes);
   return Language::Constants::Bytes::create_synthetic(
       domain, result_type, bytes->get_value(), bytes->get_resource());

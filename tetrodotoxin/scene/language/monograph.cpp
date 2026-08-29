@@ -4,7 +4,8 @@
 #include "tetrodotoxin/scene/language/monograph.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -154,21 +155,28 @@ auto Scene::Language::Monograph::finalize_restored() -> Bool {
   return True;
 }
 
-auto Scene::Language::Monograph::resolve_context(View::Bytes route) const
+auto Scene::Language::Monograph::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "instance"_view) {
+    return instance.resolve_concept("instance"_view);
+  }
+  if (route == "static"_view) {
+    return library.get_source().resolve_concept("static"_view);
+  }
+
   auto signal = find_signal(route);
   if (signal) {
     return *signal;
   }
 
-  const Abstract& member = instance.resolve_context(route);
-  if (!member.is<Invalid>()) {
+  const Abstract& member = instance.resolve_concept(route);
+  if (!member.is<Unknown>() && !member.is<None>()) {
     return member;
   }
 
-  const Abstract& child = library.resolve_context(route);
-  return child.is<Invalid>()
-             ? Tetrodotoxin::Language::Monograph::resolve_context(route)
+  const Abstract& child = library.resolve_concept(route);
+  return child.is<Unknown>() || child.is<None>()
+             ? Tetrodotoxin::Language::Monograph::resolve_concept(route)
              : child;
 }
 
@@ -180,30 +188,14 @@ auto Scene::Language::Monograph::resolve_lexical_context(
   }
 
   const Abstract& member = instance.resolve_lexical_context(route);
-  if (!member.is<Invalid>()) {
+  if (!member.is<Unknown>() && !member.is<None>()) {
     return member;
   }
 
   const Abstract& child = library.resolve_lexical_context(route);
-  return child.is<Invalid>()
+  return child.is<Unknown>() || child.is<None>()
              ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
              : child;
-}
-
-auto Scene::Language::Monograph::resolve_access(
-    const Abstract& host,
-    View::Bytes route) const -> const Abstract& {
-  const Abstract& member = instance.resolve_type_access(
-      host, route, Library::Language::Model::Type::Access::Self);
-  return member.is<Invalid>() ? library.resolve_access(host, route) : member;
-}
-
-auto Scene::Language::Monograph::resolve_call(
-    const Abstract& host,
-    View::Bytes route) const -> const Abstract& {
-  const Abstract& callable = instance.resolve_type_call(
-      host, route, Library::Language::Model::Type::Access::Self);
-  return callable.is<Invalid>() ? library.resolve_call(host, route) : callable;
 }
 
 auto Scene::Language::Monograph::validate_lifecycle(Cursor& cursor) const
@@ -242,10 +234,9 @@ auto Scene::Language::Monograph::validate_lifecycle(Cursor& cursor) const
 
   const Library::Language::Function& update_function = *update;
   auto delta = update_function.get_parameters().get_abstract(1);
-  auto delta_addressable =
-      delta ? delta->select<Library::Language::Model::Addressable>()
-            : Option<const Library::Language::Model::Addressable&>();
-  const Abstract& r64 = library.resolve_context("R64"_view).resolve();
+  auto delta_addressable = delta ? delta->select<Ttx::Model::Addressable>()
+                                 : Option<const Ttx::Model::Addressable&>();
+  const Abstract& r64 = library.resolve_concept("R64"_view).resolve();
   if (!update_function.declares_self() ||
       update_function.get_parameters().get_size() != 2 ||
       !update_function.get_results().is_empty() || !delta_addressable ||
@@ -278,10 +269,9 @@ auto Scene::Language::Monograph::validate_lifecycle_restored() const -> Bool {
 
   const Library::Language::Function& function = *update;
   auto delta = function.get_parameters().get_abstract(1);
-  auto addressable =
-      delta ? delta->select<Library::Language::Model::Addressable>()
-            : Option<const Library::Language::Model::Addressable&>();
-  const Abstract& r64 = library.resolve_context("R64"_view).resolve();
+  auto addressable = delta ? delta->select<Ttx::Model::Addressable>()
+                           : Option<const Ttx::Model::Addressable&>();
+  const Abstract& r64 = library.resolve_concept("R64"_view).resolve();
   return function.declares_self() &&
          function.get_parameters().get_size() == 2 &&
          function.get_results().is_empty() && addressable &&

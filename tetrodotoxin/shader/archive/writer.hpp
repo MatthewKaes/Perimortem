@@ -6,7 +6,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/shader/archive/tag.hpp"
 #include "tetrodotoxin/shader/language/bridge.hpp"
 #include "tetrodotoxin/shader/language/monograph.hpp"
@@ -20,9 +19,7 @@ namespace Tetrodotoxin::Shader::Archive {
 // meaning.
 class Writer {
  public:
-  static auto encode(
-      const Tetrodotoxin::Shader::Language::Monograph& monograph,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto encode(const Tetrodotoxin::Shader::Language::Monograph& monograph)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
  private:
@@ -36,7 +33,7 @@ class Writer {
     Count offset;
   };
 
-  explicit Writer(Tetrodotoxin::Language::Persistence::Profile profile);
+  Writer();
 
   auto begin(Tag tag) -> Record;
   auto finish(Record record) -> Bool;
@@ -54,11 +51,6 @@ class Writer {
   auto write(const Tetrodotoxin::Shader::Language::Program& program) -> Bool;
   auto write(const Tetrodotoxin::Shader::Language::Bridge& bridge) -> Bool;
 
-  constexpr auto public_only() const -> Bool {
-    return profile == Tetrodotoxin::Language::Persistence::Profile::Contract;
-  }
-
-  Tetrodotoxin::Language::Persistence::Profile profile;
   Perimortem::Memory::Dynamic::Bytes bytes;
 };
 

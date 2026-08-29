@@ -14,8 +14,9 @@ auto Builtin::View::IsEmpty::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
     const Language::Model::Type& result) -> IsEmpty& {
-  Language::Parameter& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, receiver);
+  Ttx::Model::Layouts::Addressable& self =
+      Ttx::Model::Layouts::Addressable::create_synthetic(
+          domain, "self"_view, receiver);
   return domain.construct_from<IsEmpty>(
       [&]() -> IsEmpty { return IsEmpty(self, result); });
 }
@@ -25,8 +26,9 @@ auto Builtin::View::IsEmpty::fold_call(
     Core::Option<const Language::Model::Pack&> receiver,
     const Language::Model::Pack& arguments) const
     -> Core::Option<Language::Model::Pack&> {
-  auto value = receiver ? receiver->select<Language::Constants::Bytes>()
-                        : Core::Option<const Language::Constants::Bytes&>();
+  auto value = receiver
+                   ? receiver->select_identity<Language::Constants::Bytes>()
+                   : Core::Option<const Language::Constants::Bytes&>();
   auto flag = result_type.resolve().select<Language::Model::Types::Flag>();
   BAIL_IF(!value || !flag || !arguments.get_layout().is_empty());
   return Language::Constants::Flag::create_synthetic(

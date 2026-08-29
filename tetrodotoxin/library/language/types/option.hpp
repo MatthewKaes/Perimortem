@@ -6,7 +6,7 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
@@ -58,8 +58,6 @@ class Option : public Model::Type {
       -> Perimortem::Core::Option<Model::Pack&> override;
 
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;

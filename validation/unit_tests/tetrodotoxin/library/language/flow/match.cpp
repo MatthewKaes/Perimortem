@@ -19,7 +19,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
@@ -116,10 +116,10 @@ PERIMORTEM_UNIT_TEST(MatchTests, flag_coverage) {
   EXPECT_NOT(*first == *second);
   ASSERT(match.get_case_body(0));
   ASSERT(match.get_case_body(1));
-  EXPECT(&match.get_case_body(0)->resolve_context("outer"_view) == &outer);
-  EXPECT(&match.get_case_body(1)->resolve_context("outer"_view) == &outer);
+  EXPECT(&match.get_case_body(0)->resolve_concept("outer"_view) == &outer);
+  EXPECT(&match.get_case_body(1)->resolve_concept("outer"_view) == &outer);
   EXPECT(match.get_case_body(1)
-             ->resolve_context("inner"_view)
+             ->resolve_concept("inner"_view)
              .is<Language::Flow::Local>());
   EXPECT_NOT(match.get_default());
   EXPECT_NOT(match.reaches_next_statement());
@@ -133,7 +133,7 @@ PERIMORTEM_UNIT_TEST(MatchTests, flag_coverage) {
       "    }\n"
       "  }"_view);
 
-  const Abstract& retained_input = match.get_input();
+  const Language::Model::Pack& retained_input = match.get_input();
   const Language::Constant& retained_case = *second;
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "match.ttx"_view);
@@ -174,10 +174,17 @@ PERIMORTEM_UNIT_TEST(MatchTests, folded_default) {
   ASSERT(match.get_default());
   EXPECT_NOT(match.reaches_next_statement());
 
-  auto input_folded = match.get_input().get_folded();
+  Option<Language::Model::Pack&> input_folded;
+  Language::Expression::fold(
+      const_cast<Language::Model::Pack&>(match.get_input()))
+      .visit(
+          [&](const Option<Language::Model::Pack&>& selected) {
+            input_folded = selected;
+          },
+          [](const Language::Expression::Error&) {});
   Bool first_case_selected = False;
   if (input_folded) {
-    auto constant = input_folded->select<Language::Constant>();
+    auto constant = input_folded->select_identity<Language::Constant>();
     first_case_selected = Bool(constant && *constant == *folded);
   }
   EXPECT(first_case_selected);
@@ -248,17 +255,17 @@ PERIMORTEM_UNIT_TEST(MatchTests, option_patterns) {
 
   auto payload = first.get_case_payload(0);
   ASSERT(payload);
-  EXPECT(&payload->get_type() == &monograph->resolve_context("U64"_view));
+  EXPECT(&payload->get_type() == &monograph->resolve_concept("U64"_view));
   ASSERT(first.get_case_body(0));
   ASSERT(first.get_default());
-  EXPECT(&first.get_case_body(0)->resolve_context("item"_view) == &*payload);
+  EXPECT(&first.get_case_body(0)->resolve_concept("item"_view) == &*payload);
   EXPECT(
-      &first.get_default()->resolve_context("item"_view) ==
-      &Invalid::get_invalid());
+      &first.get_default()->resolve_concept("item"_view) ==
+      &Unknown::get_unknown());
   EXPECT_NOT(first.get_case_constant(0));
   EXPECT_NOT(first.reaches_next_statement());
 
-  const Abstract& retained_input = first.get_input();
+  const Language::Model::Pack& retained_input = first.get_input();
   const Ttx::Model::Addressable& retained_payload = *payload;
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "match.ttx"_view);

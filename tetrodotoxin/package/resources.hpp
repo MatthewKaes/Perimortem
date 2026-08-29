@@ -26,7 +26,7 @@ namespace Tetrodotoxin::Package {
 // import operation seals Resources before it links or finalizes the graph.
 // Sealing clears only
 // the borrowed Storage pointer, so cached identities remain valid for the
-// Monograph lifetime while a new route resolves to Invalid.
+// Monograph lifetime while a new route resolves to None after sealing.
 //
 // A Resources connection can be used only once. Sealing never permits another
 // Storage to be selected, and source free construction seals before publishing

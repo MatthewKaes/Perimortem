@@ -33,10 +33,11 @@ static auto vector_capability(
 static auto select_type(const Ttx::Concept::Abstract& semantic)
     -> Core::Option<const Library::Language::Model::Type&> {
   auto addressable = semantic.select<Library::Language::Model::Addressable>();
-  return addressable
-             ? Core::Option<const Library::Language::Model::Type&>(
-                   addressable->get_type())
-             : semantic.resolve().select<Library::Language::Model::Type>();
+  const Ttx::Concept::Abstract& answer =
+      addressable ? addressable->get_type() : semantic;
+  auto direct = answer.select<Library::Language::Model::Type>();
+  return direct ? direct
+                : answer.resolve().select<Library::Language::Model::Type>();
 }
 
 auto Terminal::Spirv::Layout::get_vector_components(

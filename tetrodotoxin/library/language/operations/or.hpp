@@ -20,17 +20,17 @@ class Or : public Operation {
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<
-          Perimortem::Core::Option<Constant&>,
+          Perimortem::Core::Option<Tetrodotoxin::Library::Language::Constant&>,
           Expression::Error> override;
-  auto reaches_next_input(Count folded_input, const Expression& folded) const
+  auto reaches_next_input(Count folded_input, const Constant& folded) const
       -> Bool override;
   auto select_type(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Model::Type&> override;
 
  private:
   Or(Perimortem::Memory::Allocator::Arena& domain,
-     Expression& left,
-     Expression& right,
+     Model::Pack& left,
+     Model::Pack& right,
      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };
 

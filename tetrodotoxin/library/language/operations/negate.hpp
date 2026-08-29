@@ -19,18 +19,18 @@ class Negate : public Operation {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand,
+      Model::Pack& operand,
       Ttx::Lexical::Anchor anchor) -> Negate&;
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand) -> Negate&;
+      Model::Pack& operand) -> Negate&;
 
   TTX_NAME("Negate"_view);
 
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<
-          Perimortem::Core::Option<Constant&>,
+          Perimortem::Core::Option<Tetrodotoxin::Library::Language::Constant&>,
           Expression::Error> override;
   auto select_type(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Model::Type&> override;
@@ -38,7 +38,7 @@ class Negate : public Operation {
  private:
   Negate(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand,
+      Model::Pack& operand,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };
 

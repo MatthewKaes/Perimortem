@@ -6,25 +6,104 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
+#include "perimortem/utility/result.hpp"
+
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/type_identity.hpp"
 
 namespace Ttx::Concept {
 
 // Abstract gives every shared semantic object one stable identity and a small
-// set of questions that any tool can ask. Narrower contracts add Type, Pack,
-// Addressable, Callable, and Alias behavior through ordinary inheritance, which
-// lets the concrete language remain the owner of each object.
+// set of questions that any tool can ask. Narrower contracts add Type,
+// SemanticPack, Addressable, Callable, and Alias behavior through ordinary
+// inheritance, which lets the concrete language remain the owner of each
+// object.
 //
-// Context lookup follows the language route one name at a time. The selected
-// object answers from the context it actually owns, so Packages and Dialects
-// can compose without a global member registry.
+// QueryContext lookup follows the language route one name at a time. The
+// selected object answers from the context it actually owns, so Packages and
+// Dialects can compose without a global member registry.
 //
 // Construction enriches these same objects as more context becomes available.
 // An identity that has already answered successfully stays stable, giving
 // editors, compilers, and runtimes one graph to share throughout completion.
 class Abstract {
  public:
+  // SemanticLayout is the identity-free shape of semantic flow. It borrows the
+  // exact Abstracts that supply each slot, so ordering and fitting never create
+  // a second semantic graph.
+  class SemanticLayout {
+   public:
+    enum class Errors : U8 {
+      IndexOutOfBounds,
+      SizeMismatch,
+      IncompatibleFit,
+    };
+
+    constexpr virtual ~SemanticLayout() = default;
+
+    virtual constexpr auto get_size() const -> Count = 0;
+    virtual constexpr auto get_abstract(Count index) const
+        -> Perimortem::Core::Option<const Abstract&> = 0;
+    virtual constexpr auto get_name(Count index) const
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+      return {};
+    }
+    virtual constexpr auto fits_entry(
+        const SemanticLayout& target,
+        Count source_index,
+        Count target_index) const -> Bool = 0;
+    constexpr auto fits(const SemanticLayout& target) const -> Bool {
+      return get_size() == target.get_size() && fits_at(target, 0);
+    }
+    virtual constexpr auto fits_at(
+        const SemanticLayout& target,
+        Count target_offset) const -> Bool = 0;
+    constexpr auto get_fitted(const SemanticLayout& target, Count target_index)
+        const -> Perimortem::Utility::Result<const Abstract&, Errors> {
+      if (target_index >= get_size()) {
+        return Errors::IndexOutOfBounds;
+      }
+
+      if (get_size() != target.get_size()) {
+        return Errors::SizeMismatch;
+      }
+
+      return get_fitted_at(target, 0, target_index);
+    }
+    virtual constexpr auto get_fitted_at(
+        const SemanticLayout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Perimortem::Utility::Result<const Abstract&, Errors> = 0;
+
+    constexpr auto is_empty() const -> Bool { return get_size() == 0; }
+
+   protected:
+    constexpr auto has_target_segment(
+        const SemanticLayout& target,
+        Count target_offset) const -> Bool {
+      return target_offset <= target.get_size() &&
+             get_size() <= target.get_size() - target_offset;
+    }
+  };
+
+  // SemanticPack carries one produced semantic flow without becoming another
+  // graph identity. Its SemanticLayout names the real Abstracts supplied by the
+  // producer.
+  class SemanticPack {
+   public:
+    constexpr virtual ~SemanticPack() = default;
+    virtual constexpr auto get_layout() const -> const SemanticLayout& = 0;
+  };
+
+  // QueryContext owns one caller's observation results. Packing copies snapshot
+  // shape and names while every Abstract edge continues to borrow its owner.
+  class QueryContext {
+   public:
+    constexpr virtual ~QueryContext() = default;
+    virtual auto pack(const SemanticLayout& layout) -> const SemanticPack& = 0;
+  };
+
   using ClassCatagory = Abstract;
 
   constexpr virtual ~Abstract() = default;
@@ -114,32 +193,20 @@ class Abstract {
   // `&abstract.resolve() == &abstract.resolve().resolve()`.
   virtual constexpr auto resolve() const -> const Abstract& { return *this; }
 
-  // Resolves one name inside this Abstract's context. Concrete language
-  // operators own route punctuation and ask the selected Abstract about the
-  // next name one step at a time. `Name::Name2` is therefore two ordered
-  // queries, never one flattened map key or a request for Abstract to parse
-  // another language's operator.
-  //
-  // An empty name is not required to behave like `resolve()`. A context may
-  // forward an unchanged name while changing context, but valid DAG
-  // construction must still guarantee that resolution terminates.
-  //
-  // For an unchanged DAG, repeating the same ordered resolution chain from the
-  // same starting Abstract returns the same final Abstract identity.
-  virtual constexpr auto resolve_context(
-      Perimortem::Core::View::Bytes name) const -> const Abstract& = 0;
+  // Returns the exact Type fact established for this identity. None proves
+  // that the identity has no Type. Unknown preserves an answer that may still
+  // materialize while the graph is completing.
+  virtual auto get_type() const -> const Abstract&;
 
-  // Resolves an Addressable or Callable selected by an explicit receiver.
-  // These queries keep operator intent separate from lexical name resolution.
-  // The selected Abstract and concrete language decide routing and authority.
-  // TTX does not assign receiver roles, storage, visibility, or member policy.
-  virtual auto resolve_access(
-      const Abstract& host,
-      Perimortem::Core::View::Bytes name) const -> const Abstract&;
+  // Resolves one binary concept owned by this Abstract. Concrete languages
+  // compose their own concepts one question at a time; TTX does not flatten
+  // member access, receiver policy, or invocation into routing modes.
+  virtual auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Abstract&;
 
-  virtual auto resolve_call(
-      const Abstract& host,
-      Perimortem::Core::View::Bytes name) const -> const Abstract&;
+  // Produces one fresh factual snapshot of the concepts this Abstract can
+  // currently answer. Concept order has no semantic meaning.
+  virtual auto get_concepts(QueryContext& context) const -> const SemanticPack&;
 
   // Explicit erased values ask the candidate owner whether it satisfies one
   // exact semantic requirement. The answer records only the higher order
@@ -154,10 +221,14 @@ class Abstract {
   //
   // The returned object and every borrowed line remain valid for the lifetime
   // of this Abstract. Missing documentation is represented by an empty
-  // Documentation object, never Invalid or a nullable reference.
+  // Documentation object, never Unknown or a nullable reference.
   virtual constexpr auto get_documentation() const
       -> const Concept::Documentation& = 0;
 };
+
+using Layout = Abstract::SemanticLayout;
+using Pack = Abstract::SemanticPack;
+using Context = Abstract::QueryContext;
 
 }  // namespace Ttx::Concept
 

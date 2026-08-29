@@ -221,7 +221,9 @@ static auto emit_field(Llvm::Module::Program& program, const Field& field)
   }
   Core::Option<const Model::Pack&> value = field.get_initializer();
   if (!value) {
-    auto created = field.get_type().create_default(program.get_arena());
+    auto type = field.get_type().select<Model::Type>();
+    BAIL_IF(!type);
+    auto created = type->create_default(program.get_arena());
     BAIL_IF(!created);
     value = *created;
   }
@@ -278,7 +280,9 @@ static auto emit_structure(
     }
     auto value = field->get_initializer();
     if (!value) {
-      auto created = field->get_type().create_default(program.get_arena());
+      auto type = field->get_type().select<Model::Type>();
+      BAIL_IF(!type);
+      auto created = type->create_default(program.get_arena());
       BAIL_IF(!created);
       value = *created;
     }

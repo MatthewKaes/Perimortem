@@ -30,7 +30,7 @@ class Stage : public Ttx::Model::Callable {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes name) const
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_parameters() const

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/memory/managed/bytes.hpp"
+
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
 #include "ttx/concept/reference.hpp"
@@ -11,9 +13,9 @@ namespace Tetrodotoxin::Library::Language::Constants {
 
 // Result is one completed immutable value or error selection. Its payload Pack
 // retains the exact folded alternative without copying producer identity.
-class Result : public Constant {
+class Result : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Result, Constant);
+  TTX_CONTRACT(Result, Tetrodotoxin::Library::Language::Constant);
 
   static auto create_value(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,19 +39,23 @@ class Result : public Constant {
   }
 
   constexpr auto get_kind() const -> Types::Result::Kind { return kind; }
+  auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name.get_view();
+  }
   constexpr auto get_payload() const -> const Model::Pack& {
     return payload.get();
   }
 
-  auto equals(const Constant& rhs) const -> Bool override;
+  auto equals(const Tetrodotoxin::Library::Language::Constant& rhs) const
+      -> Bool override;
 
  private:
-  constexpr Result(
+  Result(
+      Perimortem::Memory::Allocator::Arena& domain,
       const Types::Result& type,
       Types::Result::Kind kind,
       Model::Pack& payload,
-      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), kind(kind), payload(payload) {}
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -59,7 +65,8 @@ class Result : public Constant {
 
   const Types::Result& type;
   Types::Result::Kind kind;
-  Ttx::Concept::Reference<Model::Pack> payload;
+  Ttx::Model::PackReference<Model::Pack> payload;
+  Perimortem::Memory::Managed::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

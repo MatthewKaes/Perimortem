@@ -13,7 +13,7 @@ using namespace Tetrodotoxin::Library;
 auto Interpreter::Access::Call::parse(
     const Abstract& context,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token operation = cursor.require(
       Code::Type::CallOp,
       "Library invocation requires `->` before its Callable name."_view);

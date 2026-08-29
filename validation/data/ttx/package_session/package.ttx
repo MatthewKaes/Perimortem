@@ -3,5 +3,6 @@
 //
 // Package aware LSP acceptance.
 dialect : Package;
+package(.name = "Validation.Session", .version = "1.0");
 
 public Main : alias = source("main.ttx");

@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -15,7 +15,7 @@ using namespace Tetrodotoxin::Library;
 
 auto Language::Access::Propagate::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
+    Model::Pack& receiver,
     Anchor anchor) -> Propagate& {
   Model::Pack& empty_escape = Model::Pack::create_empty(domain);
   return Expression::create_authored<Propagate>(
@@ -61,7 +61,7 @@ auto Language::Access::Propagate::link(
       ErrorEscape& created = Expression::create_synthetic<ErrorEscape>(
           cursor.get_arena(),
           [&](Core::Option<Anchor>) { return ErrorEscape(*propagated_error); });
-      escape = Ttx::Concept::Reference<Model::Pack>(created);
+      escape = Ttx::Model::PackReference<Model::Pack>(created);
       error_type =
           Ttx::Concept::Reference<const Model::Type>(*propagated_error);
     }
@@ -113,7 +113,7 @@ auto Language::Access::Propagate::link(
 
 auto Language::Access::Propagate::get_type() const -> const Abstract& {
   return continuation_type.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Reference<const Language::Model::Type>& selected)
           -> const Abstract& { return selected.get(); });
 }
@@ -128,7 +128,7 @@ auto Language::Access::Propagate::evaluate()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Core::Option<Model::Pack&> folded;
   Core::Option<Expression::Error> error;
-  receiver.fold().visit(
+  Expression::fold(receiver).visit(
       [&](const Core::Option<Model::Pack&>& selected) { folded = selected; },
       [&](const Expression::Error& selected) { error = selected; });
   if (error) {

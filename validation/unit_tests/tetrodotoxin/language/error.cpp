@@ -10,7 +10,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -59,7 +60,7 @@ PERIMORTEM_UNIT_TEST(LanguageError, category_contract) {
   EXPECT(abstract.is<Language::Error>());
   EXPECT(abstract.is<Abstract>());
   EXPECT_NOT(abstract.is<Language::Resource>());
-  EXPECT_NOT(abstract.is<Invalid>());
+  EXPECT_NOT(abstract.is<Unknown>());
   EXPECT_NOT(abstract.is<Ttx::Model::Type>());
   EXPECT_TEXT(error.get_name(), "Error"_view);
 
@@ -74,7 +75,7 @@ PERIMORTEM_UNIT_TEST(LanguageError, stable_identity) {
   ContextError first(TestCause::Unreadable, context);
   ContextError second(TestCause::Unreadable, context);
   const Abstract& first_abstract = first;
-  const Invalid& invalid = Invalid::get_invalid();
+  const Unknown& invalid = Unknown::get_unknown();
   const Abstract& invalid_abstract = invalid;
 
   EXPECT(&first != &second);
@@ -96,10 +97,10 @@ PERIMORTEM_UNIT_TEST(LanguageError, context_rejection) {
     View::Bytes(binary_route, sizeof(binary_route)),
   };
   ContextError error(TestCause::Unreadable, "resources/table.bin"_view);
-  const Invalid& invalid = Invalid::get_invalid();
+  const None& none = None::get_none();
 
   for (View::Bytes route : routes) {
-    EXPECT(&error.resolve_context(route) == &invalid);
+    EXPECT(&error.resolve_concept(route) == &none);
   }
 }
 

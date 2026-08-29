@@ -260,15 +260,11 @@ Interface proofs.
 ## Native and durable boundaries
 
 Each standard Package owns its Library source and the data needed to rebuild it.
-Package owns the Archive, its Complete or Contract profile, and native artifact
-locations. The matching Perimortem runtime component provides native behavior,
-the selected language compiler creates member objects, and the platform build
-toolchain creates native archives and executables.
-
-A Complete Archive rebuilds both public and private language objects. An
-Contract Archive rebuilds the public contracts and compiled artifact locations
-needed by other Packages without including executable bodies. Neither profile
-stores LLVM IR, runtime handles, current input, decoded images, live Objects, or
+Package owns one complete graph product. The matching Perimortem runtime
+component provides native behavior, the selected language compiler creates
+member objects, and the platform build toolchain creates native archives and
+executables. The Package product stores neither LLVM IR, native artifact
+locations, runtime handles, current input, decoded images, live Objects, nor
 source level debugging data.
 
 See [Package](../../tetrodotoxin/package/README.md) for dependency and Archive

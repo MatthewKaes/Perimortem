@@ -30,7 +30,7 @@ class Structure : public Composite {
   auto operator=(const Structure&) -> Structure& = delete;
   auto operator=(Structure&&) -> Structure& = delete;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const

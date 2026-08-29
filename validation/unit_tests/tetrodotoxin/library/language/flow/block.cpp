@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -73,7 +73,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, scope_order) {
   ASSERT(monograph);
 
   const Abstract& packet_identity =
-      monograph->get_source().resolve_context("Packet"_view);
+      monograph->get_source().resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
@@ -118,7 +118,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, scope_order) {
 
   auto parameter = body->get_parameters().get_abstract(0);
   ASSERT(parameter);
-  EXPECT(&populated.resolve_context("input"_view) == &*parameter);
+  EXPECT(&populated.resolve_concept("input"_view) == &*parameter);
 
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "block.ttx"_view);
@@ -157,7 +157,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, expressions) {
   auto statements = run->get_body()->get_statements();
   ASSERT_EQ(statements.get_size(), Count(5));
   for (Count index = 0; index < 4; index++) {
-    EXPECT(statements.get_data()[index].get_root().is<Language::Model::Pack>());
+    EXPECT(statements.get_data()[index].get_pack());
   }
   EXPECT(statements.get_data()[4].get_root().is<Language::Flow::Return>());
   EXPECT(errors.is_empty());
@@ -195,8 +195,7 @@ PERIMORTEM_UNIT_TEST(BlockTests, nested_blocks) {
 
   auto nested_statements = nested->get_statements();
   ASSERT_EQ(nested_statements.get_size(), Count(1));
-  EXPECT(
-      nested_statements.get_data()[0].get_root().is<Language::Model::Pack>());
+  EXPECT(nested_statements.get_data()[0].get_pack());
   EXPECT_EQ(
       nested_statements.get_data()[0].get_documentation().line_count(),
       Count(1));

@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -57,12 +57,12 @@ class IndexContext : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes name) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes name) const -> const Abstract& override {
     if (name == binding.get_name()) {
       return binding;
     }
 
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
  private:
@@ -80,8 +80,7 @@ static auto create_monograph(
   Anchor source_anchor = Anchor::create(Span());
   auto interpretation = dialect.interpret(
       cursor, Documentation::get_empty(), source_anchor, context);
-  if (!interpretation ||
-      !interpretation->is<Library::Language::Monograph>() ||
+  if (!interpretation || !interpretation->is<Library::Language::Monograph>() ||
       !errors.is_empty()) {
     return {};
   }
@@ -101,7 +100,7 @@ static auto parse_index(
   auto index = parsed.visit(
       []() -> Option<Library::Language::Access::Index&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
-        return selected.select<Library::Language::Access::Index>();
+        return selected.select_identity<Library::Language::Access::Index>();
       });
   if (!index || !cursor.matches(Code::Type::Terminal)) {
     return {};
@@ -139,7 +138,7 @@ static auto rejects_committed_index_suffix(
   auto receiver = receiver_pack.visit(
       []() -> Option<Library::Language::Expression&> { return {}; },
       [](Library::Language::Model::Pack& selected) {
-        return selected.select<Library::Language::Expression>();
+        return selected.select_identity<Library::Language::Expression>();
       });
   BAIL_IF(
       !receiver || !receiver_cursor.matches(Code::Type::Terminal) ||
@@ -179,20 +178,21 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, write_only_scalar) {
   auto source = parse_pack(domain, monograph, "1"_view, source_errors);
   ASSERT(source);
 
-  EXPECT(&unsigned_index->get_element_type() == &Invalid::get_invalid());
-  EXPECT(&unsigned_index->resolve() == &Invalid::get_invalid());
+  EXPECT(&unsigned_index->get_element_type() == &Unknown::get_unknown());
+  EXPECT(&unsigned_index->resolve() == &Unknown::get_unknown());
   EXPECT(unsigned_index->is<Library::Language::Expression>());
-  EXPECT(unsigned_index->is<Library::Language::Model::Pack>());
+  static_assert(__is_base_of(
+      Library::Language::Model::Pack, Library::Language::Expression));
   ASSERT(
       unsigned_index->link_write(unsigned_cursor, context, element, *source));
   ASSERT(
       unsigned_index->link_write(unsigned_cursor, context, element, *source));
   EXPECT(&unsigned_index->get_element_type() == &element);
   EXPECT(&unsigned_index->get_type() == &element);
-  EXPECT(&unsigned_index->resolve() == &Invalid::get_invalid());
+  EXPECT(&unsigned_index->resolve() == &Unknown::get_unknown());
   ASSERT_EQ(unsigned_index->get_layout().get_size(), Count(1));
   EXPECT(&*unsigned_index->get_layout().get_abstract(0) == &*unsigned_index);
-  EXPECT_NOT(unsigned_index->get_produced(0));
+  EXPECT_NOT(unsigned_index->is_complete());
   unsigned_index->finalize(unsigned_cursor);
   EXPECT(unsigned_errors.is_empty());
   EXPECT(source_errors.is_empty());
@@ -245,7 +245,7 @@ PERIMORTEM_UNIT_TEST(LibraryIndex, atomic_range_write) {
   ASSERT(index->link_write(cursor, context, element, *source));
   ASSERT(index->get_range_count());
   EXPECT_EQ(*index->get_range_count(), Count(2));
-  EXPECT(&index->get_type() == &Invalid::get_invalid());
+  EXPECT(&index->get_type() == &Unknown::get_unknown());
   EXPECT_NOT(index->get_write_type(element));
   EXPECT(errors.is_empty());
   EXPECT(source_errors.is_empty());

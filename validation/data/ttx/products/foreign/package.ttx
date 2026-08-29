@@ -3,5 +3,6 @@
 //
 
 dialect : Package;
+package(.name = "Validation.Foreign", .version = "1.0");
 
 public Foreign : alias = source("foreign.ttx");

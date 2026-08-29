@@ -35,6 +35,12 @@ static auto control_select_carriers(const Llvm::Module::Body& body)
   return body.get_program().get_carriers();
 }
 
+static auto control_select_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
 static auto control_native_builder(const Llvm::Module::Body& body)
     -> llvm::IRBuilder<>& {
   return *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
@@ -47,7 +53,8 @@ static auto control_native_function(const Llvm::Module::Body& body)
 
 static auto control_find_value(
     const Llvm::Module::Body& body,
-    const Ttx::Model::Pack& pack) -> Core::Option<llvm::Value&> {
+    const Tetrodotoxin::Library::Language::Model::Pack& pack)
+    -> Core::Option<llvm::Value&> {
   auto found = body.find_value(pack);
   return found ? Core::Option<llvm::Value&>(*llvm::unwrap(*found))
                : Core::Option<llvm::Value&>();
@@ -72,7 +79,7 @@ static auto control_leave_loop(
 
 static auto control_return_values(
     Llvm::Module::Body& native_body,
-    const Ttx::Model::Pack& values,
+    const Tetrodotoxin::Library::Language::Model::Pack& values,
     Bool preserve_tracking) -> Bool {
   auto carriers = control_select_carriers(native_body);
   if (!carriers) {
@@ -95,10 +102,9 @@ static auto control_return_values(
     auto entry = results.get_abstract(0);
     auto reference = entry ? entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-    auto type =
-        reference ? Core::Option<const Ttx::Model::Type&>(reference->get_type())
-        : entry   ? entry->resolve().select<Ttx::Model::Type>()
-                  : Core::Option<const Ttx::Model::Type&>();
+    auto type = reference ? control_select_type(reference->get_type())
+                : entry   ? control_select_type(*entry)
+                          : Core::Option<const Ttx::Model::Type&>();
     if (!type) {
       return False;
     }
@@ -183,12 +189,12 @@ static auto control_return_values(
 }
 
 auto Llvm::Emission::ControlFlow::return_values(
-    const Ttx::Model::Pack& values) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& values) const -> Bool {
   return control_return_values(body, values, False);
 }
 
 auto Llvm::Emission::ControlFlow::escape_values(
-    const Ttx::Model::Pack& values) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& values) const -> Bool {
   return control_return_values(body, values, True);
 }
 
@@ -199,7 +205,8 @@ auto Llvm::Emission::ControlFlow::leave_loop(
 }
 
 auto Llvm::Emission::ControlFlow::begin_branch(
-    const Ttx::Model::Pack& condition) const -> Core::Option<Branch> {
+    const Tetrodotoxin::Library::Language::Model::Pack& condition) const
+    -> Core::Option<Branch> {
   Llvm::Module::Body& native_body = body;
   auto selected = control_find_value(native_body, condition);
   if (!selected) {
@@ -290,7 +297,8 @@ auto Llvm::Emission::ControlFlow::begin_while(
 
 auto Llvm::Emission::ControlFlow::select_while(
     const Ttx::Concept::Abstract& owner,
-    const Ttx::Model::Pack& condition) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& condition) const
+    -> Bool {
   Llvm::Module::Body& native_body = body;
   auto loop = native_body.find_loop(owner);
   auto selected = control_find_value(native_body, condition);
@@ -391,15 +399,16 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
     const Ttx::Concept::Abstract& owner,
     const Ttx::Model::Addressable& binding,
     const Ttx::Model::Type& input_type,
-    const Ttx::Model::Pack& input) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& input) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = control_select_carriers(body);
-  if (!carriers) {
+  auto binding_type = control_select_type(binding.get_type());
+  if (!carriers || !binding_type) {
     return False;
   }
 
   auto native_input = control_find_value(native_body, input);
-  auto native_element = carriers->get_type(binding.get_type());
+  auto native_element = carriers->get_type(*binding_type);
   if (!native_input || !native_element) {
     return False;
   }
@@ -473,7 +482,7 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
 
   builder.SetInsertPoint(&condition);
   llvm::Value* current = builder.CreateLoad(start->getType(), index_address);
-  llvm::Value* active = range && carriers->is_signed(binding.get_type())
+  llvm::Value* active = range && carriers->is_signed(*binding_type)
                             ? builder.CreateICmpSLT(current, &*end)
                             : builder.CreateICmpULT(current, &*end);
   builder.CreateCondBr(active, &branch, &done);
@@ -517,8 +526,11 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
   auto value_binding = value_entry
                            ? value_entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-  auto value_type = value_binding
-                        ? carriers->get_type(value_binding->get_type())
+  auto value_semantic_type =
+      value_binding ? control_select_type(value_binding->get_type())
+                    : Core::Option<const Ttx::Model::Type&>();
+  auto value_type = value_semantic_type
+                        ? carriers->get_type(*value_semantic_type)
                         : Core::Option<LLVMTypeRef>();
   Core::Option<llvm::IntegerType&> native_value;
   if (value_type) {
@@ -544,8 +556,11 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
     auto name_entry = bindings.get_abstract(1);
     name_binding = name_entry ? name_entry->select<Ttx::Model::Addressable>()
                               : Core::Option<const Ttx::Model::Addressable&>();
-    auto native_name = name_binding
-                           ? carriers->get_type(name_binding->get_type())
+    auto name_semantic_type =
+        name_binding ? control_select_type(name_binding->get_type())
+                     : Core::Option<const Ttx::Model::Type&>();
+    auto native_name = name_semantic_type
+                           ? carriers->get_type(*name_semantic_type)
                            : Core::Option<LLVMTypeRef>();
     Core::Option<llvm::StructType&> selected_name;
     if (native_name) {
@@ -655,7 +670,8 @@ auto Llvm::Emission::ControlFlow::end_iteration(
 }
 
 auto Llvm::Emission::ControlFlow::begin_match(
-    const Ttx::Model::Pack& input) const -> Core::Option<Match> {
+    const Tetrodotoxin::Library::Language::Model::Pack& input) const
+    -> Core::Option<Match> {
   Llvm::Module::Body& native_body = body;
   auto native_input = native_body.find_value(input);
   if (!native_input) {
@@ -670,7 +686,8 @@ auto Llvm::Emission::ControlFlow::begin_match(
 
 auto Llvm::Emission::ControlFlow::begin_constant_case(
     Match& state,
-    const Ttx::Model::Pack& constant) const -> Core::Option<MatchCase> {
+    const Tetrodotoxin::Library::Language::Model::Pack& constant) const
+    -> Core::Option<MatchCase> {
   Llvm::Module::Body& native_body = body;
   auto selected_constant = control_find_value(native_body, constant);
   if (!selected_constant) {
@@ -702,8 +719,10 @@ auto Llvm::Emission::ControlFlow::begin_value_case(
     return {};
   }
 
-  auto native_type = carriers->get_type(payload.get_type());
-  if (!native_type) {
+  auto type = control_select_type(payload.get_type());
+  auto native_type =
+      type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+  if (!type || !native_type) {
     return {};
   }
 
@@ -722,13 +741,13 @@ auto Llvm::Emission::ControlFlow::begin_value_case(
   LLVMValueRef address =
       native_body.create_entry_alloca(*native_type, "match.payload"_view);
   LLVMValueRef value = llvm::wrap(builder.CreateExtractValue(input, 0));
-  if (!carriers->retain(native_body, payload.get_type(), value)) {
+  if (!carriers->retain(native_body, *type, value)) {
     return {};
   }
 
   builder.CreateStore(llvm::unwrap(value), llvm::unwrap(address));
   if (!native_body.publish_address(payload, address) ||
-      !native_body.register_storage(payload.get_type(), address)) {
+      !native_body.register_storage(*type, address)) {
     return {};
   }
 
@@ -805,17 +824,18 @@ auto Llvm::Emission::ControlFlow::end_statement() const -> Bool {
 
 auto Llvm::Emission::ControlFlow::bind_local(
     const Ttx::Model::Addressable& local,
-    const Ttx::Model::Pack& value) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& value) const -> Bool {
   auto carriers = control_select_carriers(body);
   Llvm::Module::Program& program = body.get_program();
   if (!carriers) {
     return False;
   }
 
-  const Ttx::Model::Type& type = local.get_type();
-  auto native_type = carriers->get_type(type);
+  auto type = control_select_type(local.get_type());
+  auto native_type =
+      type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
   auto values = body.find_values(value);
-  if (!native_type) {
+  if (!type || !native_type) {
     return program.fail_toolchain(
         "LLVM cannot bind a Local without its completed carrier."_view);
   }
@@ -825,8 +845,8 @@ auto Llvm::Emission::ControlFlow::bind_local(
   }
 
   auto stored =
-      carriers->fit_and_assemble(body, type, value, values->get_view());
-  if (!stored || !body.acquire(type, *stored)) {
+      carriers->fit_and_assemble(body, *type, value, values->get_view());
+  if (!stored || !body.acquire(*type, *stored)) {
     return program.fail_toolchain(
         "LLVM cannot transfer the selected value into one Local."_view);
   }
@@ -835,7 +855,7 @@ auto Llvm::Emission::ControlFlow::bind_local(
   control_native_builder(body).CreateStore(
       llvm::unwrap(*stored), llvm::unwrap(address));
   if (!body.publish_address(local, address) ||
-      !body.register_storage(type, address)) {
+      !body.register_storage(*type, address)) {
     return program.fail_toolchain(
         "LLVM cannot publish storage for one Local."_view);
   }
@@ -886,7 +906,7 @@ auto Llvm::Emission::ControlFlow::has_full_debug() const -> Bool {
 
 auto Llvm::Emission::ControlFlow::constant_local(
     const Ttx::Model::Addressable& local,
-    const Ttx::Model::Pack& value,
+    const Tetrodotoxin::Library::Language::Model::Pack& value,
     Ttx::Lexical::Anchor anchor) const -> Bool {
   Llvm::Module::Program& program = get_program();
   if (program.get_debug().get_level() != Llvm::Module::Debug::Level::Full) {
@@ -900,8 +920,10 @@ auto Llvm::Emission::ControlFlow::constant_local(
   }
 
   const Llvm::Module::Carriers& carriers = program.get_carriers();
-  auto assembled = carriers.fit_and_assemble(
-      body, local.get_type(), value, values->get_view());
+  auto type = control_select_type(local.get_type());
+  BAIL_IF(!type);
+  auto assembled =
+      carriers.fit_and_assemble(body, *type, value, values->get_view());
   return assembled &&
          program.get_debug().value(body, local, anchor, *assembled);
 }

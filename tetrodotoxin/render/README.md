@@ -94,11 +94,10 @@ and GPU glue from the completed graph.
 
 ## Persistence
 
-Pipeline members can be stored in a Package Archive and reconstructed without
-their source file. A Complete profile retains public and private declarations;
-a Contract profile retains the public interface required by dependent Packages.
-Neither profile stores generated locations, descriptor coordinates, SPIR-V,
-native handles, or frame state.
+Pipeline members can be stored in a Package product and reconstructed without
+their source file. The complete graph retains public and private declarations
+but no generated locations, descriptor coordinates, SPIR-V, native handles, or
+frame state.
 
 See [Shader](../shader/README.md) for implementations and
 [Graphics](../graphics/README.md) for draw and pass ownership.

@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/equal.hpp"
-#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -11,6 +10,7 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/real.hpp"
@@ -23,7 +23,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -73,10 +73,10 @@ class EqualUnresolvedType : public Ttx::Model::Type {
     return Documentation::get_empty();
   }
   auto resolve() const -> const Abstract& override {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 
@@ -84,13 +84,13 @@ class EqualFoldInput : public Operation {
  public:
   EqualFoldInput(
       Allocator::Arena& domain,
-      Expression& input,
-      Constant& result,
+      Model::Pack& input,
+      Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
-            Static::Vector<Reference<Expression>, 1>{{input}},
+            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
             {}),
         result(result),
         type(type),
@@ -103,8 +103,9 @@ class EqualFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&)
-      -> Result<Option<Constant&>, Expression::Error> override {
+  auto evaluate_constants(Allocator::Arena&) -> Result<
+      Option<Tetrodotoxin::Library::Language::Constant&>,
+      Expression::Error> override {
     evaluations++;
     if (fails) {
       return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
@@ -119,7 +120,7 @@ class EqualFoldInput : public Operation {
   }
 
  private:
-  Constant& result;
+  Tetrodotoxin::Library::Language::Constant& result;
   const Model::Type& type;
   Bool fails;
   Count evaluations = 0;
@@ -127,27 +128,32 @@ class EqualFoldInput : public Operation {
 
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
-    -> Option<Expression&> {
+    -> Option<Tetrodotoxin::Library::Language::Constant&> {
   return result.visit(
-      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return folded.visit(
-            []() -> Option<Expression&> { return {}; },
-            [](Model::Pack& selected) -> Option<Expression&> {
-              return selected.select<Expression>();
+            []() -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return {};
+            },
+            [](Model::Pack& selected)
+                -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return selected
+                  .select_identity<Tetrodotoxin::Library::Language::Constant>();
             });
       },
-      [](const Expression::Error&) -> Option<Expression&> { return {}; });
+      [](const Expression::Error&)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
 static auto reports(
     const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
-    const Expression& origin) -> Bool {
+    const Abstract& origin) -> Bool {
   return result.visit(
       [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
-        return error.get_type() == expected &&
-                       &error.get_expression() == &origin
+        return error.get_type() == expected && &error.get_subject() == &origin
                    ? True
                    : False;
       });
@@ -177,7 +183,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, type_selection) {
   EqualExpression flag_right("flag right"_view, boolean);
   EqualExpression other("other"_view, u16);
   EqualExpression unresolved("unresolved"_view, unresolved_type);
-  EqualExpression invalid("invalid"_view, Invalid::get_invalid());
+  EqualExpression invalid("invalid"_view, Unknown::get_unknown());
   EqualExpression dynamic_bytes("dynamic bytes"_view, bytes_type);
   auto& bytes =
       Constants::Bytes::create_synthetic(domain, bytes_type, "x"_view);
@@ -206,7 +212,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, type_selection) {
   auto& byte_mismatch =
       Operations::Equal::create_synthetic(domain, bytes, other_bytes);
 
-  EXPECT(signed_exact.get_type().resolve().is<Invalid>());
+  EXPECT(signed_exact.get_type().resolve().is<Unknown>());
   EXPECT_NOT(signed_exact.get_anchor());
   EXPECT(link_operation(signed_exact, source));
   EXPECT(link_operation(unsigned_exact, source));
@@ -227,11 +233,11 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, type_selection) {
   EXPECT(&flag_exact.get_type() == &resolve_library_flag(source));
   EXPECT(&byte_values.get_type() == &resolve_library_flag(source));
   EXPECT_NOT(retained);
-  EXPECT(mismatch.get_type().resolve().is<Invalid>());
-  EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
-  EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
-  EXPECT(incomplete_bytes.get_type().resolve().is<Invalid>());
-  EXPECT(byte_mismatch.get_type().resolve().is<Invalid>());
+  EXPECT(mismatch.get_type().resolve().is<Unknown>());
+  EXPECT(unresolved_pair.get_type().resolve().is<Unknown>());
+  EXPECT(invalid_pair.get_type().resolve().is<Unknown>());
+  EXPECT(incomplete_bytes.get_type().resolve().is<Unknown>());
+  EXPECT(byte_mismatch.get_type().resolve().is<Unknown>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryEqual, constant_domains) {
@@ -289,7 +295,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, constant_domains) {
   auto& bytes_different =
       Operations::Equal::create_synthetic(domain, bytes, other_bytes);
 
-  EXPECT(signed_equal.get_type().resolve().is<Invalid>());
+  EXPECT(signed_equal.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(signed_equal, source));
   EXPECT(link_operation(signed_different, source));
   EXPECT(link_operation(unsigned_equal, source));
@@ -315,16 +321,16 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, constant_domains) {
   ASSERT(
       signed_yes && signed_no && unsigned_yes && unsigned_no && real_yes &&
       real_no && flag_yes && flag_no && bytes_yes && bytes_no);
-  EXPECT(signed_yes->is<Constants::True>());
-  EXPECT(signed_no->is<Constants::False>());
-  EXPECT(unsigned_yes->is<Constants::True>());
-  EXPECT(unsigned_no->is<Constants::False>());
-  EXPECT(real_yes->is<Constants::True>());
-  EXPECT(real_no->is<Constants::False>());
-  EXPECT(flag_yes->is<Constants::True>());
-  EXPECT(flag_no->is<Constants::False>());
-  EXPECT(bytes_yes->is<Constants::True>());
-  EXPECT(bytes_no->is<Constants::False>());
+  EXPECT(signed_yes->is_identity<Constants::True>());
+  EXPECT(signed_no->is_identity<Constants::False>());
+  EXPECT(unsigned_yes->is_identity<Constants::True>());
+  EXPECT(unsigned_no->is_identity<Constants::False>());
+  EXPECT(real_yes->is_identity<Constants::True>());
+  EXPECT(real_no->is_identity<Constants::False>());
+  EXPECT(flag_yes->is_identity<Constants::True>());
+  EXPECT(flag_no->is_identity<Constants::False>());
+  EXPECT(bytes_yes->is_identity<Constants::True>());
+  EXPECT(bytes_no->is_identity<Constants::False>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryEqual, real_equivalence) {
@@ -348,7 +354,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, real_equivalence) {
   auto& signed_zero =
       Operations::Equal::create_synthetic(domain, positive_zero, negative_zero);
 
-  EXPECT(nan_pair.get_type().resolve().is<Invalid>());
+  EXPECT(nan_pair.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(nan_pair, source));
   EXPECT(link_operation(nan_finite, source));
   EXPECT(link_operation(signed_zero, source));
@@ -358,9 +364,9 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, real_equivalence) {
   auto zeros = selected(signed_zero.fold());
 
   ASSERT(nan_equal && nan_other && zeros);
-  EXPECT(nan_equal->is<Constants::True>());
-  EXPECT(nan_other->is<Constants::False>());
-  EXPECT(zeros->is<Constants::True>());
+  EXPECT(nan_equal->is_identity<Constants::True>());
+  EXPECT(nan_other->is_identity<Constants::False>());
+  EXPECT(zeros->is_identity<Constants::True>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
@@ -382,7 +388,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
   auto& invalid_constant =
       Operations::Equal::create_synthetic(domain, invalid_child, right);
 
-  EXPECT(equal.get_type().resolve().is<Invalid>());
+  EXPECT(equal.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(equal, source));
   EXPECT(link_operation(equal, source));
   EXPECT(link_operation(failure, source));
@@ -393,7 +399,7 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
 
   ASSERT(first && second);
   EXPECT(&*first == &*second);
-  EXPECT(first->is<Constants::True>());
+  EXPECT(first->is_identity<Constants::True>());
   EXPECT(child.get_evaluations() == 1);
   EXPECT(reports(
       failure.fold(), Expression::Error::Type::InvalidConstant, failing));
@@ -411,8 +417,9 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, success_left_anchor);
-  auto parsed = Interpreter::Operation::parse_binary(Code::Type::CmpOp,
-      source, success_cursor, success_left, Span(success_left_token));
+  auto parsed = Interpreter::Operation::parse_binary(
+      Code::Type::CmpOp, source, success_cursor, success_left,
+      Span(success_left_token));
   Errors failure_errors;
   Tokenizer failure_tokens(domain, "2 == true"_view, "equal.ttx"_view);
   Ttx::Lexical::Associations failure_associations(failure_tokens.get_arena());
@@ -422,30 +429,33 @@ PERIMORTEM_UNIT_TEST(LibraryEqual, atomic_provenance) {
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::Unsigned::create_authored(
       domain, parser_type, 2, failure_left_anchor);
-  auto rejected = Interpreter::Operation::parse_binary(Code::Type::CmpOp,
-      source, failure_cursor, failure_left, Span(failure_left_token));
+  auto rejected = Interpreter::Operation::parse_binary(
+      Code::Type::CmpOp, source, failure_cursor, failure_left,
+      Span(failure_left_token));
 
   ASSERT(parsed);
-  EXPECT(parsed->is<Operations::Equal>());
-  EXPECT(parsed->get_type().resolve().is<Invalid>());
+  EXPECT(parsed->is_identity<Operations::Equal>());
+  EXPECT(parsed->get_type().resolve().is<Unknown>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
-      [](Abstract&) -> Option<Expression&> { return {}; });
+      [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
+        return {};
+      });
 
   ASSERT(parsed_fold);
-  EXPECT(parsed_fold->is<Constants::True>());
+  EXPECT(parsed_fold->is_identity<Constants::True>());
   EXPECT(&parsed->get_type() == &resolve_library_flag(source));
 
   ASSERT(rejected);
-  EXPECT(rejected->is<Operations::Equal>());
-  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(rejected->is_identity<Operations::Equal>());
+  EXPECT(rejected->get_type().resolve().is<Unknown>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
   EXPECT_NOT(rejected->link(failure_cursor, source));
-  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(rejected->get_type().resolve().is<Unknown>());
   EXPECT_EQ(failure_errors.get_size(), Count(1));
 }

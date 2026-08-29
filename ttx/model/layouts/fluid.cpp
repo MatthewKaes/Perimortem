@@ -12,7 +12,7 @@ static auto resolves_for_fitting(const Concept::Abstract& value)
     -> const Concept::Abstract& {
   // A reserved Type is already the exact semantic fact needed by Layout
   // negotiation even when its owner has not completed resolution yet. Resolving
-  // it first would collapse every incomplete Type to the shared Invalid object
+  // it first would collapse every incomplete Type to the shared Unknown object
   // and make unrelated staged identities appear compatible.
   if (value.is<Type>()) {
     return value;

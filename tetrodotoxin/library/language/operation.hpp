@@ -13,6 +13,7 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
 
@@ -20,8 +21,9 @@ namespace Tetrodotoxin::Library::Language {
 
 // Operation is the Expression base for executable value operations. It owns
 // authored input order and the one exact result Type selected after every
-// child links. A concrete operation supplies its legality and Constant
-// evaluation without asking Parser to interpret semantic Types.
+// child links. A concrete operation supplies its legality and
+// Tetrodotoxin::Library::Language::Constant evaluation without asking Parser to
+// interpret semantic Types.
 class Operation : public Expression {
  public:
   TTX_CONTRACT(Operation, Expression);
@@ -42,16 +44,16 @@ class Operation : public Expression {
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
   // Operations retain their exact authored scalar input order. Consumers visit
-  // those real Expression edges without reconstructing another input model.
-  constexpr auto get_inputs() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>> {
+  // those real Pack flows without reconstructing another input model.
+  constexpr auto get_inputs() const -> Perimortem::Core::View::Vector<
+      Ttx::Model::PackReference<Model::Pack>> {
     return inputs.get_view();
   }
 
  protected:
   Operation(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Expression>>
+      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
           inputs,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
@@ -60,18 +62,19 @@ class Operation : public Expression {
   // evaluation inventory. A future operation over flow with several values must
   // own that Pack shape rather than flatten it into this scalar contract.
   auto fold_input(Count index) -> Perimortem::Utility::
-      Result<Perimortem::Core::Option<Expression&>, Expression::Error>;
+      Result<Perimortem::Core::Option<Constant&>, Expression::Error>;
 
   // Concrete evaluation runs only after the ordered traversal completed.
   // This observation unwraps that cached result without changing the
   // authored edge or starting another computation.
-  auto get_folded_input(Count index) -> Perimortem::Core::Option<Expression&>;
+  auto get_folded_input(Count index) -> Perimortem::Core::Option<Constant&>;
 
   virtual auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
-      -> Perimortem::Utility::
-          Result<Perimortem::Core::Option<Constant&>, Expression::Error> = 0;
+      -> Perimortem::Utility::Result<
+          Perimortem::Core::Option<Tetrodotoxin::Library::Language::Constant&>,
+          Expression::Error> = 0;
 
-  virtual auto reaches_next_input(Count folded_input, const Expression& folded)
+  virtual auto reaches_next_input(Count folded_input, const Constant& folded)
       const -> Bool;
 
   // Type selection runs during link, where the exact lexical context and every
@@ -85,7 +88,7 @@ class Operation : public Expression {
 
  private:
   Perimortem::Memory::Allocator::Arena& domain;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Expression>>
+  Perimortem::Memory::Managed::Vector<Ttx::Model::PackReference<Model::Pack>>
       inputs;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       result_type;
@@ -98,11 +101,11 @@ class Operation : public Expression {
 #define BINARY_OP_CONTRACT(type)                                              \
   TTX_CONTRACT(type, Operation);                                              \
   static auto create_authored(                                                \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& left,         \
-      Expression& right, Ttx::Lexical::Anchor anchor) -> type&;               \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,        \
+      Model::Pack& right, Ttx::Lexical::Anchor anchor) -> type&;              \
   static auto create_synthetic(                                               \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& left,         \
-      Expression& right) -> type&;                                            \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,        \
+      Model::Pack& right) -> type&;                                           \
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override { \
     return #type##_view;                                                      \
   }
@@ -111,51 +114,51 @@ class Operation : public Expression {
 // and synthetic construction path over one retained operand inventory.
 #define TTX_BINARY_OP(type)                                                 \
   auto Tetrodotoxin::Library::Language::Operations::type::create_authored(  \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& left,       \
-      Expression& right, Ttx::Lexical::Anchor anchor) -> type& {            \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,      \
+      Model::Pack& right, Ttx::Lexical::Anchor anchor) -> type& {           \
     return Expression::create_authored<type>(                               \
         domain, anchor, [&](auto source) -> type {                          \
           return type(domain, left, right, source);                         \
         });                                                                 \
   }                                                                         \
   auto Tetrodotoxin::Library::Language::Operations::type::create_synthetic( \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& left,       \
-      Expression& right) -> type& {                                         \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,      \
+      Model::Pack& right) -> type& {                                        \
     return Expression::create_synthetic<type>(                              \
         domain, [&](auto source) -> type {                                  \
           return type(domain, left, right, source);                         \
         });                                                                 \
   }                                                                         \
   Tetrodotoxin::Library::Language::Operations::type::type(                  \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& left,       \
-      Expression& right,                                                    \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,      \
+      Model::Pack& right,                                                   \
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                \
       : Operation(                                                          \
             domain,                                                         \
             Perimortem::Core::Static::Vector<                               \
-                Ttx::Concept::Reference<Expression>, 2>{{left, right}},     \
+                Ttx::Model::PackReference<Model::Pack>, 2>{{left, right}},  \
             anchor) {}
 
 #define TTX_UNARY_OP(type)                                                   \
   auto Tetrodotoxin::Library::Language::Operations::type::create_authored(   \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& operand,     \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& operand,    \
       Ttx::Lexical::Anchor anchor) -> type& {                                \
     return Expression::create_authored<type>(                                \
         domain, anchor,                                                      \
         [&](auto source) -> type { return type(domain, operand, source); }); \
   }                                                                          \
   auto Tetrodotoxin::Library::Language::Operations::type::create_synthetic(  \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& operand)     \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& operand)    \
       -> type& {                                                             \
     return Expression::create_synthetic<type>(                               \
         domain,                                                              \
         [&](auto source) -> type { return type(domain, operand, source); }); \
   }                                                                          \
   Tetrodotoxin::Library::Language::Operations::type::type(                   \
-      Perimortem::Memory::Allocator::Arena& domain, Expression& operand,     \
+      Perimortem::Memory::Allocator::Arena& domain, Model::Pack& operand,    \
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)                 \
       : Operation(                                                           \
             domain,                                                          \
             Perimortem::Core::Static::Vector<                                \
-                Ttx::Concept::Reference<Expression>, 1>{{operand}},          \
+                Ttx::Model::PackReference<Model::Pack>, 1>{{operand}},       \
             anchor) {}

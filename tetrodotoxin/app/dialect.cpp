@@ -115,23 +115,20 @@ auto App::Dialect::interpret(
                            *runtime, *scene));
 }
 
-auto App::Dialect::encode(
-    const Abstract& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile) const
+auto App::Dialect::encode(const Abstract& monograph) const
     -> Option<Perimortem::Memory::Dynamic::Bytes> {
   auto app = monograph.select<App::Language::Monograph>();
-  return app ? App::Archive::Writer().write(*app, profile)
+  return app ? App::Archive::Writer().write(*app)
              : Option<Perimortem::Memory::Dynamic::Bytes>();
 }
 
 auto App::Dialect::restore(
     Perimortem::Memory::Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation& documentation,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   auto restored = App::Archive::Reader().read(
-      arena, payload, profile, *this, documentation, context);
+      arena, payload, *this, documentation, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

@@ -164,7 +164,7 @@ static auto parse_statement(
       Code::Type::EndStatement,
       "Library expression statements require one terminating `;`."_view);
   BAIL_IF(!terminator);
-  return Language::Statement::create(
+  return Language::Statement::create_pack(
       *expression, documentation,
       Anchor::create(opening, Span(opening, terminator)),
       [](Language::Model::Pack& selected, Cursor& operation_cursor,

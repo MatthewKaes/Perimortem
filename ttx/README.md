@@ -103,22 +103,25 @@ categories:
 
 ```text
 Abstract
-├── Invalid
+├── Unknown
+├── Constant
+│   └── None
 ├── Alias
 ├── Type
 ├── Addressable
-├── Pack
 └── Callable
 ```
 
-`Layout`, `Interface`, `Documentation`, and `Reference` describe, negotiate, or
-connect those objects without becoming separate language objects themselves.
+`Layout`, `Pack`, `Context`, `Interface`, `Documentation`, and `Reference`
+describe, negotiate, or connect those objects without becoming separate
+language objects themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
-`Pack` carries produced value flow and exposes its complete output Layout. A
+`Pack` is an identity-free view whose Layout names the exact producers. A
 `Callable` exposes parameter and result Layouts. An `Alias` keeps its own local
-name and Documentation while resolving to another identity. `Invalid` is the
-total result of a semantic query that cannot be answered at that stage.
+name and Documentation while resolving to another identity. `Unknown` is a
+provisional answer, `Constant` is an immutable axiomatic fact, and `None` proves
+completed absence.
 
 A Reference points to the object created by its owner. Equal names, structures,
 and Layouts do not make two objects the same Type. This distinction lets
@@ -127,8 +130,8 @@ several copies synchronized.
 
 ### Packs and semantic Layout
 
-A Pack preserves the identity of produced value flow without turning that flow
-into a Type. It may supply no values, one value, or several positional, named,
+A Pack borrows the exact producers of value flow without turning that flow into
+a Type or another semantic identity. It may supply no values, one value, or several positional, named,
 ranged, or composed values. One ordinary value producing expression is already
 a Pack, while a multiple value Pack remains fluid until a receiving contract
 chooses to materialize a Type. `()` supplies an empty Layout and fits `[]`
@@ -177,8 +180,8 @@ machine storage requirements.
 
 > **Structural negotiation like Zig, explicit runtime erasure like Rust.**
 
-Pack and Layout form the shared data flow projection. The Pack keeps its
-producer identity, while Layout exposes the shape that can move to a consumer.
+Pack and Layout form the shared data flow projection. The Pack borrows its real
+producer identities, while Layout exposes the shape that can move to a consumer.
 That projection deliberately leaves behavior and richer domain meaning behind.
 
 Interface negotiates the missing semantic relation over the two original

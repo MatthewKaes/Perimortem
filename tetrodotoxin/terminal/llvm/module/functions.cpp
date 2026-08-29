@@ -43,6 +43,12 @@ static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
       reinterpret_cast<const char*>(value.get_data()), value.get_size());
 }
 
+static auto select_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
 static auto select_program(Llvm::Module::Emission& program)
     -> Core::Option<Llvm::Module::Program&> {
   if (program.get_kind() == Llvm::Module::Emission::Kind::Module) {
@@ -194,15 +200,17 @@ static auto select_parameter_types(
           "LLVM received a Callable parameter without an Addressable."_view);
     }
 
-    auto type = carriers.get_type(parameter->get_type());
-    if (!type) {
+    auto semantic_type = select_type(parameter->get_type());
+    auto type = semantic_type ? carriers.get_type(*semantic_type)
+                              : Core::Option<LLVMTypeRef>();
+    if (!semantic_type || !type) {
       return fail_toolchain(
           program,
           "LLVM cannot find the completed carrier for a Callable parameter."_view);
     }
 
     native.insert(llvm::unwrap(*type));
-    semantic.insert(&parameter->get_type());
+    semantic.insert(&*semantic_type);
   }
 
   return True;
@@ -225,11 +233,9 @@ static auto select_result_types(
     auto entry = layout.get_abstract(index);
     auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
                              : Core::Option<const Ttx::Model::Addressable&>();
-    auto type =
-        addressable
-            ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
-        : entry ? entry->resolve().select<Ttx::Model::Type>()
-                : Core::Option<const Ttx::Model::Type&>();
+    auto type = addressable ? select_type(addressable->get_type())
+                : entry     ? select_type(*entry)
+                            : Core::Option<const Ttx::Model::Type&>();
     if (!type || !target) {
       return fail_toolchain(
           program,
@@ -424,9 +430,10 @@ auto Llvm::Module::Functions::complete_construction(
   record.indirect_parameters.clear();
   for (const Ttx::Concept::Reference<const Ttx::Model::Addressable>& retained :
        record.parameters.get_view()) {
-    const Ttx::Model::Type& type = retained.get().get_type();
-    auto native = carriers->get_type(type);
-    if (!native) {
+    auto type = select_type(retained.get().get_type());
+    auto native =
+        type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+    if (!type || !native) {
       return fail_toolchain(
           program,
           "LLVM cannot complete Type construction without every Field "
@@ -472,9 +479,10 @@ auto Llvm::Module::Functions::complete_construction(
                module.getDataLayout().getABITypeAlign(llvm::unwrap(*result))));
   }
   for (Count index = 0; index < record.parameters.get_size(); index++) {
-    const Ttx::Model::Type& type = record.parameters[index].get().get_type();
-    auto native = carriers->get_type(type);
-    BAIL_IF(!native);
+    auto type = select_type(record.parameters[index].get().get_type());
+    auto native =
+        type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+    BAIL_IF(!type || !native);
     Count parameter = offset + index * 2;
     if (record.indirect_parameters[index]) {
       function.addParamAttr(
@@ -485,7 +493,7 @@ auto Llvm::Module::Functions::complete_construction(
                               context, module.getDataLayout().getABITypeAlign(
                                            llvm::unwrap(*native))));
     }
-    auto extension = get_extension(*carriers, type);
+    auto extension = get_extension(*carriers, *type);
     if (extension) {
       function.addParamAttr(U32(parameter), *extension);
     }
@@ -508,9 +516,9 @@ static auto lower_construction_value(
     const Llvm::Lowering::Execution& execution,
     const Llvm::Module::Carriers& carriers,
     const Ttx::Model::Type& type,
-    const Ttx::Model::Pack& value) -> Core::Option<LLVMValueRef> {
-  auto library = value.select<Tetrodotoxin::Library::Language::Model::Pack>();
-  BAIL_IF(!library || !execution.lower(*library));
+    const Tetrodotoxin::Library::Language::Model::Pack& value)
+    -> Core::Option<LLVMValueRef> {
+  BAIL_IF(!execution.lower(value));
   auto lowered = body.find_values(value);
   BAIL_IF(!lowered);
   return carriers.fit_and_assemble(body, type, value, lowered->get_view());
@@ -578,6 +586,8 @@ auto Llvm::Module::Functions::lower_construction(
   Count parameter_index = 0;
   for (const ConstructionField& input : fields) {
     const Ttx::Model::Addressable& field = input.get_field();
+    auto field_type = select_type(field.get_type());
+    BAIL_IF(!field_type);
 
     Core::Option<LLVMValueRef> supplied;
     Core::Option<LLVMValueRef> present;
@@ -588,7 +598,7 @@ auto Llvm::Module::Functions::lower_construction(
           argument == function.arg_end());
       llvm::Value& native_value = *argument;
       argument++;
-      auto carrier = carriers.get_type(field.get_type());
+      auto carrier = carriers.get_type(*field_type);
       BAIL_IF(!carrier);
       supplied =
           retained_indirect_parameters[parameter_index]
@@ -603,8 +613,7 @@ auto Llvm::Module::Functions::lower_construction(
 
     if (!supplied || !present) {
       auto lowered = lower_construction_value(
-          native_body, execution, carriers, field.get_type(),
-          input.get_fallback());
+          native_body, execution, carriers, *field_type, input.get_fallback());
       if (!lowered) {
         Core::Diagnostics::Log::Message<256> message(
             Core::Diagnostics::Log::Level::Error, Core::Diagnostics::Source());
@@ -626,14 +635,13 @@ auto Llvm::Module::Functions::lower_construction(
         llvm::unwrap(*present), &supplied_block, &fallback_block);
 
     native_builder.SetInsertPoint(&supplied_block);
-    BAIL_IF(!native_body.acquire(field.get_type(), *supplied));
+    BAIL_IF(!native_body.acquire(*field_type, *supplied));
     native_builder.CreateBr(&merge_block);
 
     native_builder.SetInsertPoint(&fallback_block);
     auto lowered = lower_construction_value(
-        native_body, execution, carriers, field.get_type(),
-        input.get_fallback());
-    BAIL_IF(!lowered || !native_body.acquire(field.get_type(), *lowered));
+        native_body, execution, carriers, *field_type, input.get_fallback());
+    BAIL_IF(!lowered || !native_body.acquire(*field_type, *lowered));
     llvm::BasicBlock* fallback_end = native_builder.GetInsertBlock();
     BAIL_IF(!fallback_end || fallback_end->getTerminator());
     native_builder.CreateBr(&merge_block);
@@ -646,7 +654,7 @@ auto Llvm::Module::Functions::lower_construction(
     // Both branches contribute one owned value before they meet. Tracking the
     // merged carrier lets aggregate construction transfer that ownership once
     // without referring to an instruction confined to either predecessor.
-    native_body.mark_owned(field.get_type(), llvm::wrap(&selected));
+    native_body.mark_owned(*field_type, llvm::wrap(&selected));
     values.insert(llvm::wrap(&selected));
   }
   if (parameter_index != retained_parameters.get_size() ||
@@ -676,29 +684,26 @@ auto Llvm::Module::Functions::lower_construction(
 }
 
 static auto select_construction_argument(
-    const Ttx::Model::Pack& arguments,
-    Core::View::Bytes name) -> Core::Option<const Ttx::Model::Pack&> {
+    const Tetrodotoxin::Library::Language::Model::Pack& arguments,
+    Core::View::Bytes name) -> Core::Option<Count> {
   const Ttx::Concept::Layout& layout = arguments.get_layout();
-  Core::Option<const Ttx::Model::Pack&> selected;
+  Core::Option<Count> selected;
   for (Count index = 0; index < layout.get_size(); index++) {
     auto candidate_name = layout.get_name(index);
     if (!candidate_name || *candidate_name != name) {
       continue;
     }
-    auto produced = arguments.get_produced(index);
-    auto pack = produced ? produced->producer.select<Ttx::Model::Pack>()
-                         : Core::Option<const Ttx::Model::Pack&>();
-    BAIL_IF(selected || !pack);
-    selected = *pack;
+    BAIL_IF(selected || !layout.get_abstract(index));
+    selected = index;
   }
   return selected;
 }
 
 auto Llvm::Module::Functions::call_construction(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Pack& result,
+    const Library::Language::Model::Pack& result,
     const Ttx::Model::Type& owner,
-    const Ttx::Model::Pack& arguments) const -> Bool {
+    const Library::Language::Model::Pack& arguments) const -> Bool {
   auto native_body = select_body(body);
   auto found = constructions.find(&owner);
   if (!native_body || !found || !found->value.function) {
@@ -727,22 +732,27 @@ auto Llvm::Module::Functions::call_construction(
 
   for (Count index = 0; index < retained_parameters.get_size(); index++) {
     const Ttx::Model::Addressable& field = retained_parameters[index].get();
+    auto field_type = select_type(field.get_type());
+    BAIL_IF(!field_type);
     auto selected = select_construction_argument(arguments, field.get_name());
     Core::Option<LLVMValueRef> native;
     if (selected) {
-      auto lowered = native_body->find_values(*selected);
-      if (lowered) {
+      auto lowered = native_body->find_values(arguments);
+      if (lowered && *selected < lowered->get_size()) {
+        const Core::Static::Vector<LLVMValueRef, 1> value = {{
+          lowered->get_data()[*selected],
+        }};
         native = carriers.fit_and_assemble(
-            *native_body, field.get_type(), *selected, lowered->get_view());
+            *native_body, *field_type, arguments, value);
       }
     } else {
-      native = carriers.zero(native_body->get_program(), field.get_type());
+      native = carriers.zero(native_body->get_program(), *field_type);
     }
     BAIL_IF(!native);
 
     LLVMValueRef argument = *native;
     if (retained_indirect_parameters[index]) {
-      auto carrier = carriers.get_type(field.get_type());
+      auto carrier = carriers.get_type(*field_type);
       BAIL_IF(!carrier);
       auto storage = native_body->create_entry_alloca(
           *carrier, "construction.argument"_view);

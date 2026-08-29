@@ -13,8 +13,10 @@
 
 #include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "tetrodotoxin/library/language/types/instance.hpp"
+#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/type.hpp"
 
@@ -30,15 +32,13 @@ class Type : public Ttx::Model::Type {
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>;
   using Callables = Perimortem::Core::View::Selection<CallableBindings>;
 
-  // Access makes receiver intent explicit at every Library Type query. Static
-  // selects through a Type identity, while Self selects through one real
-  // Addressable instance. There is no implicit overload that guesses the role.
-  enum class Access : ::U8 {
-    Self,
-    Static,
-  };
-
   TTX_CONTRACT(Type, Ttx::Model::Type);
+
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   // Every completed nonempty Library Type owns one total semantic default.
   // The Arena is only the destination for the resulting Pack. Representation
@@ -182,45 +182,13 @@ class Type : public Ttx::Model::Type {
   // the ordinary context query unchanged.
   virtual auto resolve_lexical_context(Perimortem::Core::View::Bytes route)
       const -> const Ttx::Concept::Abstract& {
-    return resolve_context(route);
+    return resolve_concept(route);
   }
 
   // Publication proves the selected identity through the host Type rather
   // than inspecting a concrete declaration category at each consumer.
   virtual auto is_externally_reachable(const Type& type) const -> Bool {
-    return &resolve_context(type.get_name()).resolve() == &type;
-  }
-
-  // The host proves caller authority only. It never supplies an implicit
-  // receiver or a second lookup path. Each Type owns the exact Static and Self
-  // surfaces it supports and may reject either role independently.
-  virtual auto resolve_type_access(
-      const Ttx::Concept::Abstract&,
-      Perimortem::Core::View::Bytes,
-      Access) const -> const Ttx::Concept::Abstract& {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
-
-  virtual auto resolve_type_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Access access) const -> const Ttx::Concept::Abstract&;
-
-  // A named Type is already the complete Static receiver. This keeps common
-  // source Import Types on the same semantic path as a locally authored
-  // Type instead of requiring callers to retain or recognize its Monograph.
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override {
-    return resolve_type_access(host, route, Access::Static);
-  }
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override {
-    return resolve_type_call(host, route, Access::Static);
+    return &resolve_concept(type.get_name()).resolve() == &type;
   }
 
   // Lookup, reflection, and completion enumerate the same exact Callable
@@ -231,6 +199,15 @@ class Type : public Ttx::Model::Type {
           Tetrodotoxin::Language::Visibility::Private) const -> Callables;
 
  protected:
+  constexpr Type() = default;
+
+  explicit Type(Perimortem::Memory::Allocator::Arena& domain);
+
+  auto edit_static_authority() -> Types::Static&;
+  auto edit_instance_authority() -> Types::Instance&;
+  auto get_static_authority() const -> const Types::Static&;
+  auto get_instance_authority() const -> const Types::Instance&;
+
   // Concrete Type construction publishes every authored or generated Callable
   // into this one surface. The Callable parameter Layout remains the only
   // Static or Self role authority.
@@ -248,6 +225,13 @@ class Type : public Ttx::Model::Type {
       -> CallableBindings;
 
  private:
+  auto initialize_authorities(Perimortem::Memory::Allocator::Arena& domain)
+      -> void;
+
+  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Static>>
+      static_authority;
+  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Instance>>
+      instance_authority;
   Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>>
       callables;

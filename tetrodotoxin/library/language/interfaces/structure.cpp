@@ -13,10 +13,13 @@ using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
 auto Language::Interfaces::Structure::compatible_type(
-    const Language::Model::Type& required,
-    const Language::Model::Type& supplied) -> Bool {
-  const Abstract& required_identity = required.resolve();
-  const Abstract& supplied_identity = supplied.resolve();
+    const Abstract& required,
+    const Abstract& supplied) -> Bool {
+  auto required_type = required.select<Language::Model::Type>();
+  auto supplied_type = supplied.select<Language::Model::Type>();
+  BAIL_IF(!required_type || !supplied_type);
+  const Abstract& required_identity = required_type->resolve();
+  const Abstract& supplied_identity = supplied_type->resolve();
   if (&required_identity == &supplied_identity) {
     return True;
   }
@@ -35,10 +38,8 @@ auto Language::Interfaces::Structure::select_field(
   auto object = candidate.resolve().select<Language::Types::Object>();
   BAIL_IF(!object || !object->is_linked());
 
-  auto selected = object
-                      ->resolve_type_access(
-                          requirement.get_host(), requirement.get_name(),
-                          Language::Model::Type::Access::Self)
+  auto selected = object->resolve_concept("instance"_view)
+                      .resolve_concept(requirement.get_name())
                       .resolve()
                       .select<Language::Field>();
   BAIL_IF(

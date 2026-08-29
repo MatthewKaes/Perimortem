@@ -12,7 +12,8 @@
 
 #include "tetrodotoxin/library/language/generics/access.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,7 +36,7 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
   EXPECT_TEXT(access.get_name(), "Access[U8]"_view);
   EXPECT(&access.get_element_type() == &element);
   EXPECT_NOT(access.get_documentation().is_empty());
-  EXPECT(&access.resolve_context("member"_view) == &Invalid::get_invalid());
+  EXPECT(&access.resolve_concept("member"_view) == &None::get_none());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
@@ -44,7 +45,7 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, formula_construction) {
   auto& root = create_library_monograph(arena, dialect);
   Tetrodotoxin::Library::Language::Types::U8 element;
   const auto& formula =
-      static_cast<const Generic&>(root.resolve_context("Access"_view));
+      static_cast<const Generic&>(root.resolve_concept("Access"_view));
   const Static::Vector<Generic::Argument, 1> accepted = {
     {Generic::Argument(element)},
   };

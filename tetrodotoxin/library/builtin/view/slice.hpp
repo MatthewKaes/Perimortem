@@ -6,10 +6,10 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/ranged.hpp"
 
@@ -30,7 +30,6 @@ class Slice : public Language::Model::Callable {
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_parameters() const
       -> const Ttx::Concept::Layout& override {
@@ -49,9 +48,9 @@ class Slice : public Language::Model::Callable {
 
  private:
   Slice(
-      Language::Parameter& self,
-      Language::Parameter& start,
-      Language::Parameter& count,
+      Ttx::Model::Layouts::Addressable& self,
+      Ttx::Model::Layouts::Addressable& start,
+      Ttx::Model::Layouts::Addressable& count,
       const Language::Model::Type& result);
 
   Perimortem::Core::Static::

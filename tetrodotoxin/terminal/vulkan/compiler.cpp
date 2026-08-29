@@ -67,10 +67,11 @@ static auto align_up(Count value, Count alignment) -> Count {
 static auto select_type(const Ttx::Concept::Abstract& semantic)
     -> Core::Option<const Library::Language::Model::Type&> {
   auto addressable = semantic.select<Library::Language::Model::Addressable>();
-  return addressable
-             ? Core::Option<const Library::Language::Model::Type&>(
-                   addressable->get_type())
-             : semantic.resolve().select<Library::Language::Model::Type>();
+  const Ttx::Concept::Abstract& answer =
+      addressable ? addressable->get_type() : semantic;
+  auto direct = answer.select<Library::Language::Model::Type>();
+  return direct ? direct
+                : answer.resolve().select<Library::Language::Model::Type>();
 }
 
 static auto uses_float64(const Library::Language::Model::Type& type) -> Bool {
@@ -175,11 +176,13 @@ auto Terminal::Vulkan::Compiler::describe(
             semantic
                 ? semantic->select<Library::Language::Model::Addressable>()
                 : Core::Option<const Library::Language::Model::Addressable&>();
+        auto type = addressable
+                        ? select_type(*addressable)
+                        : Core::Option<const Library::Language::Model::Type&>();
         auto layout =
-            addressable
-                ? Terminal::Spirv::Layout::measure(addressable->get_type())
-                : Core::Option<Terminal::Spirv::Layout::Measurement>();
-        BAIL_IF(!addressable || !layout);
+            type ? Terminal::Spirv::Layout::measure(*type)
+                 : Core::Option<Terminal::Spirv::Layout::Measurement>();
+        BAIL_IF(!addressable || !type || !layout);
         field_offset = align_up(field_offset, layout->get_alignment());
         auto projected_field = addressable->select<Library::Language::Field>();
         BAIL_IF(!projected_field);

@@ -3,6 +3,7 @@
 //
 // Exercises ordered package member resource loading.
 dialect : Package;
+package(.name = "Validation.Resources", .version = "1.0");
 
 private SharedA : alias = source("./shared_a.ttx");
 public SharedAgain : alias = source("nested/../shared_a.ttx");

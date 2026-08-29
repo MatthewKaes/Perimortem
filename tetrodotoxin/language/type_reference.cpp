@@ -5,13 +5,18 @@
 
 #include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
+
+static auto is_missing(const Abstract& abstract) -> Bool {
+  return abstract.is<Unknown>() || abstract.is<None>();
+}
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
   return binding.visit<Language::Import>(
@@ -72,10 +77,10 @@ static auto resolve_route(
             return monograph.resolve_lexical_context(name);
           },
           [&](const Abstract&) -> const Abstract& {
-            return selected->resolve_context(name);
+            return selected->resolve_concept(name);
           });
     } else {
-      queried = &selected->resolve_context(name);
+      queried = &selected->resolve_concept(name);
     }
 
     const Abstract& represented = resolve_alias(*queried);
@@ -83,7 +88,7 @@ static auto resolve_route(
         queried->is<Ttx::Model::Type>() && !queried->is<Language::Import>()
             ? queried
             : &represented;
-    if (candidate->is<Invalid>()) {
+    if (is_missing(*candidate)) {
       if (cursor) {
         auto report = cursor->create_report(anchor);
         report << "Type route `"_view << route

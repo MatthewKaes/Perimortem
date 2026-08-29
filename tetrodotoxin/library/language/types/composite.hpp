@@ -6,13 +6,14 @@
 #include "perimortem/core/view/selection.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "perimortem/memory/managed/map.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/library/language/types/instance.hpp"
+#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -57,8 +58,8 @@ class Composite : public Model::Type {
       Perimortem::Core::View::Bytes route,
       Category category,
       Tetrodotoxin::Language::Visibility visibility =
-          Tetrodotoxin::Language::Visibility::Private,
-      Bool self = False) const -> const Ttx::Concept::Abstract&;
+          Tetrodotoxin::Language::Visibility::Private) const
+      -> const Ttx::Concept::Abstract&;
 
   virtual auto retain_binding(
       Ttx::Concept::Abstract& binding,
@@ -162,8 +163,11 @@ class Composite : public Model::Type {
   // An explicit context query exposes only public Type names. A missing local
   // name forwards outward, but a selected Composite never lends private
   // declaration authority to the remainder of a qualified route.
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   virtual auto resolve_public_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
@@ -172,18 +176,6 @@ class Composite : public Model::Type {
   // Actual containment grants local access without attaching authority to any
   // later segment selected by TypeReference.
   auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_type_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_type_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
       -> const Ttx::Concept::Abstract& override;
 
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
@@ -212,6 +204,14 @@ class Composite : public Model::Type {
 
   auto is_published(const Ttx::Concept::Abstract& declaration) const -> Bool;
 
+  constexpr auto get_static_authority() const -> const Static& {
+    return static_authority;
+  }
+
+  constexpr auto get_instance_authority() const -> const Instance& {
+    return instance_authority;
+  }
+
   constexpr auto is_linked() const -> Bool {
     return stage >= Stage::FieldsLinked;
   }
@@ -221,59 +221,6 @@ class Composite : public Model::Type {
   }
 
  private:
-  // NameIndex gives every semantic query the same route into Composite's real
-  // category owners. Ordered vectors remain the declaration and presentation
-  // surfaces, while this derived view keeps lookup independent of their size.
-  class NameIndex {
-   public:
-    constexpr NameIndex(Perimortem::Memory::Allocator::Arena& domain)
-        : entries(domain) {}
-
-    auto can_bind(const Ttx::Concept::Abstract& binding, Category category)
-        const -> Bool;
-
-    auto bind(
-        Ttx::Concept::Abstract& binding,
-        Category category,
-        Bool published) -> Bool;
-
-    auto resolve(
-        Perimortem::Core::View::Bytes name,
-        Category category,
-        Tetrodotoxin::Language::Visibility visibility,
-        Bool self) const -> const Ttx::Concept::Abstract&;
-
-    auto is_published(const Ttx::Concept::Abstract& binding) const -> Bool;
-
-   private:
-    struct Entry {
-      auto can_bind(
-          const Ttx::Concept::Abstract& binding,
-          Category category,
-          Bool self) const -> Bool;
-
-      auto bind(
-          Ttx::Concept::Abstract& binding,
-          Category category,
-          Bool self,
-          Bool published) -> Bool;
-
-      auto select(Category category, Bool self) const
-          -> Perimortem::Core::Option<Ttx::Concept::Abstract&>;
-
-      auto is_published(const Ttx::Concept::Abstract& binding) const -> Bool;
-
-      Perimortem::Core::Option<Ttx::Concept::Abstract&> addressable;
-      Perimortem::Core::Option<Ttx::Concept::Abstract&> type;
-      Perimortem::Core::Option<Ttx::Concept::Abstract&> static_callable;
-      Perimortem::Core::Option<Ttx::Concept::Abstract&> self_callable;
-      U8 publication = 0;
-    };
-
-    Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Entry>
-        entries;
-  };
-
   enum class Stage : ::U8 {
     Authored,
     TypesLinked,
@@ -286,7 +233,8 @@ class Composite : public Model::Type {
 
   Tetrodotoxin::Language::Definition& definition;
   Perimortem::Memory::Allocator::Arena& domain;
-  NameIndex names;
+  Static& static_authority;
+  Instance& instance_authority;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       addressables;

@@ -71,11 +71,11 @@ class Callable : public Ttx::Model::Callable {
       return {};
     }
 
-    auto parameter = first->select<Addressable>();
+    auto parameter = first->select<Ttx::Model::Addressable>();
     if (!parameter || parameter->get_name() != "self"_view) {
       return {};
     }
-    return parameter->get_type();
+    return parameter->get_type().select<Type>();
   }
 
   constexpr auto is_type_bound() const -> Bool {

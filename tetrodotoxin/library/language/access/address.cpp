@@ -4,7 +4,8 @@
 #include "tetrodotoxin/library/language/access/address.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "tetrodotoxin/library/language/field.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -14,7 +15,7 @@ using namespace Tetrodotoxin::Library;
 
 auto Language::Access::Address::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
+    Model::Pack& receiver,
     Token name_token,
     Core::View::Bytes name,
     Anchor anchor) -> Address& {
@@ -26,7 +27,7 @@ auto Language::Access::Address::create_authored(
 
 auto Language::Access::Address::create_synthetic(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
+    Model::Pack& receiver,
     const Language::Model::Addressable& selected) -> Address& {
   Core::Option<Reference<const Language::Model::Addressable>> addressable{
     Reference<const Language::Model::Addressable>(selected),
@@ -52,16 +53,18 @@ auto Language::Access::Address::link(
   }
 
   const Abstract& receiver_result = receiver.get_result();
-  const Abstract& host = access_scope.visit(
-      [&]() -> const Abstract& { return lexical_context; },
-      [](const Abstract& selected) -> const Abstract& { return selected; });
   const Abstract& candidate = receiver_result.visit<Language::Model::Type>(
       [&](const Language::Model::Type& type) -> const Abstract& {
-        return type.resolve_type_access(
-            host, name, Language::Model::Type::Access::Static);
+        return type.resolve_concept("static"_view).resolve_concept(name);
       },
       [&](const Abstract& receiver) -> const Abstract& {
-        return receiver.resolve_access(host, name);
+        auto addressable = receiver.resolve().select<Ttx::Model::Addressable>();
+        return addressable ? addressable->get_type()
+                                 .resolve()
+                                 .resolve_concept("instance"_view)
+                                 .resolve_concept(name)
+                           : receiver.resolve_concept("static"_view)
+                                 .resolve_concept(name);
       });
   auto selected = candidate.resolve().select<Language::Model::Addressable>();
 
@@ -78,6 +81,22 @@ auto Language::Access::Address::link(
     return False;
   }
 
+  auto field = selected->select<Language::Field>();
+  if (field && field->get_definition().get_visibility() ==
+                   Tetrodotoxin::Language::Visibility::Private) {
+    const Abstract& caller = access_scope.visit(
+        [&]() -> const Abstract& { return lexical_context; },
+        [](const Abstract& selected) -> const Abstract& { return selected; });
+    auto caller_type = caller.select<Language::Model::Type>();
+    if (!caller_type ||
+        !caller_type->has_private_access_to(field->get_host())) {
+      cursor.create_expression_error(
+          source_anchor, "Field is private to its declaring Type."_view,
+          "Select the Field only from code hosted by that Type."_view);
+      return False;
+    }
+  }
+
   if (addressable && &addressable->get() != &*selected) {
     auto report = cursor.create_report(source_anchor);
     report << "Internal semantic error: field access '"_view << name
@@ -89,6 +108,9 @@ auto Language::Access::Address::link(
   }
 
   addressable = Reference<const Language::Model::Addressable>(*selected);
+  if (source_anchor) {
+    cursor.get_associations().create(*source_anchor, *selected);
+  }
   return Expression::link(cursor, lexical_context, access_scope);
 }
 
@@ -104,14 +126,14 @@ auto Language::Access::Address::get_documentation() const
 
 auto Language::Access::Address::get_type() const -> const Abstract& {
   return addressable.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Reference<const Language::Model::Addressable>& selected)
           -> const Abstract& { return selected.get().get_type(); });
 }
 
 auto Language::Access::Address::get_result() const -> const Abstract& {
   return addressable.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Reference<const Language::Model::Addressable>& selected)
           -> const Abstract& { return selected.get(); });
 }

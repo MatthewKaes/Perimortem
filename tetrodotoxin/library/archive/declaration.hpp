@@ -78,21 +78,10 @@ auto read_alias(
 
 auto write(Writer& writer, const Language::Field& field) -> Bool;
 
-auto write_field_slot(
-    Writer& writer,
-    const Language::Field& field,
-    Count ordinal) -> Bool;
-
 auto read_field(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
     Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Language::Field&>;
-
-auto read_field_slot(
-    Reader& reader,
-    Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Count ordinal) -> Perimortem::Core::Option<Language::Field&>;
 
 auto write(Writer& writer, const Language::Function& function) -> Bool;
 

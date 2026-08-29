@@ -10,8 +10,8 @@
 namespace Tetrodotoxin::Library::Language::Model {
 
 // Addressable owns Library receiver traversal while the TTX base retains only
-// the host neutral named edge to an exact Type. Plain context lookup stays
-// closed on an instance because members require an explicit access operator.
+// the host neutral total Type answer. Plain context lookup stays closed on an
+// instance because members require an explicit access operator.
 class Addressable : public Ttx::Model::Addressable {
  public:
   TTX_CONTRACT(Addressable, Ttx::Model::Addressable);
@@ -56,13 +56,6 @@ class Addressable : public Ttx::Model::Addressable {
     return False;
   }
 
-  // Receiver shape belongs to the selected Addressable. Contextual and
-  // imported identities use Static lookup by default, while declaration owners
-  // may refine the exact Static or Self surfaces they provide.
-  virtual constexpr auto supports_access(Type::Access access) const -> Bool {
-    return access == Type::Access::Static;
-  }
-
   // Mutation is declaration authority rather than a property inferred from
   // concrete storage classes. Neutral and computed Addressables are read only.
   virtual auto permits_write_from(const Type&) const -> Bool { return False; }
@@ -74,45 +67,18 @@ class Addressable : public Ttx::Model::Addressable {
     return {};
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override {
     const Ttx::Concept::Abstract& resolved = resolve();
     if (&resolved != this) {
-      return resolved.resolve_context(route);
+      return resolved.resolve_concept(route);
     }
 
-    return Ttx::Concept::Invalid::get_invalid();
+    return Ttx::Concept::Unknown::get_unknown();
   }
 
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override {
-    const Ttx::Concept::Abstract& resolved = resolve();
-    if (&resolved != this) {
-      return resolved.resolve_access(host, route);
-    }
-
-    auto type = get_type().resolve().select<Type>();
-    return type ? type->resolve_type_access(host, route, Type::Access::Self)
-                : Ttx::Concept::Invalid::get_invalid();
-  }
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override {
-    const Ttx::Concept::Abstract& resolved = resolve();
-    if (&resolved != this) {
-      return resolved.resolve_call(host, route);
-    }
-
-    auto type = get_type().resolve().select<Type>();
-    return type ? type->resolve_type_call(host, route, Type::Access::Self)
-                : Ttx::Concept::Invalid::get_invalid();
-  }
-
-  virtual constexpr auto get_type() const -> const Type& override = 0;
+  virtual constexpr auto get_type() const
+      -> const Ttx::Concept::Abstract& override = 0;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

@@ -113,16 +113,20 @@ therefore has no required parent path.
 The closed identity categories are:
 
 * `Abstract` provides identity, a local name, Documentation, category proof,
-  and contextual resolution.
-* `Invalid` is the absorbing semantic failure identity.
+  one total Type answer, and concept queries.
+* `Unknown` is a provisional answer that may settle differently as the graph
+  completes.
+* `Constant` proves one complete immutable axiomatic graph fact.
+* `None` is the shared Constant proving completed absence.
 * `Alias` provides a local identity that redirects to one borrowed target.
 * `Type` provides a semantic domain and one total Layout.
-* `Addressable` provides a named address whose edge reaches one Type.
-* `Pack` provides produced value flow and one total output Layout.
+* `Addressable` provides a named address whose total Type edge returns
+  `Unknown` while incomplete and one exact Type once established.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, `Interface`, and `Reference` are supporting contracts
-and values that carry no semantic identity.
+`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
+supporting contracts and values that carry no semantic identity. Pack carries
+named semantic flow over the exact Abstracts identified by its Layout.
 
 These categories are an interchange vocabulary rather than a complete type
 system. Concrete languages define their Type inventory, access policy,
@@ -134,33 +138,26 @@ identity.
 
 ## Resolution and category proof
 
-Every Abstract exposes its local name, its Documentation, its represented
-identity through `resolve()`, and owner directed contextual identity through
-`resolve_context(name)`. Each observation is total.
+Every Abstract exposes its local name, Documentation, represented identity
+through `resolve()`, exact Type fact through `get_type()`, and owner-directed
+concept lookup through `resolve_concept(name)`. Each observation is total.
 
-`resolve()` returns the represented identity. `resolve_context(name)` gives one
-borrowed name to the receiving identity, which interprets it according to its
-own domain. Concrete language operators split qualified syntax and query the
-identity selected by each preceding name. They never flatten a qualified route
-into one lookup key. For an unchanged completed graph, resolution is idempotent
-and every chain terminates.
+`resolve()` returns the represented identity. `resolve_concept(name)` gives one
+borrowed binary name to the receiving identity, which interprets the question
+according to its own domain. Concrete operators split qualified syntax and ask
+the identity selected by each preceding name. They never flatten a qualified
+route into one lookup key or encode access and invocation as shared route modes.
 
-Context lookup, receiver access, and invocation are distinct semantic queries.
-An explicit receiver asks `resolve_access(host, name)` or
-`resolve_call(host, name)` with the original caller authority and one borrowed
-name. These Abstract hooks let an arbitrary graph context route a concrete
-language question without acquiring that language's Type system. TTX assigns
-them no receiver role, visibility rule, or forwarding policy. A concrete
-language may refine its Type and Addressable contracts to interpret the query.
-A Type qualified context route still splits into names and uses
-`resolve_context(name)` on each selected identity. TTX defines no separate Type
-lookup or Static and Self distinction. Every query returns the original
-selected identity or Invalid and never searches another query domain as a
-fallback.
+`get_concepts(context)` returns one fresh, factual, unordered snapshot. Context
+is only the caller-owned lifetime domain for those results. Its sole
+construction authority is `pack(layout)`, which copies snapshot names and
+shape, borrows the real Abstract identities, and retains the Pack for the
+Context lifetime. A snapshot may omit an incomplete question or retain an
+explicit Unknown answer. Consumers infer no semantic order from its Layout.
 
-An unanswered semantic query returns `Invalid`, never a null graph edge. Later
-construction may answer a query that formerly returned Invalid, but it does not
-replace an identity that was already returned successfully.
+An incomplete answer returns `Unknown`, never a null graph edge. A completed
+unsupported question returns `None`. Later construction may replace an Unknown
+answer, but a Constant answer is axiomatic and may be cached permanently.
 
 Category proof establishes the semantic contract of the original object. A
 proof never creates a wrapper, clone, registry entry, or substitute identity.
@@ -172,16 +169,21 @@ facts of the concrete language owner. Abstract exposes no generic declaration
 projection. A consumer that needs those facts proves the concrete owner and
 inspects its complete declaration value.
 
-## Invalid
+## Unknown, Constant, and None
 
-Invalid is a stateless and absorbing Abstract. Its name is `Invalid`. Every
-resolution, access, and invocation query returns the same Invalid identity. Its
-Documentation is empty.
+Unknown is the shared provisional Abstract. Its name is `Unknown`, its
+Documentation is empty, and its Type and concept answers remain Unknown. It
+stores no failed route, source range, diagnostic, or recovery choice. A query
+that answers Unknown may later answer a real identity or None.
 
-Invalid stores no failed route, source range, diagnostic, or recovery choice.
-Parser rejection and failed Layout fitting use the result contract of the
-operation that failed. Other nonsemantic outcomes remain values of their
-concrete owners rather than Invalid identities.
+Constant proves one complete immutable terminal graph fact. Once any route or
+concept resolves to a Constant, that morphism is pure and has one result for the
+graph lifetime. A consumer may cache the Constant and return it without
+reevaluating the route.
+
+None is the shared Constant for proven absence. Its name is `None`, its Type is
+itself, and unsupported concept queries return itself. None never means that a
+future answer may materialize; Unknown carries that meaning.
 
 ## Alias
 
@@ -190,12 +192,12 @@ immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
 `resolve()` is the sole traversal operation. It follows only Alias edges and
 returns the first non Alias target identity without invoking that target's own
 `resolve()` operation. Every other operation, including
-`resolve_context(name)`, returns Invalid. A consumer that needs context first
-resolves the Alias, proves the returned owner, and invokes that owner's
-operation explicitly.
+`resolve_concept(name)`, returns None once the Alias is bound and Unknown while
+it is incomplete. A consumer that needs context first resolves the Alias,
+proves the returned owner, and invokes that owner's operation explicitly.
 
 A concrete graph owner may reserve an Alias identity before its target is
-known. An unbound Alias resolves to Invalid, and its target may be bound only
+known. An unbound Alias resolves to Unknown, and its target may be bound only
 once. Repeating the same binding is harmless while changing it fails. The
 owner preserves target lifetime and prevents Alias cycles before publishing
 the completed graph.
@@ -236,10 +238,11 @@ are not additional host neutral TTX categories.
 
 ## Addressable
 
-Addressable is an Abstract that names typed data. It reaches one exact Type
-whose Layout contains at least one value. A zero value Type remains a valid
-semantic domain, but there is no value whose stable address an Addressable
-could name.
+Addressable is an Abstract that names typed data. Its total `get_type()` query
+returns `Unknown` while that edge is incomplete. Once established, it reaches
+one exact Type whose Layout contains at least one value. A zero value Type
+remains a valid semantic domain, but there is no value whose stable address an
+Addressable could name.
 
 A concrete graph object may be Addressable while adding capabilities
 owned by its language. TTX defines only the named edge to one Type.
@@ -257,11 +260,11 @@ policy rather than part of the shared Addressable contract.
 
 ## Pack
 
-Pack is an Abstract that carries one produced value flow. It is not a Type,
-Addressable, or Layout. The Pack preserves the exact producer identity while
-its output Layout describes the values that producer supplies. A consumer can
-therefore retain, link, inspect, fit, or lower a value flow without first
-materializing an aggregate Type.
+Pack is an identity-free support value that carries one produced semantic flow.
+Its Layout identifies the actual producer Abstracts directly. Pack is not an
+Abstract, Type, Addressable, or Layout, and it has no parallel Produced record.
+A consumer can retain, inspect, fit, or lower the flow without materializing an
+aggregate Type or reconstructing a producer table.
 
 A Pack may supply zero, one, or several values. It may expose positional, named,
 ranged, or composed output shape. One ordinary value producing expression is
@@ -280,11 +283,11 @@ slots use `.name = expression` and retain those names independently from the
 produced semantic objects. Named descriptor slots use `.name : Type`. The
 different operator keeps promised shape distinct from supplied value flow.
 
-A graph owner may reserve a stable Pack before its output is complete. Its
-Layout query remains safe during that interval and may expose an empty shape,
-but the Pack resolves to Invalid. Only a Pack that resolves to itself supplies
-an empty Layout as completed zero value flow. Once Pack resolution succeeds,
-its output Layout is stable and never replaced.
+A Pack is a snapshot value rather than a staged identity. Its owner publishes a
+fresh Pack only from facts currently available. Ordered value flow remains
+ordered because its owner explicitly supplies an ordered Layout; unordered
+concept discovery does not acquire order merely because it is represented by a
+Layout value.
 
 ## Callable
 
@@ -301,13 +304,13 @@ calling convention, machine address, or target ABI policy.
 
 Layout carries no semantic identity. It describes one promised value shape and
 provides ordered observation and directional fitting over exact Abstract
-identities. Types and Callables expose required Layouts. Packs expose the output
-Layout of the values they supply. A consumer may test a complete fit, test a fit
+identities. Types and Callables expose required Layouts. Packs carry the Layout
+of the values they supply. A consumer may test a complete fit, test a fit
 at an offset, and recover the original source edge that supplies a target
 position.
 
 The closed fitting errors are `IndexOutOfBounds`, `SizeMismatch`, and
-`IncompatibleFit`. A failed fit does not add Invalid to the semantic graph.
+`IncompatibleFit`. A failed fit does not add Unknown to the semantic graph.
 
 TTX defines five common Layout forms:
 
@@ -342,8 +345,8 @@ stable value or address, regardless of which concrete Type or Pack exposes it.
 
 ## Interface
 
-Pack and Layout describe value flow. A Pack preserves its producer, while its
-Layout projects that flow into the shape a consumer may receive. This
+Pack and Layout describe value flow. A Pack borrows its exact producers, while
+its Layout projects that flow into the shape a consumer may receive. This
 projection deliberately omits behavior and richer domain meaning.
 
 Interface negotiates the semantic relation that remains after that projection.
@@ -481,16 +484,17 @@ offsets, or treat a Terminal Type as the original semantic Type.
    produced it.
 3. Unrecognized authored bytes emit `Unknown` rather than disappearing.
 4. Every semantic identity is an Abstract.
-5. Semantic query failure returns Invalid rather than a null edge.
+5. Incomplete semantic queries return Unknown, while completed absence returns
+   None; neither answer is a null edge.
 6. Later construction never changes an identity already returned successfully.
 7. Alias preserves local identity while redirecting represented identity.
 8. TTX Type and Addressable impose no Static or Self receiver routing policy.
 9. An atomic Type exposes itself as one terminal `Value` Layout entry.
    Every Type admitted to value flow has a nonempty Layout, Addressable reaches
    one such Type, and Callable supplies complete parameter and result Layouts.
-10. Pack preserves produced value flow identity and exposes one complete output
-    Layout without acquiring Type identity.
-11. Type, Pack, Addressable, Callable, Layout, and Interface remain independent
+10. Pack is an identity-free support value whose Layout names the actual
+    producers directly.
+11. Type, Addressable, Callable, Pack, Layout, and Interface remain independent
     contracts. TTX defines no universal member model over them.
 12. Layout owns promised shape, order, and directional fitting, not produced
     value identity or copied semantic or physical

@@ -8,7 +8,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/app/language/monograph.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 
 namespace Tetrodotoxin::App::Archive {
 
@@ -18,9 +17,7 @@ class Writer {
  public:
   constexpr Writer() = default;
 
-  auto write(
-      const Tetrodotoxin::App::Language::Monograph& monograph,
-      Tetrodotoxin::Language::Persistence::Profile profile) const
+  auto write(const Tetrodotoxin::App::Language::Monograph& monograph) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };
 

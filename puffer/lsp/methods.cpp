@@ -18,10 +18,8 @@
 #include "puffer/lsp/hover.hpp"
 #include "puffer/lsp/inlay_hints.hpp"
 #include "puffer/lsp/rpc/executor.hpp"
-#include "puffer/lsp/semantic.hpp"
 #include "puffer/lsp/semantic_tokens.hpp"
 #include "tetrodotoxin/formatting/terminal.hpp"
-#include "tetrodotoxin/library/language/expression.hpp"
 #include "ttx/lexical/formatter.hpp"
 
 using namespace Perimortem::Core;
@@ -348,12 +346,7 @@ auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)
   Option<Tetrodotoxin::Environment::Workspace::AuthoredLocation> location =
       documents.find_acquired_definition(uri, position, *semantic);
   if (!location) {
-    const Ttx::Concept::Abstract& subject = semantic_subject(*semantic);
-    if (subject.is<Tetrodotoxin::Library::Language::Expression>()) {
-      return message.report_result(Json::Node());
-    }
-
-    location = documents.find_definition(uri, subject);
+    location = documents.find_definition(uri, *semantic);
   }
   if (!location) {
     return message.report_result(Json::Node());

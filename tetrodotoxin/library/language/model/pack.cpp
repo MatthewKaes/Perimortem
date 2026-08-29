@@ -8,6 +8,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/constants/aggregate.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/enumeration.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
@@ -19,6 +20,7 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
@@ -36,6 +38,34 @@ using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Model::Pack::from(Abstract& identity) -> Core::Option<Pack&> {
+  auto expression = identity.select<Language::Expression>();
+  if (expression) {
+    return *expression;
+  }
+  auto constant = identity.select<Language::Constant>();
+  if (constant) {
+    return *constant;
+  }
+  auto aggregate = identity.select<Language::Constants::Aggregate>();
+  return aggregate ? Core::Option<Pack&>(*aggregate) : Core::Option<Pack&>();
+}
+
+auto Language::Model::Pack::from(const Abstract& identity)
+    -> Core::Option<const Pack&> {
+  auto expression = identity.select<Language::Expression>();
+  if (expression) {
+    return *expression;
+  }
+  auto constant = identity.select<Language::Constant>();
+  if (constant) {
+    return *constant;
+  }
+  auto aggregate = identity.select<Language::Constants::Aggregate>();
+  return aggregate ? Core::Option<const Pack&>(*aggregate)
+                   : Core::Option<const Pack&>();
+}
 
 auto Language::Model::Pack::link_restored(
     const Abstract&,
@@ -79,7 +109,8 @@ class Group final : public Language::Model::Pack {
 
   Group(
       Memory::Allocator::Arena& domain,
-      Core::View::Vector<Reference<Language::Model::Pack>> source_entries,
+      Core::View::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
+          source_entries,
       Core::View::Vector<Core::View::Bytes> source_names,
       Core::Option<Ttx::Lexical::Anchor> anchor,
       Bool linked = False)
@@ -89,7 +120,8 @@ class Group final : public Language::Model::Pack {
         layout(*this),
         linked(linked) {
     entries.reset(source_entries.get_size());
-    for (const Reference<Language::Model::Pack>& entry : source_entries) {
+    for (const Ttx::Model::PackReference<Language::Model::Pack>& entry :
+         source_entries) {
       entries.insert(entry);
     }
 
@@ -99,18 +131,13 @@ class Group final : public Language::Model::Pack {
     }
   }
 
-  TTX_CONTRACT(Group, Language::Model::Pack);
-
-  TTX_NAME("Pack"_view);
-  TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
-
   auto link(
       Ttx::Lexical::Cursor& cursor,
       const Abstract& lexical_context,
       Core::Option<const Abstract&> access_scope) -> Bool override {
     Bool failed = False;
-    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+         entries.get_view()) {
       failed |= !entry.get().link(cursor, lexical_context, access_scope);
     }
     BAIL_IF(failed);
@@ -118,8 +145,9 @@ class Group final : public Language::Model::Pack {
     // Type selection links here so a following access can query that identity.
     // A group is a value consumer, so it rejects the same result before Layout
     // observation turns the missing value output into a process failure.
-    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
-      if (&entry.get().resolve() != &entry.get()) {
+    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+         entries.get_view()) {
+      if (!entry.get().is_complete()) {
         cursor.create_expression_error(
             anchor, "Library Pack entry did not produce value flow."_view,
             "Use a Type result only as an access receiver."_view);
@@ -128,7 +156,8 @@ class Group final : public Language::Model::Pack {
     }
 
     if (!names.is_empty()) {
-      for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+      for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+           entries.get_view()) {
         if (entry.get().get_layout().get_size() != 1) {
           cursor.create_expression_error(
               anchor,
@@ -150,9 +179,10 @@ class Group final : public Language::Model::Pack {
       return True;
     }
 
-    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+         entries.get_view()) {
       BAIL_IF(!entry.get().link_restored(lexical_context, access_scope));
-      BAIL_IF(&entry.get().resolve() != &entry.get());
+      BAIL_IF(!entry.get().is_complete());
     }
     linked = True;
     return True;
@@ -165,35 +195,35 @@ class Group final : public Language::Model::Pack {
   auto get_value_type(Count index) const -> const Abstract& override {
     auto selected = layout.select(index);
     if (!selected) {
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
     return entries.at(selected->entry).get().get_value_type(selected->value);
   }
 
-  auto get_produced(Count index) const
-      -> Core::Option<Ttx::Model::Pack::Produced> override {
-    auto selected = layout.select(index);
-    BAIL_IF(!selected);
-    return entries.at(selected->entry).get().get_produced(selected->value);
+  auto is_complete() const -> Bool override { return linked; }
+
+  auto get_anchor() const -> Core::Option<Ttx::Lexical::Anchor> override {
+    return anchor;
   }
 
-  auto resolve() const -> const Abstract& override {
-    return linked ? static_cast<const Language::Model::Pack&>(*this)
-                  : static_cast<const Abstract&>(Invalid::get_invalid());
+  auto get_identity() const -> Core::Option<const Abstract&> override {
+    return {};
   }
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override {
-    for (Reference<Language::Model::Pack> entry : entries.get_view()) {
+    for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+         entries.get_view()) {
       entry.get().finalize(cursor);
     }
   }
 
-  constexpr auto get_entries() const
-      -> Core::View::Vector<Reference<Language::Model::Pack>> override {
+  constexpr auto get_entries() const -> Core::View::Vector<
+      Ttx::Model::PackReference<Language::Model::Pack>> override {
     return entries;
   }
 
-  Memory::Managed::Vector<Reference<Language::Model::Pack>> entries;
+  Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
+      entries;
   Memory::Managed::Vector<Core::View::Bytes> names;
   Core::Option<Ttx::Lexical::Anchor> anchor;
   Layout layout;
@@ -206,7 +236,8 @@ auto Group::Layout::get_size() const -> Count {
   }
 
   Count size = 0;
-  for (Reference<Language::Model::Pack> entry : group.entries.get_view()) {
+  for (Ttx::Model::PackReference<Language::Model::Pack> entry :
+       group.entries.get_view()) {
     size += entry.get().get_layout().get_size();
   }
   return size;
@@ -357,10 +388,23 @@ auto Group::Layout::get_fitted_at(
 auto Language::Model::Pack::get_type() const -> const Abstract& {
   const Ttx::Concept::Layout& layout = get_layout();
   if (layout.get_size() != 1) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return get_value_type(0);
+}
+
+auto Language::Model::Pack::get_result() const -> const Abstract& {
+  return get_identity().visit(
+      []() -> const Abstract& { return Unknown::get_unknown(); },
+      [](const Abstract& identity) -> const Abstract& { return identity; });
+}
+
+auto Language::Model::Pack::get_identity() const
+    -> Core::Option<const Abstract&> {
+  const Ttx::Concept::Layout& layout = get_layout();
+  BAIL_IF(layout.get_size() != 1);
+  return layout.get_abstract(0);
 }
 
 static auto select_target_type(const Abstract& target)
@@ -371,7 +415,7 @@ static auto select_target_type(const Abstract& target)
   }
 
   const Abstract& resolved = target.resolve();
-  auto addressable = resolved.select<Language::Model::Addressable>();
+  auto addressable = resolved.select<Ttx::Model::Addressable>();
   const Abstract& selected = addressable ? addressable->get_type() : resolved;
   direct = selected.select<Language::Model::Type>();
   return direct ? direct : selected.resolve().select<Language::Model::Type>();
@@ -400,10 +444,10 @@ auto Language::Model::Pack::fits_entry(
   auto target_type = select_target_type(*target_entry);
   BAIL_IF(!target_type);
 
-  auto produced = get_produced(source_index);
-  auto producer = produced ? produced->producer.select<Language::Model::Pack>()
-                           : Core::Option<const Language::Model::Pack&>();
-  return producer ? producer->fits_into(*target_type) : False;
+  auto producer = source.get_abstract(source_index);
+  auto supplied =
+      producer ? Pack::from(*producer) : Core::Option<const Pack&>();
+  return supplied ? supplied->fits_into(*target_type) : False;
 }
 
 auto Language::Model::Pack::fits_at(
@@ -450,7 +494,7 @@ auto Language::Model::Pack::fits_at(
 
 auto Language::Model::Pack::fits(const Ttx::Concept::Layout& target) const
     -> Bool {
-  BAIL_IF(&resolve() != this);
+  BAIL_IF(!is_complete());
   if (get_layout().get_size() == target.get_size() && fits_at(target, 0)) {
     return True;
   }
@@ -499,7 +543,7 @@ auto Language::Model::Pack::get_fitted_at(
 }
 
 auto Language::Model::Pack::fits(const Ttx::Model::Type& target) const -> Bool {
-  BAIL_IF(&resolve() != this);
+  BAIL_IF(!is_complete());
   const Ttx::Concept::Layout& target_layout = target.get_layout();
   return get_layout().get_size() == target_layout.get_size() &&
          fits_at(target_layout, 0);
@@ -519,13 +563,13 @@ auto Language::Model::Pack::create_empty(
     Memory::Allocator::Arena& domain,
     Core::Option<Ttx::Lexical::Anchor> anchor) -> Pack& {
   return domain.construct<Group>(
-      domain, Core::View::Vector<Reference<Pack>>(),
+      domain, Core::View::Vector<Ttx::Model::PackReference<Pack>>(),
       Core::View::Vector<Core::View::Bytes>(), anchor);
 }
 
 auto Language::Model::Pack::create_group(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Reference<Pack>> entries,
+    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
     Core::View::Vector<Core::View::Bytes> names,
     Core::Option<Ttx::Lexical::Anchor> anchor) -> Pack& {
   return domain.construct<Group>(domain, entries, names, anchor);
@@ -533,15 +577,15 @@ auto Language::Model::Pack::create_group(
 
 auto Language::Model::Pack::create_folded(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Reference<Pack>> entries) -> Pack& {
-  return domain.construct<Group>(
-      domain, entries, Core::View::Vector<Core::View::Bytes>(),
-      Core::Option<Ttx::Lexical::Anchor>(), True);
+    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries) -> Pack& {
+  auto aggregate = Language::Constants::Aggregate::create(domain, entries);
+  return aggregate ? static_cast<Pack&>(*aggregate)
+                   : create_completed(domain, entries);
 }
 
 auto Language::Model::Pack::create_completed(
     Memory::Allocator::Arena& domain,
-    Core::View::Vector<Reference<Pack>> entries,
+    Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
     Core::View::Vector<Core::View::Bytes> names) -> Pack& {
   return domain.construct<Group>(
       domain, entries, names, Core::Option<Ttx::Lexical::Anchor>(), True);

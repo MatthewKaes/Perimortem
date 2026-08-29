@@ -36,7 +36,7 @@ class Initializer : public Expression {
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Model::Type& type,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Model::Pack>>
+      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Model::Pack>>
           values) -> Initializer&;
 
   // A restored Interface aggregate delegates construction to its provider's
@@ -95,7 +95,7 @@ class Initializer : public Expression {
   Model::Pack& arguments;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       expected_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
       completed_values;
   Bool provider = False;
 };

@@ -7,6 +7,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -116,24 +117,28 @@ class ControlFlow {
     return body.get_program();
   }
 
-  auto return_values(const Ttx::Model::Pack& values) const -> Bool;
-  auto escape_values(const Ttx::Model::Pack& values) const -> Bool;
+  auto return_values(
+      const Tetrodotoxin::Library::Language::Model::Pack& values) const -> Bool;
+  auto escape_values(
+      const Tetrodotoxin::Library::Language::Model::Pack& values) const -> Bool;
   auto leave_loop(LoopAction action, const Ttx::Concept::Abstract& target) const
       -> Bool;
-  auto begin_branch(const Ttx::Model::Pack& condition) const
+  auto begin_branch(
+      const Tetrodotoxin::Library::Language::Model::Pack& condition) const
       -> Perimortem::Core::Option<Branch>;
   auto begin_alternate(Branch& state) const -> Bool;
   auto end_branch(Branch state) const -> Bool;
   auto begin_while(const Ttx::Concept::Abstract& owner) const -> Bool;
   auto select_while(
       const Ttx::Concept::Abstract& owner,
-      const Ttx::Model::Pack& condition) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& condition) const
+      -> Bool;
   auto end_while(const Ttx::Concept::Abstract& owner) const -> Bool;
   auto begin_sequence(
       const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Addressable& binding,
       const Ttx::Model::Type& input_type,
-      const Ttx::Model::Pack& input) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& input) const -> Bool;
   auto begin_enumeration(
       const Ttx::Concept::Abstract& owner,
       const Ttx::Concept::Layout& bindings,
@@ -141,9 +146,11 @@ class ControlFlow {
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
       -> Bool;
   auto end_iteration(const Ttx::Concept::Abstract& owner) const -> Bool;
-  auto begin_match(const Ttx::Model::Pack& input) const
-      -> Perimortem::Core::Option<Match>;
-  auto begin_constant_case(Match& state, const Ttx::Model::Pack& constant) const
+  auto begin_match(const Tetrodotoxin::Library::Language::Model::Pack& input)
+      const -> Perimortem::Core::Option<Match>;
+  auto begin_constant_case(
+      Match& state,
+      const Tetrodotoxin::Library::Language::Model::Pack& constant) const
       -> Perimortem::Core::Option<MatchCase>;
   auto begin_value_case(
       Match& state,
@@ -170,12 +177,12 @@ class ControlFlow {
   auto has_full_debug() const -> Bool;
   auto constant_local(
       const Ttx::Model::Addressable& local,
-      const Ttx::Model::Pack& value,
+      const Tetrodotoxin::Library::Language::Model::Pack& value,
       Ttx::Lexical::Anchor anchor) const -> Bool;
   auto end_statement() const -> Bool;
   auto bind_local(
       const Ttx::Model::Addressable& local,
-      const Ttx::Model::Pack& value) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& value) const -> Bool;
 
  private:
   Module::Body& body;

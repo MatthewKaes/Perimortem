@@ -4,4 +4,5 @@
 // Gives the application graph one public Package name.
 dialect : Package;
 
-public AppSource : alias = source("app.ttx");
+package(.name = "Perimortem.Echo", .version = "1.0");
+public App : alias = source("app.ttx");

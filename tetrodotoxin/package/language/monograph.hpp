@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/system/version.hpp"
+
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
@@ -22,6 +24,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Abstract& language,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language,
       Perimortem::Core::View::Vector<
@@ -36,38 +40,43 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       const Ttx::Concept::Abstract& language,
       const Ttx::Concept::Documentation& documentation,
       const Ttx::Lexical::Anchor& source_anchor,
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language) -> Monograph&;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,
       const Ttx::Concept::Abstract& language,
+      Perimortem::Core::View::Bytes identity,
+      Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language,
       Perimortem::Core::View::Vector<
           Ttx::Concept::Reference<Tetrodotoxin::Package::Resource>> resources =
           {}) -> Monograph&;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_root() const -> const Ttx::Concept::Abstract& override {
-    return library.get_root();
+    return *this;
   }
 
   auto retain_import(
       const Tetrodotoxin::Language::Import::Description& description,
       Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
-      -> Bool override {
-    return library.retain_import(description, associations);
-  }
+      -> Bool override;
 
-  constexpr auto get_reachable_types() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<Ttx::Model::Type>> override {
-    return library.get_reachable_types();
+  constexpr auto get_imports() const -> Perimortem::Core::View::Vector<
+      Ttx::Concept::Reference<Tetrodotoxin::Language::Import>> override {
+    return library.get_imports();
   }
 
   auto get_layer(const Ttx::Concept::Abstract& requested) const
@@ -90,11 +99,17 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto get_name() const -> Perimortem::Core::View::Bytes override;
 
+  constexpr auto get_version() const -> Perimortem::System::Version {
+    return version;
+  }
+
   auto get_resources() -> Tetrodotoxin::Package::Resources&;
   auto get_resources() const -> const Tetrodotoxin::Package::Resources&;
 
  private:
   mutable Tetrodotoxin::Package::Resources resources;
+  Perimortem::Core::View::Bytes identity;
+  Perimortem::System::Version version;
   Tetrodotoxin::Library::Language::Monograph& library;
 };
 

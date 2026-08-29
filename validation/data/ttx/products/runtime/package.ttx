@@ -3,5 +3,6 @@
 //
 
 dialect : Package;
+package(.name = "Validation.Runtime", .version = "1.0");
 
 public Runtime : alias = source("runtime.ttx");

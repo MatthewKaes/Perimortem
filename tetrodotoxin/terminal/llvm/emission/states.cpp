@@ -52,7 +52,7 @@ static auto select_literal_target(Llvm::Module::Body& body)
 
 static auto publish_literal(
     Llvm::Module::Body& body,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     LLVMValueRef value) -> Bool {
   BAIL_IF(!value);
 
@@ -62,7 +62,7 @@ static auto publish_literal(
 
 auto Llvm::Emission::States::unsigned_value(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     U64 value) const -> Bool {
   auto selected = select_literal_target(body);
   BAIL_IF(!selected);
@@ -75,7 +75,7 @@ auto Llvm::Emission::States::unsigned_value(
 
 auto Llvm::Emission::States::signed_value(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     S64 value) const -> Bool {
   auto selected = select_literal_target(body);
   BAIL_IF(!selected);
@@ -89,7 +89,7 @@ auto Llvm::Emission::States::signed_value(
 
 auto Llvm::Emission::States::real_value(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     R64 value) const -> Bool {
   auto selected = select_literal_target(body);
   BAIL_IF(!selected);
@@ -102,7 +102,7 @@ auto Llvm::Emission::States::real_value(
 
 auto Llvm::Emission::States::bytes_value(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     Core::View::Bytes value,
     Core::Option<const Tetrodotoxin::Language::Resource&> resource) const
     -> Bool {
@@ -135,7 +135,7 @@ auto Llvm::Emission::States::bytes_value(
 
 auto Llvm::Emission::States::object_value(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool {
   auto selected = select_literal_target(body);
   BAIL_IF(!selected);
 
@@ -145,7 +145,7 @@ auto Llvm::Emission::States::object_value(
 }
 
 auto Llvm::Emission::States::enumeration_name(
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Ttx::Model::Type& result_type,
     LLVMValueRef value,
     Core::View::Vector<U64> values,
@@ -209,7 +209,8 @@ auto Llvm::Emission::States::enumeration_name(
 
 static auto logic_find_scalar(
     const Llvm::Module::Body& body,
-    const Ttx::Model::Pack& pack) -> Core::Option<LLVMValueRef> {
+    const Tetrodotoxin::Library::Language::Model::Pack& pack)
+    -> Core::Option<LLVMValueRef> {
   auto values = body.find_values(pack);
   if (!values || values->get_size() != 1) {
     return {};
@@ -220,7 +221,8 @@ static auto logic_find_scalar(
 
 auto Llvm::Emission::States::begin_logic(
     Logical operation,
-    const Ttx::Model::Pack& left) const -> Core::Option<Logic> {
+    const Tetrodotoxin::Library::Language::Model::Pack& left) const
+    -> Core::Option<Logic> {
   Llvm::Module::Body& native_body = body;
   auto left_value = logic_find_scalar(native_body, left);
   LLVMBasicBlockRef left_block = LLVMGetInsertBlock(native_body.get_builder());
@@ -249,9 +251,9 @@ auto Llvm::Emission::States::begin_logic(
 
 auto Llvm::Emission::States::end_logic(
     Logic state,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& left,
-    const Ttx::Model::Pack& right) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& left,
+    const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto left_value = logic_find_scalar(native_body, left);
   auto right_value = logic_find_scalar(native_body, right);
@@ -282,8 +284,8 @@ auto Llvm::Emission::States::end_logic(
 }
 
 auto Llvm::Emission::States::logical_not(
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& operand) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& operand) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto value = logic_find_scalar(native_body, operand);
   if (!value) {
@@ -315,7 +317,7 @@ static auto option_native_function(const Llvm::Module::Body& body)
 
 static auto publish_option(
     Llvm::Module::Body& body,
-    const Ttx::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
     LLVMValueRef value) -> Bool {
   Core::Static::Vector<LLVMValueRef, 1> values = {{value}};
   return body.publish_values(result, values.get_view());
@@ -323,7 +325,7 @@ static auto publish_option(
 
 auto Llvm::Emission::States::absent(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -337,8 +339,8 @@ auto Llvm::Emission::States::absent(
 auto Llvm::Emission::States::present(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& payload) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& payload) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -375,8 +377,8 @@ auto Llvm::Emission::States::present(
 
 auto Llvm::Emission::States::result(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& payload) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& payload) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   auto payload_values = native_body.find_values(payload);
@@ -392,7 +394,8 @@ auto Llvm::Emission::States::result(
 auto Llvm::Emission::States::begin_unwrap(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
-    const Ttx::Model::Pack& option) const -> Core::Option<Choice> {
+    const Tetrodotoxin::Library::Language::Model::Pack& option) const
+    -> Core::Option<Choice> {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -443,8 +446,9 @@ auto Llvm::Emission::States::begin_unwrap(
 auto Llvm::Emission::States::end_unwrap(
     Choice state,
     const Ttx::Model::Type& element,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& fallback) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& fallback) const
+    -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -484,9 +488,9 @@ auto Llvm::Emission::States::end_unwrap(
 auto Llvm::Emission::States::propagate_option(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& element,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& option,
-    const Ttx::Model::Pack& escape) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& option,
+    const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   if (!carriers) {
@@ -538,9 +542,9 @@ auto Llvm::Emission::States::propagate_option(
 
 auto Llvm::Emission::States::propagate_flag(
     const Ttx::Model::Type& carrier,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& flag,
-    const Ttx::Model::Pack& escape) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& flag,
+    const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   auto native_flag = native_body.find_value(flag);
@@ -575,9 +579,9 @@ auto Llvm::Emission::States::propagate_result(
     const Ttx::Model::Type& carrier,
     const Ttx::Model::Type& value,
     const Ttx::Model::Type& error,
-    const Ttx::Model::Pack& result,
-    const Ttx::Model::Pack& source,
-    const Ttx::Model::Pack& escape) const -> Bool {
+    const Tetrodotoxin::Library::Language::Model::Pack& result,
+    const Tetrodotoxin::Library::Language::Model::Pack& source,
+    const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = option_select_carriers(body);
   auto native_result = native_body.find_value(source);

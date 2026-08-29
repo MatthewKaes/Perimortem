@@ -3,17 +3,15 @@
 
 #include "tetrodotoxin/language/import.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/documentations/merged.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
-
-static constexpr Ttx::Model::Layouts::Fluid import_layout;
 
 static auto segment_anchor(
     Anchor route_anchor,
@@ -48,15 +46,16 @@ auto Language::Import::get_acquired() const -> Option<const Ttx::Model::Type&> {
           -> Option<const Ttx::Model::Type&> { return selected.get(); });
 }
 
-auto Language::Import::select(Option<Cursor&> cursor) const -> const Abstract& {
+auto Language::Import::select_target(Option<Cursor&> cursor) const
+    -> const Abstract& {
   if (!acquired) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   const Abstract* selected = &acquired->get();
   if (route.is_empty()) {
     const Abstract& resolved = selected->resolve();
-    return resolved.is<Ttx::Model::Type>() ? resolved : Invalid::get_invalid();
+    return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
   }
 
   Count start = 0;
@@ -71,11 +70,17 @@ auto Language::Import::select(Option<Cursor&> cursor) const -> const Abstract& {
     View::Bytes selected_name = route.slice(start, index - start);
     const Abstract& context = selected->resolve();
     if (!context.is<Ttx::Model::Type>()) {
-      return Invalid::get_invalid();
+      return context.is<Unknown>()
+                 ? context
+                 : static_cast<const Abstract&>(None::get_none());
     }
 
-    const Abstract& queried = context.resolve_context(selected_name);
-    if (queried.is<Invalid>()) {
+    const Abstract& static_context = context.resolve_concept("static"_view);
+    const Abstract& queried =
+        !static_context.is<Unknown>() && !static_context.is<None>()
+            ? static_context.resolve_concept(selected_name)
+            : context.resolve_concept(selected_name);
+    if (queried.is<Unknown>() || queried.is<None>()) {
       return queried;
     }
     if (cursor) {
@@ -95,12 +100,12 @@ auto Language::Import::select(Option<Cursor&> cursor) const -> const Abstract& {
   }
 
   const Abstract& resolved = selected->resolve();
-  return resolved.is<Ttx::Model::Type>() ? resolved : Invalid::get_invalid();
+  return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
 }
 
 auto Language::Import::validate(Cursor& cursor) -> Bool {
-  const Abstract& selected = select(cursor);
-  if (selected.is<Invalid>()) {
+  const Abstract& selected = select_target(cursor);
+  if (selected.is<Unknown>() || selected.is<None>()) {
     auto report = cursor.create_report(expression_anchor);
     report << "Import Type expression `"_view
            << (kind == Kind::Source ? "source("_view : "package("_view)
@@ -113,6 +118,8 @@ auto Language::Import::validate(Cursor& cursor) -> Bool {
         << "Publish every selected Type before importing this source."_view;
     return False;
   }
+
+  BAIL_IF(!bind_target(selected));
 
   const Documentation& target_documentation = selected.get_documentation();
   if (local_documentation.is_empty()) {
@@ -128,10 +135,12 @@ auto Language::Import::validate(Cursor& cursor) -> Bool {
 }
 
 auto Language::Import::validate_restored() -> Bool {
-  const Abstract& selected = select({});
-  if (selected.is<Invalid>()) {
+  const Abstract& selected = select_target({});
+  if (selected.is<Unknown>() || selected.is<None>()) {
     return False;
   }
+
+  BAIL_IF(!bind_target(selected));
 
   const Documentation& target_documentation = selected.get_documentation();
   visible_documentation = local_documentation.is_empty() ? target_documentation
@@ -140,32 +149,7 @@ auto Language::Import::validate_restored() -> Bool {
 }
 
 auto Language::Import::resolve() const -> const Abstract& {
-  return select({});
-}
-
-auto Language::Import::resolve_context(View::Bytes selected) const
-    -> const Abstract& {
-  const Abstract& target = resolve();
-  return target.is<Invalid>() ? target : target.resolve_context(selected);
-}
-
-auto Language::Import::resolve_access(
-    const Abstract& host,
-    View::Bytes selected) const -> const Abstract& {
-  const Abstract& target = resolve();
-  return target.is<Invalid>() ? target : target.resolve_access(host, selected);
-}
-
-auto Language::Import::resolve_call(const Abstract& host, View::Bytes selected)
-    const -> const Abstract& {
-  const Abstract& target = resolve();
-  return target.is<Invalid>() ? target : target.resolve_call(host, selected);
-}
-
-auto Language::Import::get_layout() const -> const Layout& {
-  const Abstract& target = resolve();
-  auto type = target.select<Ttx::Model::Type>();
-  return type ? type->get_layout() : import_layout;
+  return select_target({});
 }
 
 auto Language::Import::get_documentation() const -> const Documentation& {

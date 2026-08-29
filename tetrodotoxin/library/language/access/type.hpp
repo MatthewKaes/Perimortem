@@ -26,7 +26,7 @@ class Type : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token token,
       Perimortem::Core::View::Bytes name,
       Ttx::Lexical::Anchor anchor) -> Type&;
@@ -43,6 +43,12 @@ class Type : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_result() const -> const Ttx::Concept::Abstract& override;
 
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
+
   // A following incomplete postfix may leave this access outside a retained
   // Statement. The receiver still owns enough authored context to answer the
   // strongest currently available selection without completing this node.
@@ -50,18 +56,18 @@ class Type : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
   constexpr auto get_token() const -> Ttx::Lexical::Token { return token; }
 
  private:
   constexpr Type(
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token token,
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor), receiver(receiver), token(token), name(name) {}
 
-  Expression& receiver;
+  Model::Pack& receiver;
   Ttx::Lexical::Token token;
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<

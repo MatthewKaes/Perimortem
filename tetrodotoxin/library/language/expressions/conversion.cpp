@@ -85,12 +85,7 @@ auto Language::Expressions::Conversion::finalize(Ttx::Lexical::Cursor& cursor)
 
 static auto folded_constant(Language::Model::Pack& source)
     -> Core::Option<const Language::Constant&> {
-  auto produced = source.get_produced(0);
-  BAIL_IF(!produced);
-  auto expression = const_cast<Ttx::Model::Pack&>(produced->producer)
-                        .select<Language::Expression>();
-  BAIL_IF(!expression);
-  auto folded = expression->fold();
+  auto folded = Language::Expression::fold(source);
   Core::Option<Language::Model::Pack&> value;
   folded.visit(
       [&](const Core::Option<Language::Model::Pack&>& selected) {
@@ -98,8 +93,8 @@ static auto folded_constant(Language::Model::Pack& source)
       },
       [](const Language::Expression::Error&) {});
   BAIL_IF(!value);
-  auto selected = value->get_produced(produced->local_index);
-  return selected ? selected->producer.select<Language::Constant>()
+  auto selected = value->get_layout().get_abstract(0);
+  return selected ? selected->select<Language::Constant>()
                   : Core::Option<const Language::Constant&>();
 }
 

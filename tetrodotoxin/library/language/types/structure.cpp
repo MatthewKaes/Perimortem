@@ -35,9 +35,9 @@ auto Types::Structure::complete_body() -> void {
   complete_field_layout();
 }
 
-auto Types::Structure::resolve_context(View::Bytes route) const
+auto Types::Structure::resolve_concept(View::Bytes route) const
     -> const Ttx::Concept::Abstract& {
-  return Composite::resolve_context(route);
+  return Composite::resolve_concept(route);
 }
 
 auto Types::Structure::create_default(Allocator::Arena& arena) const
@@ -64,7 +64,7 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
     // construction local to the owner rather than a consumer category switch.
     // Authored Layout order is filled from each Field initializer before asking
     // that Field's exact Type for its default.
-    Managed::Vector<Ttx::Concept::Reference<Model::Pack>> values(arena);
+    Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
     values.reset(get_layout().get_size());
     for (const Ttx::Concept::Reference<Ttx::Concept::Abstract>& candidate :
          get_addressables()) {
@@ -72,16 +72,18 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
       if (!field || field->get_writability() != Writability::Internal) {
         continue;
       }
+      auto type = field->get_type().select<Model::Type>();
+      BAIL_IF(!type);
 
       auto initializer = field->get_initializer();
       if (initializer) {
         Model::Pack& source = const_cast<Model::Pack&>(*initializer);
-        auto fitted = field->get_type().create_fitted(arena, source);
+        auto fitted = type->create_fitted(arena, source);
         values.insert(fitted ? *fitted : source);
         continue;
       }
 
-      auto value = field->get_type().create_default(arena);
+      auto value = type->create_default(arena);
       BAIL_IF(!value);
       values.insert(*value);
     }

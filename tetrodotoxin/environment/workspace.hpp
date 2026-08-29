@@ -124,9 +124,7 @@ class Workspace : public Ttx::Concept::Abstract {
       Ttx::Lexical::Errors& errors,
       Perimortem::Core::View::Bytes package_root,
       Perimortem::Core::View::Bytes root_semantic_name,
-      Perimortem::Core::View::Bytes root_logical_route,
-      Perimortem::Core::View::Bytes root_package_identity,
-      Perimortem::System::Version root_package_version)
+      Perimortem::Core::View::Bytes root_logical_route)
       -> Perimortem::Core::Option<Language::Monograph&>;
 
   // Archive restoration rebuilds a Package from facts that have already passed
@@ -210,8 +208,10 @@ class Workspace : public Ttx::Concept::Abstract {
   auto get_name() const -> Perimortem::Core::View::Bytes override;
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
  private:
   struct ImportedPackage {

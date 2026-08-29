@@ -117,15 +117,16 @@ static auto emit_destructor(
       native_function.getContext(), "entry", &native_function);
   Llvm::Module::Body body(program, addressable, function);
   llvm::IRBuilder<>& builder = get_builder(body);
-  auto native_type = carriers.get_type(addressable.get_type());
-  if (!native_type) {
+  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  auto native_type =
+      type ? carriers.get_type(*type) : Core::Option<LLVMTypeRef>();
+  if (!type || !native_type) {
     return {};
   }
 
   LLVMValueRef value = llvm::wrap(
       builder.CreateLoad(llvm::unwrap(*native_type), llvm::unwrap(global)));
-  return carriers.release(body, addressable.get_type(), value) &&
-                 body.create_return()
+  return carriers.release(body, *type, value) && body.create_return()
              ? Core::Option<LLVMValueRef>(function)
              : Core::Option<LLVMValueRef>();
 }
@@ -251,8 +252,10 @@ auto Llvm::Module::Globals::complete(
     return True;
   }
 
-  auto native_type = carriers->get_type(addressable.get_type());
-  if (!native_type) {
+  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  auto native_type =
+      type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
+  if (!type || !native_type) {
     return fail_toolchain(
         program,
         "LLVM cannot find the completed carrier for an Addressable."_view);
@@ -327,7 +330,7 @@ auto Llvm::Module::Globals::begin_initializer(
 auto Llvm::Module::Globals::end_initializer(
     Llvm::Module::Emission& body,
     const Ttx::Model::Addressable& addressable,
-    const Ttx::Model::Pack& value) const -> Bool {
+    const Library::Language::Model::Pack& value) const -> Bool {
   auto native_body = body.get_kind() == Llvm::Module::Emission::Kind::Body
                          ? Core::Option<Llvm::Module::Body&>(
                                static_cast<Llvm::Module::Body&>(body))
@@ -346,14 +349,16 @@ auto Llvm::Module::Globals::end_initializer(
         "LLVM completed a Static initializer under different target state."_view);
   }
 
+  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  BAIL_IF(!type);
+
   auto values = native_body->find_values(value);
-  auto assembled =
-      values ? carriers->fit_and_assemble(
-                   body, addressable.get_type(), value, values->get_view())
-             : Core::Option<LLVMValueRef>();
+  auto assembled = values ? carriers->fit_and_assemble(
+                                body, *type, value, values->get_view())
+                          : Core::Option<LLVMValueRef>();
   Bool completed = Bool(assembled);
   if (completed) {
-    completed = native_body->acquire(addressable.get_type(), *assembled);
+    completed = native_body->acquire(*type, *assembled);
   }
 
   if (completed) {
@@ -363,7 +368,7 @@ auto Llvm::Module::Globals::end_initializer(
     completed = native_body->clear_temporary_cleanup();
   }
 
-  if (completed && carriers->owns_resources(addressable.get_type())) {
+  if (completed && carriers->owns_resources(*type)) {
     auto destructor =
         emit_destructor(*target, *carriers, addressable, *found->value.global);
     completed =

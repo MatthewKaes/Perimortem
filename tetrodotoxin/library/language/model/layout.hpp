@@ -22,7 +22,7 @@ namespace Tetrodotoxin::Library::Language::Model {
 
 // Layout is one authored Library descriptor and its eventual TTX Layout. Each
 // source slot retains its TypeReference and exactly one delayed semantic edge.
-// Parameter linking installs the real Parameter Addressable, while ordinary
+// Parameter linking installs a real Layout-owned Addressable, while ordinary
 // descriptor linking installs the exact Type. There is no parallel resolved
 // inventory or optional semantic Layout to drift from those canonical slots.
 //
@@ -127,9 +127,9 @@ class Layout final : public Ttx::Concept::Layout {
   auto operator=(const Layout&) -> Layout& = delete;
   auto operator=(Layout&&) -> Layout& = delete;
 
-  // Both paths resolve the same authored TypeReference facts. Parameters
-  // materialize real Addressables, ordinary results retain selected Types, and
-  // the reserved scalar result `self` retains parameter entry zero itself.
+  // Both paths resolve the same authored TypeReference facts. Parameter slots
+  // materialize real Layout-owned Addressables, results retain selected Types,
+  // and the reserved scalar result `self` retains parameter entry zero itself.
   // Every authored Type slot must provide a value. Only `[]` carries an empty
   // descriptor.
   auto link_parameters(
@@ -143,8 +143,10 @@ class Layout final : public Ttx::Concept::Layout {
       -> Bool;
 
   // Named lookup returns the exact semantic entry retained by this Layout.
-  // Positional, incomplete, or missing selections resolve Invalid.
-  auto resolve_named(Perimortem::Core::View::Bytes route) const
+  // Positional, incomplete, or missing selections resolve Unknown.
+  auto resolve_named(
+      Perimortem::Core::View::Bytes route,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> host = {}) const
       -> const Ttx::Concept::Abstract&;
 
   // Publication remains beside the authored routes and final edges it checks.

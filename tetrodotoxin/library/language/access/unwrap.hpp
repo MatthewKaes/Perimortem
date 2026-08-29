@@ -21,7 +21,7 @@ class Unwrap : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Anchor anchor) -> Unwrap&;
 
   auto link(
@@ -37,13 +37,13 @@ class Unwrap : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
   constexpr auto get_fallback() const
       -> Perimortem::Core::Option<const Model::Pack&> {
     return fallback.visit(
         []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
-        [](const Ttx::Concept::Reference<Model::Pack>& selected)
+        [](const Ttx::Model::PackReference<Model::Pack>& selected)
             -> Perimortem::Core::Option<const Model::Pack&> {
           return selected.get();
         });
@@ -56,14 +56,14 @@ class Unwrap : public Expression {
 
  private:
   constexpr Unwrap(
-      Expression& receiver,
+      Model::Pack& receiver,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor), receiver(receiver) {}
 
-  Expression& receiver;
+  Model::Pack& receiver;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>> fallback;
+  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> fallback;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Access

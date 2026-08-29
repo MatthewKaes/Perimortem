@@ -20,15 +20,15 @@ class Add : public Operation {
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<
-          Perimortem::Core::Option<Constant&>,
+          Perimortem::Core::Option<Tetrodotoxin::Library::Language::Constant&>,
           Expression::Error> override;
   auto select_type(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Model::Type&> override;
 
  private:
   Add(Perimortem::Memory::Allocator::Arena& domain,
-      Expression& left,
-      Expression& right,
+      Model::Pack& left,
+      Model::Pack& right,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };
 

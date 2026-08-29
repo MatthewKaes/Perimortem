@@ -6,9 +6,9 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -27,14 +27,14 @@ static auto select_entry_type(const Abstract& entry) -> Option<const Type&> {
   return entry.select<Addressable>().visit(
       []() -> Option<const Type&> { return {}; },
       [](const Addressable& addressable) -> Option<const Type&> {
-        return addressable.get_type();
+        return addressable.get_type().select<Type>();
       });
 }
 
 static auto resolves_for_fitting(const Abstract& entry) -> const Abstract& {
   // Authored Layouts retain direct Type and Parameter edges before every Type
   // necessarily resolves. Those identities are already canonical. Resolving
-  // first would collapse distinct staged Types to the shared Invalid object.
+  // first would collapse distinct staged Types to the shared Unknown object.
   if (entry.is<Type>()) {
     return entry;
   }
@@ -109,7 +109,8 @@ auto Language::Model::Layout::retain_generated_slot(
 
   Slot slot({}, Anchor::create(Span()), name, attributes);
   if (parameters) {
-    auto parameter = Parameter::create_authored(domain, name, type);
+    auto parameter =
+        Ttx::Model::Layouts::Addressable::create_authored(domain, name, type);
     BAIL_IF(!parameter);
     slot.edge = Reference<const Abstract>(*parameter);
   } else {
@@ -131,7 +132,8 @@ auto Language::Model::Layout::retain_generated_edge(
     return retained && &*retained == &type;
   }
   if (parameters) {
-    auto parameter = Parameter::create_authored(domain, slot.name, type);
+    auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
+        domain, slot.name, type);
     BAIL_IF(!parameter);
     slot.edge = Reference<const Abstract>(*parameter);
   } else {
@@ -181,7 +183,8 @@ auto Language::Model::Layout::link_restored(
 
     BAIL_IF(type->get_layout().is_empty());
     if (parameters) {
-      auto parameter = Parameter::create_authored(domain, slot.name, *type);
+      auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
+          domain, slot.name, *type);
       BAIL_IF(!parameter);
       slot.edge = Reference<const Abstract>(*parameter);
     } else {
@@ -212,7 +215,7 @@ auto Language::Model::Layout::link(
     Bool parameters,
     Option<const Ttx::Model::Addressable&> self) -> Bool {
   // Linking settles every slot before exposing the Layout. Parameter Layouts
-  // replace their authored slot with one real Parameter identity. Ordinary
+  // replace each authored slot with one real Layout-owned Addressable. Ordinary
   // results retain their selected Type, while `self` reuses parameter zero.
   Bool failed = False;
   for (Count i = 0; i < slots.get_size(); i++) {
@@ -244,7 +247,7 @@ auto Language::Model::Layout::link(
           cursor.create_expression_error(
               slot.anchor,
               "Repeated `[self]` result linking selected a different receiver."_view,
-              "Preserve the Function's original self Parameter identity."_view);
+              "Preserve the Function's original self Addressable identity."_view);
           failed = True;
         } else if (!slot.edge) {
           slot.edge = Reference<const Abstract>(*self);
@@ -320,19 +323,20 @@ auto Language::Model::Layout::link(
     }
 
     if (slot.edge) {
-      auto parameter = slot.edge->get().select<Language::Parameter>();
+      auto parameter =
+          slot.edge->get().select<Ttx::Model::Layouts::Addressable>();
       if (!parameter || &parameter->get_type() != &*type) {
         cursor.create_expression_error(
             slot.get_type_anchor(),
             "Repeated parameter linking selected a different semantic edge."_view,
-            "Preserve the original Parameter and resolved Type identity."_view);
+            "Preserve the original parameter Addressable and Type identity."_view);
         failed = True;
       }
       continue;
     }
 
-    auto parameter =
-        Language::Parameter::create_authored(domain, slot.name, *type);
+    auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
+        domain, slot.name, *type);
     if (!parameter) {
       cursor.create_expression_error(
           slot.anchor,
@@ -348,21 +352,38 @@ auto Language::Model::Layout::link(
   return !failed && is_linked();
 }
 
-auto Language::Model::Layout::resolve_named(View::Bytes route) const
-    -> const Abstract& {
-  if (!is_linked()) {
-    return Invalid::get_invalid();
-  }
-
+auto Language::Model::Layout::resolve_named(
+    View::Bytes route,
+    Option<const Abstract&> host) const -> const Abstract& {
   for (Count i = 0; i < get_size(); i++) {
-    auto name = get_name(i);
-    auto entry = get_abstract(i);
-    if (name && *name == route && entry) {
-      return *entry;
+    Slot& slot = slots.at(i);
+    if (slot.name != route) {
+      continue;
     }
+    if (slot.edge) {
+      return slot.edge->get();
+    }
+    if (!parameters || !host || !slot.type_reference) {
+      return Unknown::get_unknown();
+    }
+
+    Option<const Type&> type;
+    slot.type_reference->resolve_lexical(*host).visit(
+        [&](const Abstract& selected) { type = selected.select<Type>(); },
+        [](const TypeReference::Failure&) {});
+    if (!type || type->get_layout().is_empty()) {
+      return Unknown::get_unknown();
+    }
+    auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
+        domain, slot.name, *type);
+    if (!parameter) {
+      return Unknown::get_unknown();
+    }
+    slot.edge = Reference<const Abstract>(*parameter);
+    return *parameter;
   }
 
-  return Invalid::get_invalid();
+  return Unknown::get_unknown();
 }
 
 auto Language::Model::Layout::get_slot_attributes(Count index) const
@@ -393,7 +414,7 @@ auto Language::Model::Layout::validate_publication(
       cursor.create_expression_error(
           slot.get_type_anchor(),
           "A published Function Layout retains an invalid semantic entry."_view,
-          "Retain the exact Parameter or Type selected during linking."_view);
+          "Retain the exact Addressable or Type selected during linking."_view);
       valid = False;
       continue;
     }

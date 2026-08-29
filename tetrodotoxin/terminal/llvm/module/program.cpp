@@ -27,7 +27,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;

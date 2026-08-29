@@ -20,7 +20,7 @@ class Propagate : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Anchor anchor) -> Propagate&;
 
   auto link(
@@ -36,7 +36,7 @@ class Propagate : public Expression {
 
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
   constexpr auto get_escape() const -> const Model::Pack& {
     return escape.get();
@@ -68,13 +68,13 @@ class Propagate : public Expression {
   };
 
   constexpr Propagate(
-      Expression& receiver,
+      Model::Pack& receiver,
       Model::Pack& empty_escape,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor), receiver(receiver), escape(empty_escape) {}
 
-  Expression& receiver;
-  Ttx::Concept::Reference<Model::Pack> escape;
+  Model::Pack& receiver;
+  Ttx::Model::PackReference<Model::Pack> escape;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       receiver_type;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>

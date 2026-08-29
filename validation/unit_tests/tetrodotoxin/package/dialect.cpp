@@ -56,6 +56,7 @@ static auto has_diagnostic(const Errors& errors, View::Bytes text) -> Bool {
 
 PERIMORTEM_UNIT_TEST(PackageDialect, type_surface) {
   static constexpr View::Bytes source =
+      "package(.name = \"Validation.Surface\", .version = \"1.0\");\n"
       "public Api : namespace {\n"
       "  public Value : struct { public state number : U64; }\n"
       "}"_view;
@@ -73,9 +74,9 @@ PERIMORTEM_UNIT_TEST(PackageDialect, type_surface) {
   ASSERT(monograph->link(cursor));
   ASSERT(monograph->finalize(cursor));
 
-  const Abstract& api = monograph->resolve_context("Api"_view).resolve();
+  const Abstract& api = monograph->resolve_concept("Api"_view).resolve();
   ASSERT(api.is<Library::Language::Types::Namespace>());
-  const Abstract& value = api.resolve_context("Value"_view).resolve();
+  const Abstract& value = api.resolve_concept("Value"_view).resolve();
   auto structure = value.select<Library::Language::Types::Structure>();
   ASSERT(structure);
   EXPECT_EQ(structure->get_layout().get_size(), Count(1));
@@ -83,14 +84,16 @@ PERIMORTEM_UNIT_TEST(PackageDialect, type_surface) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageDialect, empty_surface) {
+  static constexpr View::Bytes source =
+      "package(.name = \"Validation.Empty\", .version = \"1.0\");"_view;
   Allocator::Arena arena;
   Library::Dialect library;
   Package::Dialect package(library);
   Errors errors;
-  auto monograph = interpret(arena, package, errors, {});
+  auto monograph = interpret(arena, package, errors, source);
   ASSERT(monograph);
 
-  Tokenizer tokenizer(arena, {}, "package.ttx"_view);
+  Tokenizer tokenizer(arena, source, "package.ttx"_view);
   Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations, "package.ttx"_view);
   EXPECT(monograph->compose(cursor));
@@ -101,6 +104,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, empty_surface) {
 
 PERIMORTEM_UNIT_TEST(PackageDialect, rejects_value_members) {
   static constexpr View::Bytes source =
+      "package(.name = \"Validation.Values\", .version = \"1.0\");\n"
       "public count : U64 = 1;\n"
       "public call : func = [] -> [] : return;"_view;
   Allocator::Arena arena;
@@ -115,6 +119,7 @@ PERIMORTEM_UNIT_TEST(PackageDialect, rejects_value_members) {
 
 PERIMORTEM_UNIT_TEST(PackageDialect, rejects_manifest_tables) {
   static constexpr View::Bytes source =
+      "package(.name = \"Validation.Tables\", .version = \"1.0\");\n"
       "resolve Math : Perimortem.Math = \"1.0\";\n"
       "source Main from \"main.ttx\";"_view;
   Allocator::Arena arena;

@@ -10,8 +10,8 @@ auto Builtin::Object::View::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
     const Language::Model::Type& result) -> View& {
-  auto& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, receiver);
+  auto& self = Ttx::Model::Layouts::Addressable::create_synthetic(
+      domain, "self"_view, receiver);
   return domain.construct_from<View>(
       [&]() -> View { return View(self, result); });
 }

@@ -54,8 +54,8 @@ class Monograph : public Ttx::Model::Type {
   virtual auto get_layer(const Ttx::Concept::Abstract& requested) const
       -> Perimortem::Core::Option<const Monograph&>;
 
-  // Environment acquires source-local Import Types from these real roots. The
-  // root is a Dialect semantic object retained by its Monograph lifetime owner.
+  // Environment acquires the exact source-local Import Aliases retained by
+  // this Monograph. Imports do not enter the Type inventory they may resolve.
   virtual auto get_root() const -> const Ttx::Concept::Abstract&;
 
   virtual auto retain_import(
@@ -63,14 +63,13 @@ class Monograph : public Ttx::Model::Type {
       Perimortem::Core::Option<Ttx::Lexical::Associations&> associations = {})
       -> Bool;
 
-  virtual constexpr auto get_reachable_types() const
-      -> Perimortem::Core::View::Vector<
-          Ttx::Concept::Reference<Ttx::Model::Type>> {
-    return types.get_view();
+  virtual constexpr auto get_imports() const
+      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Import>> {
+    return imports.get_view();
   }
 
   // Linking inside the source sees private and public imported Types. External
-  // contextual queries continue through resolve_context and observe only the
+  // contextual queries continue through resolve_concept and observe only the
   // public surface.
   virtual auto resolve_lexical_context(Perimortem::Core::View::Bytes route)
       const -> const Ttx::Concept::Abstract&;
@@ -89,7 +88,7 @@ class Monograph : public Ttx::Model::Type {
   virtual auto link_restored() -> Bool;
   virtual auto finalize_restored() -> Bool;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto get_layout() const -> const Ttx::Concept::Layout& override;
@@ -115,8 +114,7 @@ class Monograph : public Ttx::Model::Type {
 
  private:
   const Ttx::Concept::Abstract& language;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Ttx::Model::Type>>
-      types;
+  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Import>> imports;
 };
 
 }  // namespace Tetrodotoxin::Language

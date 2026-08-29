@@ -40,8 +40,9 @@ class Associations {
       : associations(arena) {}
   Associations(const Associations&) = delete;
 
-  // An authored Span gives an identity a place in source. Synthetic identities
-  // have no such place, so there is nothing useful to add to this index.
+  // An authored Span gives an identity a place in source. Repeating the exact
+  // Anchor replaces its provisional semantic with the strongest linked fact.
+  // Synthetic identities have no authored place and are not retained.
   auto create(Anchor anchor, const Ttx::Concept::Abstract& semantic) -> void;
 
   // An exact Token is the best answer when several authored ranges cover one

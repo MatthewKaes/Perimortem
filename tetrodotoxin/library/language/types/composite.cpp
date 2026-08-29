@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/library/language/types/composite.hpp"
 
+#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/alias.hpp"
@@ -13,7 +14,8 @@
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/termination.hpp"
 
 using namespace Perimortem::Core;
@@ -24,167 +26,8 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
 using Tetrodotoxin::Language::Visibility;
-using Type = Model::Type;
 
 static constexpr Ttx::Model::Layouts::Named empty_layout;
-static constexpr U8 addressable_publication = 1 << 0;
-static constexpr U8 type_publication = 1 << 1;
-static constexpr U8 static_callable_publication = 1 << 2;
-static constexpr U8 self_callable_publication = 1 << 3;
-
-auto Types::Composite::NameIndex::Entry::select(Category category, Bool self)
-    const -> Option<Abstract&> {
-  switch (category) {
-  case Category::Addressable:
-    return addressable;
-  case Category::Callable:
-    return self ? self_callable : static_callable;
-  case Category::Type:
-    return type;
-  }
-
-  return {};
-}
-
-auto Types::Composite::NameIndex::Entry::can_bind(
-    const Abstract& binding,
-    Category category,
-    Bool self) const -> Bool {
-  switch (category) {
-  case Category::Addressable:
-  case Category::Callable:
-  case Category::Type:
-    break;
-  default:
-    return False;
-  }
-
-  auto matches = [&](Option<Abstract&> candidate) {
-    return candidate && &*candidate == &binding;
-  };
-  BAIL_IF(
-      matches(addressable) || matches(type) || matches(static_callable) ||
-      matches(self_callable));
-  return !select(category, self);
-}
-
-auto Types::Composite::NameIndex::Entry::bind(
-    Abstract& binding,
-    Category category,
-    Bool self,
-    Bool published) -> Bool {
-  BAIL_IF(!can_bind(binding, category, self));
-
-  U8 flag = 0;
-  switch (category) {
-  case Category::Addressable:
-    addressable = Option<Abstract&>(binding);
-    flag = addressable_publication;
-    break;
-  case Category::Callable:
-    if (self) {
-      self_callable = Option<Abstract&>(binding);
-      flag = self_callable_publication;
-    } else {
-      static_callable = Option<Abstract&>(binding);
-      flag = static_callable_publication;
-    }
-    break;
-  case Category::Type:
-    type = Option<Abstract&>(binding);
-    flag = type_publication;
-    break;
-  default:
-    return False;
-  }
-
-  if (published) {
-    publication |= flag;
-  }
-  return True;
-}
-
-auto Types::Composite::NameIndex::Entry::is_published(
-    const Abstract& binding) const -> Bool {
-  auto matches = [&](Option<Abstract&> candidate, U8 flag) {
-    return candidate && &*candidate == &binding && (publication & flag) != 0;
-  };
-  return matches(addressable, addressable_publication) ||
-         matches(type, type_publication) ||
-         matches(static_callable, static_callable_publication) ||
-         matches(self_callable, self_callable_publication);
-}
-
-auto Types::Composite::NameIndex::can_bind(
-    const Abstract& binding,
-    Category category) const -> Bool {
-  View::Bytes name = binding.get_name();
-  BAIL_IF(name.is_empty());
-
-  Bool self = False;
-  switch (category) {
-  case Category::Addressable:
-  case Category::Type:
-    break;
-  case Category::Callable: {
-    auto callable = binding.select<Model::Callable>();
-    BAIL_IF(!callable);
-    self = callable->declares_self();
-    break;
-  }
-  default:
-    return False;
-  }
-
-  auto entry = entries.find(name);
-  return !entry || entry->value.can_bind(binding, category, self);
-}
-
-auto Types::Composite::NameIndex::bind(
-    Abstract& binding,
-    Category category,
-    Bool published) -> Bool {
-  BAIL_IF(!can_bind(binding, category));
-
-  Bool self = False;
-  if (category == Category::Callable) {
-    auto callable = binding.select<Model::Callable>();
-    BAIL_IF(!callable);
-    self = callable->declares_self();
-  }
-
-  auto selected = entries.find(binding.get_name());
-  if (selected) {
-    return selected->value.bind(binding, category, self, published);
-  }
-
-  auto created = entries.insert(binding.get_name(), Entry());
-  return created && created->value.bind(binding, category, self, published);
-}
-
-auto Types::Composite::NameIndex::resolve(
-    View::Bytes name,
-    Category category,
-    Visibility visibility,
-    Bool self) const -> const Abstract& {
-  auto entry = entries.find(name);
-  if (!entry) {
-    return Invalid::get_invalid();
-  }
-
-  auto selected = entry->value.select(category, self);
-  if (!selected || (visibility != Visibility::Private &&
-                    !entry->value.is_published(*selected))) {
-    return Invalid::get_invalid();
-  }
-  return *selected;
-}
-
-auto Types::Composite::NameIndex::is_published(const Abstract& binding) const
-    -> Bool {
-  auto entry = entries.find(binding.get_name());
-  return entry && entry->value.is_published(binding);
-}
 
 template <typename selected_type, typename visitor_type>
 static auto visit_each(
@@ -234,23 +77,26 @@ static auto declaration_offset(const Option<const selected_type&>& selected)
 Types::Composite::Composite(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition)
-    : definition(definition),
+    : Model::Type(domain),
+      definition(definition),
       domain(domain),
-      names(domain),
+      static_authority(edit_static_authority()),
+      instance_authority(edit_instance_authority()),
       addressables(domain),
       published_addressables(domain),
       types(domain),
       published_types(domain),
       declarations(domain) {}
 
-auto Types::Composite::has_private_access_to(const Type& owner) const -> Bool {
+auto Types::Composite::has_private_access_to(const Model::Type& owner) const
+    -> Bool {
   if (this == &owner) {
     return True;
   }
 
   // Authority walks outward from the caller. Asking the owner to walk its own
   // host would admit parents, siblings, and unrelated Aliases.
-  auto enclosing = get_host().select<Type>();
+  auto enclosing = get_host().select<Model::Type>();
   return enclosing && enclosing->has_private_access_to(owner);
 }
 
@@ -291,7 +137,24 @@ auto Types::Composite::can_accept_definition() const -> Bool {
 auto Types::Composite::can_bind_definition(
     const Abstract& binding,
     Category category) const -> Bool {
-  return names.can_bind(binding, category);
+  switch (category) {
+  case Category::Type:
+    return static_authority.can_bind(binding);
+  case Category::Callable: {
+    auto callable = binding.select<Model::Callable>();
+    BAIL_IF(!callable);
+    return callable->declares_self() ? instance_authority.can_bind(binding)
+                                     : static_authority.can_bind(binding);
+  }
+  case Category::Addressable: {
+    auto addressable = binding.select<Model::Addressable>();
+    BAIL_IF(!addressable);
+    return addressable->contributes_to_instance_layout()
+               ? instance_authority.can_bind(binding)
+               : static_authority.can_bind(binding);
+  }
+  }
+  return False;
 }
 
 auto Types::Composite::retain_binding(
@@ -315,7 +178,30 @@ auto Types::Composite::publish_binding(
   // The parser or importing provider supplies the category before publication.
   // Alias resolution is deliberately absent here: delayed graph completion
   // cannot change which namespace owns the local name.
-  BAIL_IF(!names.bind(binding, category, published));
+  BAIL_IF(!can_bind_definition(binding, category));
+  Bool bound = False;
+  switch (category) {
+  case Category::Type:
+    bound = static_authority.bind(binding, published);
+    break;
+  case Category::Callable: {
+    auto callable = binding.select<Model::Callable>();
+    BAIL_IF(!callable);
+    bound = callable->declares_self()
+                ? instance_authority.bind(binding, published)
+                : static_authority.bind(binding, published);
+    break;
+  }
+  case Category::Addressable: {
+    auto addressable = binding.select<Model::Addressable>();
+    BAIL_IF(!addressable);
+    bound = addressable->contributes_to_instance_layout()
+                ? instance_authority.bind(binding, published)
+                : static_authority.bind(binding, published);
+    break;
+  }
+  }
+  BAIL_IF(!bound);
   switch (category) {
   case Category::Addressable:
     if (prepend) {
@@ -357,7 +243,8 @@ auto Types::Composite::publish_binding(
 }
 
 auto Types::Composite::is_published(const Abstract& declaration) const -> Bool {
-  return names.is_published(declaration);
+  return static_authority.is_published(declaration) ||
+         instance_authority.is_published(declaration);
 }
 
 auto Types::Composite::link_aliases() -> Count {
@@ -368,7 +255,7 @@ auto Types::Composite::link_aliases() -> Count {
       linked++;
     }
 
-    auto type = binding.get().select<Type>();
+    auto type = binding.get().select<Model::Type>();
     if (type) {
       linked += type->link_aliases();
     }
@@ -385,7 +272,7 @@ auto Types::Composite::validate_aliases(Cursor& cursor) const -> Bool {
       valid = False;
     }
 
-    auto type = binding.get().select<Type>();
+    auto type = binding.get().select<Model::Type>();
     if (type && !type->validate_aliases(cursor)) {
       valid = False;
     }
@@ -406,8 +293,9 @@ auto Types::Composite::link_types(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(
-      types.get_view(), [&](Type& type) { return type.link_types(cursor); });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.link_types(cursor); });
 
   BAIL_IF(failed);
 
@@ -428,8 +316,9 @@ auto Types::Composite::link_fields(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(
-      types.get_view(), [&](Type& type) { return type.link_fields(cursor); });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.link_fields(cursor); });
   BAIL_IF(failed);
 
   // Authored Type routes settle without evaluating initializers. Completing
@@ -457,7 +346,7 @@ auto Types::Composite::link_fields(Cursor& cursor) -> Bool {
 auto Types::Composite::validate_layout(Cursor& cursor) const -> Bool {
   Bool valid = True;
   for (const Reference<Abstract>& binding : types.get_view()) {
-    auto type = binding.get().select<Type>();
+    auto type = binding.get().select<Model::Type>();
     if (type && !type->validate_layout(cursor)) {
       valid = False;
     }
@@ -499,6 +388,8 @@ auto Types::Composite::complete_field_layout() -> void {
     }
   }
   layout = domain.construct<Ttx::Model::Layouts::Named>(fields.get_view());
+  static_authority.complete();
+  instance_authority.complete();
 }
 
 auto Types::Composite::link_initializers(Cursor& cursor) -> Bool {
@@ -513,9 +404,9 @@ auto Types::Composite::link_initializers(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
-    return type.link_initializers(cursor);
-  });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.link_initializers(cursor); });
   failed |= !visit_each<Model::Addressable>(
       addressables.get_view(), [&](Model::Addressable& addressable) {
         return addressable.link_declaration_initializer(cursor);
@@ -550,9 +441,9 @@ auto Types::Composite::link_callable_signatures(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
-    return type.link_callable_signatures(cursor);
-  });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.link_callable_signatures(cursor); });
   failed |= !visit_each<Model::Callable>(
       get_callable_bindings(), [&](Model::Callable& callable) {
         return callable.link_declaration_signature(cursor);
@@ -577,9 +468,9 @@ auto Types::Composite::link_callable_bodies(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(types.get_view(), [&](Type& type) {
-    return type.link_callable_bodies(cursor);
-  });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.link_callable_bodies(cursor); });
   failed |= !visit_each<Model::Callable>(
       get_callable_bindings(), [&](Model::Callable& callable) {
         return callable.link_declaration_body(cursor);
@@ -603,8 +494,9 @@ auto Types::Composite::finalize(Cursor& cursor) -> Bool {
     return False;
   }
 
-  Bool failed = !visit_each<Type>(
-      types.get_view(), [&](Type& type) { return type.finalize(cursor); });
+  Bool failed = !visit_each<Model::Type>(
+      types.get_view(),
+      [&](Model::Type& type) { return type.finalize(cursor); });
 
   failed |= !visit_each<Model::Addressable>(
       addressables.get_view(), [&](Model::Addressable& addressable) {
@@ -726,7 +618,7 @@ auto Types::Composite::finalize_restored() -> Bool {
 
 auto Types::Composite::resolve() const -> const Abstract& {
   if (stage < Stage::FieldsLinked) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return *this;
@@ -735,15 +627,58 @@ auto Types::Composite::resolve() const -> const Abstract& {
 auto Types::Composite::resolve_binding(
     View::Bytes route,
     Category category,
-    Visibility visibility,
-    Bool self) const -> const Abstract& {
-  return names.resolve(route, category, visibility, self);
+    Visibility visibility) const -> const Abstract& {
+  const Abstract& selected = [&]() -> const Abstract& {
+    return visibility == Visibility::Private
+               ? static_authority.resolve_concept(route)
+               : static_authority.resolve_published(route);
+  }();
+
+  if (selected.is<Unknown>() || selected.is<None>()) {
+    return selected;
+  }
+  switch (category) {
+  case Category::Addressable:
+    return selected.is<Model::Addressable>() ? selected
+                                             : Unknown::get_unknown();
+  case Category::Callable:
+    return selected.is<Model::Callable>() ? selected : Unknown::get_unknown();
+  case Category::Type:
+    return selected.is<Model::Type>() || selected.is<Ttx::Model::Alias>()
+               ? selected
+               : Unknown::get_unknown();
+  }
+  return Unknown::get_unknown();
 }
 
-auto Types::Composite::resolve_context(View::Bytes route) const
+auto Types::Composite::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "static"_view) {
+    return static_authority;
+  }
+  if (route == "instance"_view) {
+    return instance_authority;
+  }
+
   const Abstract& local = resolve_public_context(route);
-  return !local.is<Invalid>() ? local : get_host().resolve_context(route);
+  return !local.is<Unknown>() && !local.is<None>()
+             ? local
+             : get_host().resolve_concept(route);
+}
+
+auto Types::Composite::get_concepts(Context& context) const -> const Pack& {
+  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 2>
+      concepts = {{
+        static_authority,
+        instance_authority,
+      }};
+  const Perimortem::Core::Static::Vector<View::Bytes, 2> names = {{
+    "static"_view,
+    "instance"_view,
+  }};
+  Ttx::Model::Layouts::Fluid values(concepts);
+  Ttx::Model::Layouts::Named named(values, names);
+  return context.pack(named);
 }
 
 auto Types::Composite::resolve_public_context(View::Bytes route) const
@@ -753,84 +688,30 @@ auto Types::Composite::resolve_public_context(View::Bytes route) const
 
 auto Types::Composite::resolve_lexical_context(View::Bytes route) const
     -> const Abstract& {
-  const Abstract& addressable =
-      resolve_type_access(*this, route, Type::Access::Static);
-  if (!addressable.is<Invalid>()) {
-    return addressable;
+  const Abstract& local = static_authority.resolve_concept(route);
+  if (!local.is<Unknown>() && !local.is<None>()) {
+    return local;
   }
 
-  const Abstract& type =
-      resolve_binding(route, Category::Type, Visibility::Private);
-  if (!type.is<Invalid>()) {
-    return type;
-  }
-
-  auto enclosing = get_host().select<Type>();
+  auto enclosing = get_host().select<Model::Type>();
   return enclosing ? enclosing->resolve_lexical_context(route)
-                   : get_host().resolve_context(route);
+                   : get_host().resolve_concept(route);
 }
 
-auto Types::Composite::resolve_type_access(
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) const -> const Abstract& {
-  const Abstract& binding =
-      resolve_binding(route, Category::Addressable, Visibility::Private);
-  if (binding.is<Invalid>()) {
-    return binding;
-  }
-
-  const Abstract& resolved = binding.resolve();
-  auto addressable = resolved.select<Model::Addressable>();
-  if (!addressable || !addressable->supports_access(access)) {
-    return Invalid::get_invalid();
-  }
-
-  auto caller = host.select<Type>();
-  if (names.is_published(binding) ||
-      (caller && caller->has_private_access_to(*this))) {
-    return binding;
-  }
-  return Invalid::get_invalid();
-}
-
-auto Types::Composite::resolve_type_call(
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) const -> const Abstract& {
-  Bool self = access == Type::Access::Self;
-  const Abstract& binding =
-      resolve_binding(route, Category::Callable, Visibility::Private, self);
-  if (binding.is<Invalid>()) {
-    return binding;
-  }
-
-  auto callable = binding.resolve().select<Model::Callable>();
-  if (!callable || callable->declares_self() != self) {
-    return Invalid::get_invalid();
-  }
-
-  auto caller = host.select<Type>();
-  if (names.is_published(binding) ||
-      (caller && caller->has_private_access_to(*this))) {
-    return binding;
-  }
-  return Invalid::get_invalid();
-}
-
-auto Types::Composite::is_externally_reachable(const Type& type) const -> Bool {
+auto Types::Composite::is_externally_reachable(const Model::Type& type) const
+    -> Bool {
   const Abstract& local =
       resolve_binding(type.get_name(), Category::Type, Visibility::Public);
-  if (!local.is<Invalid>()) {
+  if (!local.is<Unknown>() && !local.is<None>()) {
     return &local.resolve() == &type;
   }
 
-  auto enclosing = get_host().select<Type>();
+  auto enclosing = get_host().select<Model::Type>();
   if (enclosing) {
     return enclosing->is_externally_reachable(type);
   }
 
-  return &get_host().resolve_context(type.get_name()).resolve() == &type;
+  return &get_host().resolve_concept(type.get_name()).resolve() == &type;
 }
 
 auto Types::Composite::get_layout() const -> const Ttx::Model::Layouts::Named& {

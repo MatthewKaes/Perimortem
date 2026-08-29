@@ -24,23 +24,18 @@ enum class ShaderWriterAttributeValue : U8 {
   Flag,
 };
 
-Shader::Archive::Writer::Writer(
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    : profile(profile) {
+Shader::Archive::Writer::Writer() {
   Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << "TTXS"_view;
-  appender << U16(1);
-  appender << U8(profile);
-  appender << U8(0);
+  appender << U16(2);
+  appender << U16(0);
 }
 
 auto Shader::Archive::Writer::encode(
-    const Shader::Language::Monograph& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Dynamic::Bytes> {
+    const Shader::Language::Monograph& monograph) -> Option<Dynamic::Bytes> {
   BAIL_IF(!monograph.is_finalized());
 
-  Writer writer(profile);
+  Writer writer;
   auto record = writer.begin(Tag::Monograph);
   BAIL_IF(!writer.write(monograph.get_documentation()));
   for (const Reference<Shader::Language::Program>& retained :
@@ -49,10 +44,7 @@ auto Shader::Archive::Writer::encode(
   }
   for (const Reference<Shader::Language::Bridge>& retained :
        monograph.get_bridges()) {
-    const Shader::Language::Bridge& bridge = retained.get();
-    if (!writer.public_only() || bridge.get_definition().is_published()) {
-      BAIL_IF(!writer.write(bridge));
-    }
+    BAIL_IF(!writer.write(retained.get()));
   }
   BAIL_IF(!writer.finish(record));
   return Data::take(writer.bytes);
@@ -168,8 +160,7 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
     -> Bool {
   // Library writes the executable declaration surface through its own schema.
   // Shader wraps those bytes with only the relationship facts it owns.
-  auto declarations =
-      Library::Archive::Writer::encode_declarations(program, profile);
+  auto declarations = Library::Archive::Writer::encode_declarations(program);
   BAIL_IF(!declarations || program.get_bindings().get_size() > U32(-1));
 
   auto record = begin(Tag::Program);
@@ -177,18 +168,9 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
       !write(program.get_definition()) ||
       !write(program.get_contract_reference().get_route()) ||
       !write(declarations->get_view()));
-  Count included = 0;
+  BAIL_IF(program.get_bindings().get_size() > U32(-1));
+  write(U32(program.get_bindings().get_size()));
   for (const Shader::Language::Binding& binding : program.get_bindings()) {
-    if (!public_only() || binding.get_definition().is_published()) {
-      included++;
-    }
-  }
-  BAIL_IF(included > U32(-1));
-  write(U32(included));
-  for (const Shader::Language::Binding& binding : program.get_bindings()) {
-    if (public_only() && !binding.get_definition().is_published()) {
-      continue;
-    }
     auto binding_record = begin(Tag::Binding);
     BAIL_IF(!write(binding.get_field().get_name()));
     write(U8(binding.get_kind()));
@@ -197,18 +179,9 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
   }
 
   auto uniforms = program.get_uniforms();
-  Count included_uniforms = 0;
+  BAIL_IF(uniforms.get_size() > U32(-1));
+  write(U32(uniforms.get_size()));
   for (const Reference<Library::Language::Field>& uniform : uniforms) {
-    if (!public_only() || uniform.get().get_definition().is_published()) {
-      included_uniforms++;
-    }
-  }
-  BAIL_IF(included_uniforms > U32(-1));
-  write(U32(included_uniforms));
-  for (const Reference<Library::Language::Field>& uniform : uniforms) {
-    if (public_only() && !uniform.get().get_definition().is_published()) {
-      continue;
-    }
     auto uniform_record = begin(Tag::Uniform);
     BAIL_IF(!write(uniform.get().get_name()) || !finish(uniform_record));
   }
@@ -220,9 +193,9 @@ auto Shader::Archive::Writer::write(const Shader::Language::Bridge& bridge)
   // Endpoint routes remain Library payloads because Generic arguments and
   // literal facts belong to that Type system. Shader records only their policy.
   auto cpu = Library::Archive::Writer::encode_type_reference(
-      bridge.get_cpu_reference(), profile);
+      bridge.get_cpu_reference());
   auto gpu = Library::Archive::Writer::encode_type_reference(
-      bridge.get_gpu_reference(), profile);
+      bridge.get_gpu_reference());
   BAIL_IF(!cpu || !gpu);
 
   auto record = begin(Tag::Bridge);

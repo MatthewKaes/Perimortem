@@ -23,14 +23,14 @@ class Slice : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& index,
+      Model::Pack& receiver,
+      Model::Pack& index,
       Ttx::Lexical::Anchor anchor) -> Slice&;
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& start,
-      Expression& count,
+      Model::Pack& receiver,
+      Model::Pack& start,
+      Model::Pack& count,
       Ttx::Lexical::Anchor anchor) -> Slice&;
   TTX_NAME("Slice"_view);
   TTX_EMPTY_DOCUMENTATION();
@@ -44,24 +44,22 @@ class Slice : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_produced(Count index) const
-      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto fits(const Ttx::Model::Type& target) const -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
   // The first operand is the scalar index or the first position of a range.
-  constexpr auto get_index() const -> const Expression& { return first; }
+  constexpr auto get_index() const -> const Model::Pack& { return first; }
 
   constexpr auto get_count() const
-      -> Perimortem::Core::Option<const Expression&> {
+      -> Perimortem::Core::Option<const Model::Pack&> {
     return count.visit(
-        []() -> Perimortem::Core::Option<const Expression&> { return {}; },
-        [](const Ttx::Concept::Reference<Expression>& selected)
-            -> Perimortem::Core::Option<const Expression&> {
+        []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
+        [](const Ttx::Model::PackReference<Model::Pack>& selected)
+            -> Perimortem::Core::Option<const Model::Pack&> {
           return selected.get();
         });
   }
@@ -80,7 +78,7 @@ class Slice : public Expression {
       -> Perimortem::Core::Option<const Model::Pack&> {
     return fallback.visit(
         []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
-        [](const Ttx::Concept::Reference<Model::Pack>& selected)
+        [](const Ttx::Model::PackReference<Model::Pack>& selected)
             -> Perimortem::Core::Option<const Model::Pack&> {
           return selected.get();
         });
@@ -98,23 +96,23 @@ class Slice : public Expression {
  private:
   Slice(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& index,
+      Model::Pack& receiver,
+      Model::Pack& index,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
   Slice(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& start,
-      Expression& count,
+      Model::Pack& receiver,
+      Model::Pack& start,
+      Model::Pack& count,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 
   Perimortem::Memory::Allocator::Arena& domain;
-  Expression& receiver;
-  Expression& first;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> count;
+  Model::Pack& receiver;
+  Model::Pack& first;
+  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> count;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>> fallback;
+  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> fallback;
   Perimortem::Core::Option<Count> range_count;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> range_layout;
 };

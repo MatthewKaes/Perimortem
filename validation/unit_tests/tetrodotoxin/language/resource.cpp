@@ -5,6 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
+#include "ttx/concept/none.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem::Core;
@@ -33,7 +34,7 @@ PERIMORTEM_UNIT_TEST(LanguageResource, category_contract) {
   EXPECT(abstract.is<Language::Resource>());
   EXPECT(abstract.is<Abstract>());
   EXPECT_NOT(abstract.is<Ttx::Model::Type>());
-  EXPECT_NOT(abstract.is<Invalid>());
+  EXPECT_NOT(abstract.is<Unknown>());
   EXPECT_TEXT(resource.get_name(), "Resource"_view);
 }
 
@@ -59,10 +60,10 @@ PERIMORTEM_UNIT_TEST(LanguageResource, context_rejection) {
     View::Bytes(binary_route, sizeof(binary_route)),
   };
   BorrowedResource resource("value"_view);
-  const Invalid& invalid = Invalid::get_invalid();
+  const None& none = None::get_none();
 
   for (View::Bytes route : routes) {
-    EXPECT(&resource.resolve_context(route) == &invalid);
+    EXPECT(&resource.resolve_concept(route) == &none);
   }
 }
 

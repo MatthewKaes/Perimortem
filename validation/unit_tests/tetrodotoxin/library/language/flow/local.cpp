@@ -18,7 +18,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -101,8 +101,8 @@ PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
   ASSERT(monograph);
 
   const auto& source_type = monograph->get_source();
-  const Abstract& packet_identity = source_type.resolve_context("Packet"_view);
-  const Abstract& pair_identity = source_type.resolve_context("Pair"_view);
+  const Abstract& packet_identity = source_type.resolve_concept("Packet"_view);
+  const Abstract& pair_identity = source_type.resolve_concept("Pair"_view);
   ASSERT(packet_identity.is<Language::Types::Object>());
   ASSERT(pair_identity.is<Language::Types::Structure>());
   auto body = find_function(source_type, "body"_view);
@@ -132,7 +132,7 @@ PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
       statements.get_data()[5].get_root());
   const auto& named_local = static_cast<const Language::Flow::Local&>(
       statements.get_data()[6].get_root());
-  const Abstract& boolean = monograph->resolve_context("Bool"_view);
+  const Abstract& boolean = monograph->resolve_concept("Bool"_view);
 
   EXPECT(&explicit_local.get_type() == &boolean);
   EXPECT(&fixed_local.get_type() == &boolean);
@@ -155,13 +155,13 @@ PERIMORTEM_UNIT_TEST(LocalTests, local_completion) {
   EXPECT(
       explicit_local.get_anchor().get_span().caculate_text(source) ==
       "state explicit : Bool = true;"_view);
-  EXPECT(&block.resolve_context("explicit"_view) == &explicit_local);
-  EXPECT(&block.resolve_context("fixed"_view) == &fixed_local);
-  EXPECT(&block.resolve_context("inferred"_view) == &inferred_local);
-  EXPECT(&block.resolve_context("copied"_view) == &copied_local);
-  EXPECT(&block.resolve_context("created"_view) == &created_local);
-  EXPECT(&block.resolve_context("positional"_view) == &positional_local);
-  EXPECT(&block.resolve_context("named"_view) == &named_local);
+  EXPECT(&block.resolve_concept("explicit"_view) == &explicit_local);
+  EXPECT(&block.resolve_concept("fixed"_view) == &fixed_local);
+  EXPECT(&block.resolve_concept("inferred"_view) == &inferred_local);
+  EXPECT(&block.resolve_concept("copied"_view) == &copied_local);
+  EXPECT(&block.resolve_concept("created"_view) == &created_local);
+  EXPECT(&block.resolve_concept("positional"_view) == &positional_local);
+  EXPECT(&block.resolve_concept("named"_view) == &named_local);
 
   Perimortem::Memory::Allocator::Arena transaction;
   Tokenizer tokenizer(transaction, source, "local.ttx"_view);
@@ -210,15 +210,16 @@ PERIMORTEM_UNIT_TEST(LocalTests, folded_const) {
   ASSERT(folded);
   ASSERT_EQ(folded->get_layout().get_size(), Count(4));
   for (Count index = 0; index < Count(4); index++) {
-    auto produced = folded->get_produced(index);
-    ASSERT(produced);
-    auto value = produced->producer.select<Language::Constants::Unsigned>();
+    auto producer = folded->get_layout().get_abstract(index);
+    ASSERT(producer);
+    auto value = producer->select<Language::Constants::Unsigned>();
     ASSERT(value);
     EXPECT_EQ(value->get_value(), U64(index + 5));
   }
   auto extracted_value = extracted.get_constant();
   ASSERT(extracted_value);
-  auto value = extracted_value->select<Language::Constants::Unsigned>();
+  auto value =
+      extracted_value->select_identity<Language::Constants::Unsigned>();
   ASSERT(value);
   EXPECT_EQ(value->get_value(), U64(6));
   EXPECT(errors.is_empty());

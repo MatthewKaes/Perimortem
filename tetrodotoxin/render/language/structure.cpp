@@ -3,7 +3,8 @@
 
 #include "tetrodotoxin/render/language/structure.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -53,33 +54,32 @@ auto Language::Structure::link_restored() -> Bool {
 auto Language::Structure::resolve() const -> const Abstract& {
   return declarations.is_linked()
              ? static_cast<const Abstract&>(*this)
-             : static_cast<const Abstract&>(Invalid::get_invalid());
+             : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
-auto Language::Structure::resolve_context(View::Bytes name) const
+auto Language::Structure::resolve_concept(View::Bytes name) const
     -> const Abstract& {
+  if (name == "static"_view) {
+    return declarations.get_authority();
+  }
+  if (name == "instance"_view) {
+    return None::get_none();
+  }
   const Abstract& local = declarations.resolve_type(
       name, Tetrodotoxin::Language::Visibility::Public);
-  return local.is<Invalid>() ? definition.get_host().resolve_context(name)
-                             : local;
+  return local.is<Unknown>() || local.is<None>()
+             ? definition.get_host().resolve_concept(name)
+             : local;
+}
+
+auto Language::Structure::get_concepts(Context& context) const -> const Pack& {
+  return declarations.get_concepts(context);
 }
 
 auto Language::Structure::resolve_local_context(View::Bytes name) const
     -> const Abstract& {
   return declarations.resolve_type(
       name, Tetrodotoxin::Language::Visibility::Private);
-}
-
-auto Language::Structure::resolve_access(const Abstract&, View::Bytes name)
-    const -> const Abstract& {
-  return declarations.resolve_addressable(
-      name, Tetrodotoxin::Language::Visibility::Public);
-}
-
-auto Language::Structure::resolve_call(const Abstract&, View::Bytes name) const
-    -> const Abstract& {
-  return declarations.resolve_callable(
-      name, Tetrodotoxin::Language::Visibility::Public);
 }
 
 auto Language::Structure::get_layout() const -> const Ttx::Concept::Layout& {

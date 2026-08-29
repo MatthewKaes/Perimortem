@@ -18,9 +18,6 @@ using namespace Perimortem::Serialization;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using Appender = Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>;
-using Patcher = Perimortem::Core::Writer::Binary<Data::ByteOrder::Little>;
-
 enum class RenderWriterAttributeValue : U8 {
   Empty,
   Bytes,
@@ -49,30 +46,25 @@ static auto definition_of(const Abstract& declaration)
                    : Option<const Tetrodotoxin::Language::Definition&>();
 }
 
-Render::Archive::Writer::Writer(
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    : profile(profile) {
-  Appender appender(bytes);
+Render::Archive::Writer::Writer() {
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << "TTXR"_view;
-  appender << U16(1);
-  appender << U8(profile);
-  appender << U8(0);
+  appender << U16(2);
+  appender << U16(0);
 }
 
 auto Render::Archive::Writer::encode(
-    const Render::Language::Monograph& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Dynamic::Bytes> {
+    const Render::Language::Monograph& monograph) -> Option<Dynamic::Bytes> {
   BAIL_IF(!monograph.is_finalized());
 
-  Writer writer(profile);
+  Writer writer;
   BAIL_IF(!writer.write(monograph));
   return Data::take(writer.bytes);
 }
 
 auto Render::Archive::Writer::begin(Tag tag) -> Record {
   Count offset = bytes.get_size();
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U16(tag);
   appender << U16(0);
   appender << U32(0);
@@ -85,34 +77,35 @@ auto Render::Archive::Writer::finish(Record record) -> Bool {
 
   Count size = bytes.get_size() - offset - 8;
   BAIL_IF(size > U32(-1));
-  Patcher patcher(bytes.get_access().slice(offset + 4, 4));
+  Perimortem::Core::Writer::Binary<Data::ByteOrder::Little> patcher(
+      bytes.get_access().slice(offset + 4, 4));
   patcher << U32(size);
   return patcher.is_valid();
 }
 
 auto Render::Archive::Writer::write(U8 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Render::Archive::Writer::write(U32 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Render::Archive::Writer::write(U64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Render::Archive::Writer::write(S64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Render::Archive::Writer::write(R64 value) -> void {
-  Appender(bytes) << value;
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes>(bytes) << value;
 }
 
 auto Render::Archive::Writer::write(View::Bytes value) -> Bool {
   BAIL_IF(value.get_size() > U32(-1));
-  Appender appender(bytes);
+  Stream::Binary<Data::ByteOrder::Little, Dynamic::Bytes> appender(bytes);
   appender << U32(value.get_size());
   appender << value;
   return True;
@@ -200,7 +193,7 @@ auto Render::Archive::Writer::write(const Render::Language::Layout& layout)
 
 auto Render::Archive::Writer::write(const Abstract& declaration) -> Bool {
   auto definition = definition_of(declaration);
-  BAIL_IF(!definition || (public_only() && !definition->is_published()));
+  BAIL_IF(!definition);
 
   auto alias = declaration.select<Render::Language::Alias>();
   if (alias) {
@@ -243,34 +236,13 @@ auto Render::Archive::Writer::write(
   BAIL_IF(!write(structure.get_definition()));
 
   for (const Reference<Abstract>& declaration : structure.get_types()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
   for (const Reference<Abstract>& declaration : structure.get_addressables()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-      continue;
-    }
-
-    auto binding = declaration.get().select<Render::Language::Binding>();
-    if (binding &&
-        binding->get_kind() == Render::Language::Binding::Kind::Value) {
-      // Public consumers still need the complete Layout even though the
-      // private spelling and Binding are outside the Contract query surface.
-      auto reference = binding->get_type_reference();
-      BAIL_IF(!reference);
-      auto hidden = begin(Tag::HiddenSlot);
-      BAIL_IF(!write(*reference) || !finish(hidden));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
   for (const Reference<Abstract>& declaration : structure.get_callables()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
 
   return finish(record);
@@ -281,22 +253,13 @@ auto Render::Archive::Writer::write(
   auto record = begin(Tag::Monograph);
   BAIL_IF(!write(monograph.get_documentation()));
   for (const Reference<Abstract>& declaration : monograph.get_types()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
   for (const Reference<Abstract>& declaration : monograph.get_addressables()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
   for (const Reference<Abstract>& declaration : monograph.get_callables()) {
-    auto definition = definition_of(declaration.get());
-    if (!public_only() || (definition && definition->is_published())) {
-      BAIL_IF(!write(declaration.get()));
-    }
+    BAIL_IF(!write(declaration.get()));
   }
   return finish(record);
 }

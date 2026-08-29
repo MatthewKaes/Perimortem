@@ -39,23 +39,20 @@ auto Scene::Dialect::interpret(
   return monograph;
 }
 
-auto Scene::Dialect::encode(
-    const Abstract& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile) const
+auto Scene::Dialect::encode(const Abstract& monograph) const
     -> Option<Dynamic::Bytes> {
   auto scene = monograph.select<Scene::Language::Monograph>();
   BAIL_IF(!scene);
-  return Scene::Archive::Writer::encode(*scene, profile);
+  return Scene::Archive::Writer::encode(*scene);
 }
 
 auto Scene::Dialect::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation&,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored = Scene::Archive::Reader::restore(
-      arena, payload, profile, *this, library, context);
+  auto restored =
+      Scene::Archive::Reader::restore(arena, payload, *this, library, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

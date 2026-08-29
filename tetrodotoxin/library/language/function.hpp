@@ -77,7 +77,7 @@ class Function : public Model::Callable {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto get_parameters() const -> const Ttx::Concept::Layout& override;

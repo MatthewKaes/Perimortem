@@ -29,6 +29,12 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 
+  auto produce(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& graph,
+      const Tetrodotoxin::Language::Monograph& monograph) const
+      -> Perimortem::Core::Option<const Ttx::Concept::Pack&> override;
+
   constexpr auto get_library() const -> Tetrodotoxin::Library::Dialect& {
     return library;
   }

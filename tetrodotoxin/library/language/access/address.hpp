@@ -23,14 +23,14 @@ class Address : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       Ttx::Lexical::Anchor anchor) -> Address&;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       const Model::Addressable& addressable) -> Address&;
 
   auto link(
@@ -46,7 +46,7 @@ class Address : public Expression {
   auto get_result() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
   constexpr auto get_name_token() const -> Ttx::Lexical::Token {
     return name_token;
@@ -54,7 +54,7 @@ class Address : public Expression {
 
  private:
   constexpr Address(
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       Perimortem::Core::Option<
@@ -66,7 +66,7 @@ class Address : public Expression {
         name(name),
         addressable(addressable) {}
 
-  Expression& receiver;
+  Model::Pack& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>

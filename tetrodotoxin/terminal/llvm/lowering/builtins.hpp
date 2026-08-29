@@ -20,9 +20,10 @@ class Builtins {
   static auto lower(
       const Execution& execution,
       const Ttx::Model::Callable& callable,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       Perimortem::Core::View::Vector<LLVMValueRef> inputs,
-      Perimortem::Core::Option<const Ttx::Model::Pack&> receiver_source)
+      Perimortem::Core::Option<
+          const Tetrodotoxin::Library::Language::Model::Pack&> receiver_source)
       -> Perimortem::Core::Option<Bool>;
 };
 

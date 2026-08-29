@@ -4,10 +4,10 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 #include "ttx/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Enum {
@@ -26,7 +26,6 @@ class Name : public Language::Model::Callable {
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_parameters() const
       -> const Ttx::Concept::Layout& override {
@@ -45,7 +44,7 @@ class Name : public Language::Model::Callable {
 
  private:
   constexpr Name(
-      Language::Parameter& self,
+      Ttx::Model::Layouts::Addressable& self,
       const Language::Types::Enumeration& enumeration,
       const Language::Model::Type& result)
       : enumeration(enumeration),

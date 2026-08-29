@@ -98,12 +98,12 @@ The declaration of `output` still exists. Its spelling, location,
 documentation, visibility, and position in the function remain useful even if
 the current expression cannot establish its final Type.
 
-Tetrodotoxin distinguishes that state from absence. An explicit unknown or
-`Invalid` result means that the graph recognized the question but cannot settle
-it with the meaning currently available. A missing object means there was
-nothing there to answer. That distinction lets completion, hover, navigation,
-and diagnostics expose partial understanding instead of choosing between a
-perfect answer and silence.
+Tetrodotoxin distinguishes that state from absence. `Unknown` means that the
+graph recognized the question but cannot settle it with the meaning currently
+available. The immutable `None` Constant proves that a completed graph has no
+answer. That distinction lets completion, hover, navigation, and diagnostics
+expose partial understanding instead of choosing between a perfect answer and
+silence.
 
 A finished native program or GPU module has a different threshold. Terminal
 production begins from completed meaning. The live Workspace can remain

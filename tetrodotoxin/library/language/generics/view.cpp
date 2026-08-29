@@ -27,11 +27,11 @@ auto Generics::View::create(Perimortem::Core::View::Vector<Argument> arguments)
   }
 
   auto size_type = get_context()
-                       .resolve_context("U64"_view)
+                       .resolve_concept("U64"_view)
                        .resolve()
                        .select<Language::Model::Type>();
   auto flag_type = get_context()
-                       .resolve_context("Bool"_view)
+                       .resolve_concept("Bool"_view)
                        .resolve()
                        .select<Language::Model::Type>();
   if (!size_type || !flag_type) {

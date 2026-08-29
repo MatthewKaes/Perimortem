@@ -176,7 +176,8 @@ outer member also fails.
 ## Contextual lookup
 
 Workspace is an ordinary TTX Abstract context. Looking up an exact imported root
-name returns its retained Monograph. A missing name returns TTX `Invalid`.
+name returns its retained Monograph. A missing name returns TTX `Unknown` while
+the graph may still acquire that Package.
 
 Deeper `::` access is interpreted by the returned Abstract contexts. Environment
 does not require every Monograph to expose a Type or one common member model.

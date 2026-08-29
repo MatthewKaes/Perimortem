@@ -3,9 +3,18 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 
+#include "ttx/concept/unknown.hpp"
+
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Constant::get_value_type(Count index) const
+    -> const Ttx::Concept::Abstract& {
+  return index == 0 ? static_cast<const Ttx::Concept::Abstract&>(get_type())
+                    : static_cast<const Ttx::Concept::Abstract&>(
+                          Ttx::Concept::Unknown::get_unknown());
+}
 
 auto Language::Constant::have_equal_values(
     const Model::Pack& left,

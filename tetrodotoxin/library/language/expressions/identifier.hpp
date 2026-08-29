@@ -41,7 +41,7 @@ class Identifier : public Expression {
     return Expression::create_synthetic<Identifier>(
         arena, [&](auto source) -> Identifier {
           return Identifier(
-              {}, name, Ttx::Concept::Invalid::get_invalid(), source);
+              {}, name, Ttx::Concept::Unknown::get_unknown(), source);
         });
   }
 

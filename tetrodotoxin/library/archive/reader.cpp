@@ -17,8 +17,6 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using BinaryReader = Reader::Binary<Data::ByteOrder::Little>;
-
 enum class LibraryReaderAttributeValue : U8 {
   Empty,
   Bytes,
@@ -28,19 +26,15 @@ enum class LibraryReaderAttributeValue : U8 {
   Flag,
 };
 
-auto Library::Archive::Reader::open(
-    View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
+auto Library::Archive::Reader::open(View::Bytes payload) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
 
-  BinaryReader reader(payload.slice(0, 8));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
+      payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
   U16 format = reader.read_u16();
-  U8 encoded_profile = reader.read_u8();
-  U8 flags = reader.read_u8();
-  BAIL_IF(
-      magic != "TTXL"_view || format != 1 || encoded_profile != U8(profile) ||
-      flags != 0);
+  U16 flags = reader.read_u16();
+  BAIL_IF(magic != "TTXL"_view || format != 2 || flags != 0);
 
   return Reader(payload.slice(8));
 }
@@ -48,10 +42,9 @@ auto Library::Archive::Reader::open(
 auto Library::Archive::Reader::read(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& language,
     Abstract& context) -> Option<Library::Language::Monograph&> {
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
 
   auto record = opened->read_record();
@@ -66,7 +59,7 @@ auto Library::Archive::Reader::read(
       arena, *documentation, Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()),
       language, context);
   BAIL_IF(
-      !read_source(contents, arena, monograph.get_source(), profile) ||
+      !read_source(contents, arena, monograph.get_source()) ||
       !contents.is_complete());
   return monograph;
 }
@@ -74,9 +67,8 @@ auto Library::Archive::Reader::read(
 auto Library::Archive::Reader::restore_source(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     Library::Language::Types::Source& source) -> Bool {
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
   auto record = opened->read_record();
   BAIL_IF(
@@ -85,7 +77,7 @@ auto Library::Archive::Reader::restore_source(
   Reader contents(record->get_payload());
   auto documentation = contents.read_documentation(arena);
   BAIL_IF(
-      !documentation || !read_source(contents, arena, source, profile) ||
+      !documentation || !read_source(contents, arena, source) ||
       !contents.is_complete());
   return True;
 }
@@ -93,20 +85,17 @@ auto Library::Archive::Reader::restore_source(
 auto Library::Archive::Reader::restore_declarations(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     Library::Language::Types::Composite& composite) -> Bool {
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
-  return read_declarations(*opened, arena, composite, profile) &&
-         opened->is_complete();
+  return read_declarations(*opened, arena, composite) && opened->is_complete();
 }
 
 auto Library::Archive::Reader::restore_type_reference(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& context) -> Option<Library::Language::TypeReference> {
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
   auto reference = read_type_reference(*opened, arena, context);
   BAIL_IF(!reference || !opened->is_complete());
@@ -126,7 +115,7 @@ auto Library::Archive::Reader::read_record() -> Option<Record> {
   auto header = take(8);
   BAIL_IF(!header);
 
-  BinaryReader reader(*header);
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(*header);
   U16 tag = reader.read_u16();
   U16 flags = reader.read_u16();
   U32 size = reader.read_u32();
@@ -139,32 +128,56 @@ auto Library::Archive::Reader::read_record() -> Option<Record> {
 
 auto Library::Archive::Reader::read_u8() -> Option<U8> {
   auto bytes = take(sizeof(U8));
-  return bytes ? Option<U8>(BinaryReader(*bytes).read_u8()) : Option<U8>();
+  return bytes ? Option<U8>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_u8())
+               : Option<U8>();
 }
 
 auto Library::Archive::Reader::read_u16() -> Option<U16> {
   auto bytes = take(sizeof(U16));
-  return bytes ? Option<U16>(BinaryReader(*bytes).read_u16()) : Option<U16>();
+  return bytes ? Option<U16>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_u16())
+               : Option<U16>();
 }
 
 auto Library::Archive::Reader::read_u32() -> Option<U32> {
   auto bytes = take(sizeof(U32));
-  return bytes ? Option<U32>(BinaryReader(*bytes).read_u32()) : Option<U32>();
+  return bytes ? Option<U32>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_u32())
+               : Option<U32>();
 }
 
 auto Library::Archive::Reader::read_u64() -> Option<U64> {
   auto bytes = take(sizeof(U64));
-  return bytes ? Option<U64>(BinaryReader(*bytes).read_u64()) : Option<U64>();
+  return bytes ? Option<U64>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_u64())
+               : Option<U64>();
 }
 
 auto Library::Archive::Reader::read_s64() -> Option<S64> {
   auto bytes = take(sizeof(S64));
-  return bytes ? Option<S64>(BinaryReader(*bytes).read_s64()) : Option<S64>();
+  return bytes ? Option<S64>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_s64())
+               : Option<S64>();
 }
 
 auto Library::Archive::Reader::read_r64() -> Option<R64> {
   auto bytes = take(sizeof(R64));
-  return bytes ? Option<R64>(BinaryReader(*bytes).read_r64()) : Option<R64>();
+  return bytes ? Option<R64>(
+                     Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                         *bytes)
+                         .read_r64())
+               : Option<R64>();
 }
 
 auto Library::Archive::Reader::read_bytes() -> Option<View::Bytes> {

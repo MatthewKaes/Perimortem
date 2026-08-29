@@ -27,8 +27,7 @@ auto Interpreter::Execution::Match::parse(
   Token input_opening = cursor.current();
   auto input_pack = Interpreter::Expression::parse(lexical_context, cursor);
   BAIL_IF(!input_pack);
-  auto input = input_pack->select<Language::Expression>();
-  if (!input) {
+  if (!input_pack->get_identity()) {
     cursor.create_expression_error(
         Span(input_opening, cursor.peek(-1)),
         "Library match input must be one scalar Expression."_view,
@@ -42,7 +41,7 @@ auto Interpreter::Execution::Match::parse(
       "Library match cases require a body beginning with `{`."_view);
   BAIL_IF(!scope_opening);
   Language::Flow::Match& result = Language::Flow::Match::create_authored(
-      cursor.get_arena(), *input,
+      cursor.get_arena(), *input_pack,
       Anchor::create(opening, Span(opening, scope_opening)));
   Option<Reference<const Abstract>> enclosing_loop;
   auto inherited = lexical_context.get_enclosing_loop();
@@ -95,8 +94,7 @@ auto Interpreter::Execution::Match::parse(
     Token expression_opening = cursor.current();
     auto case_pack = Interpreter::Expression::parse(lexical_context, cursor);
     BAIL_IF(!case_pack);
-    auto expression = case_pack->select<Language::Expression>();
-    if (!expression) {
+    if (!case_pack->get_identity()) {
       cursor.create_expression_error(
           Span(expression_opening, cursor.peek(-1)),
           "Library match case must be one scalar Expression."_view,
@@ -108,8 +106,8 @@ auto Interpreter::Execution::Match::parse(
         extension);
     BAIL_IF(!body);
     result.retain_constant_case(
-        *expression, *body,
-        expression->get_anchor().visit(
+        *case_pack, *body,
+        case_pack->get_anchor().visit(
             [&]() { return Anchor::create(Span(expression_opening)); },
             [](Anchor selected) { return selected; }));
     Tetrodotoxin::Language::Parser::Comment::parse(cursor);

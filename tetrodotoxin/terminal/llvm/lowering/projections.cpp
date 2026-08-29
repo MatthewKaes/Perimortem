@@ -49,8 +49,9 @@ auto Llvm::Lowering::Projections::lower(
     const auto& parameters = shader.get_instance_parameters_field();
     auto payload = program.get_carriers().get_payload(instance);
     auto field_index = program.get_carriers().get_field_index(parameters);
-    auto parameter_type =
-        program.get_carriers().get_type(parameters.get_type());
+    auto type = parameters.get_type().select<Ttx::Model::Type>();
+    auto parameter_type = type ? program.get_carriers().get_type(*type)
+                               : Core::Option<LLVMTypeRef>();
     BAIL_IF(!payload || !field_index || !parameter_type);
 
     auto& payload_type = *llvm::cast<llvm::StructType>(llvm::unwrap(*payload));

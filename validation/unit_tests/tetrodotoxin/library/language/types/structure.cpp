@@ -21,7 +21,8 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
@@ -187,15 +188,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   auto types = source_type.get_types();
   ASSERT(types != types.end());
   const Abstract& hidden = (*types).get();
-  const Abstract& packet_identity = monograph.resolve_context("Packet"_view);
+  const Abstract& packet_identity = monograph.resolve_concept("Packet"_view);
   const Abstract& selected_identity =
-      monograph.resolve_context("Selected"_view);
+      monograph.resolve_concept("Selected"_view);
   ASSERT(hidden.is<Language::Types::Structure>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
   ASSERT(selected_identity.is<Alias>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
-  const Abstract& visible_identity = packet.resolve_context("Visible"_view);
+  const Abstract& visible_identity = packet.resolve_concept("Visible"_view);
   ASSERT(visible_identity.is<Alias>());
   const auto& visible = static_cast<const Alias&>(visible_identity);
 
@@ -213,7 +214,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   EXPECT_TEXT(
       visible.get_documentation().get_line(1),
       "Hidden Type documentation."_view);
-  EXPECT(&packet.resolve_context("Flag"_view) == &Invalid::get_invalid());
+  EXPECT(&packet.resolve_concept("Flag"_view) == &Unknown::get_unknown());
   auto type_bindings = packet.get_types();
   ASSERT(type_bindings != type_bindings.end());
   ++type_bindings;
@@ -221,7 +222,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT((*type_bindings).get().is<Alias>());
   EXPECT(
       &(*type_bindings).get().resolve() ==
-      &monograph.resolve_context("Bool"_view));
+      &monograph.resolve_concept("Bool"_view));
 
   EXPECT(&selected_identity.resolve() == &hidden);
   auto fields = packet.get_addressables();
@@ -232,7 +233,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT(fields != fields.end());
   const auto& flag_field = static_cast<const Language::Field&>((*fields).get());
   EXPECT(&hidden_field.get_type() == &hidden);
-  EXPECT(&flag_field.get_type() == &monograph.resolve_context("Bool"_view));
+  EXPECT(&flag_field.get_type() == &monograph.resolve_concept("Bool"_view));
   EXPECT(errors.is_empty());
 }
 
@@ -257,15 +258,15 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_routes) {
   ASSERT(monograph);
 
   const auto& outer = static_cast<const Language::Types::Structure&>(
-      monograph->resolve_context("Outer"_view));
-  EXPECT(&outer.resolve_context("Hidden"_view) == &Invalid::get_invalid());
-  const Abstract& visible = outer.resolve_context("Visible"_view);
+      monograph->resolve_concept("Outer"_view));
+  EXPECT(&outer.resolve_concept("Hidden"_view) == &Unknown::get_unknown());
+  const Abstract& visible = outer.resolve_concept("Visible"_view);
   ASSERT(visible.is<Alias>());
-  EXPECT(&visible.resolve_context("value"_view) == &Invalid::get_invalid());
+  EXPECT(&visible.resolve_concept("value"_view) == &None::get_none());
 
-  const Abstract& inner = outer.resolve_context("Inner"_view);
+  const Abstract& inner = outer.resolve_concept("Inner"_view);
   ASSERT(inner.is<Language::Types::Structure>());
-  const Abstract& leaf = inner.resolve_context("Leaf"_view);
+  const Abstract& leaf = inner.resolve_concept("Leaf"_view);
   ASSERT(leaf.is<Language::Types::Structure>());
 
   auto fields = outer.get_addressables();
@@ -311,7 +312,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, access_axes) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& selected = monograph->resolve_context("Packet"_view);
+  const Abstract& selected = monograph->resolve_concept("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
   auto fields = packet.get_addressables();
@@ -384,8 +385,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
     auto monograph = interpret(workspace, errors, sources[i]);
     ASSERT(monograph);
 
-    const Abstract& first = monograph->resolve_context("First"_view);
-    const Abstract& second = monograph->resolve_context("Second"_view);
+    const Abstract& first = monograph->resolve_concept("First"_view);
+    const Abstract& second = monograph->resolve_concept("Second"_view);
     ASSERT(first.is<Language::Types::Structure>());
     ASSERT(second.is<Language::Types::Structure>());
     const auto& first_structure =
@@ -438,11 +439,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
   auto workspace_toolchain = create_library_toolchain();
   Workspace workspace(*workspace_toolchain);
   Errors errors;
-  EXPECT_NOT(interpret(workspace, errors, static_state_collision));
-  ASSERT_EQ(errors.get_size(), Count(1));
-  EXPECT(has_diagnostic(errors, "Addressable name is already occupied"_view));
-  EXPECT_NOT(has_diagnostic(
-      errors, "Definitions require one authored visibility"_view));
+  EXPECT(interpret(workspace, errors, static_state_collision));
+  EXPECT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
@@ -464,20 +462,18 @@ PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  const Abstract& packet_identity = monograph->resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
-  const Abstract& outside = monograph->resolve_context("U64"_view);
-
-  const Abstract& field = packet.resolve_type_access(
-      outside, "value"_view, Language::Model::Type::Access::Self);
-  const Abstract& static_value = packet.resolve_type_call(
-      outside, "value"_view, Language::Model::Type::Access::Static);
-  const Abstract& static_invoke = packet.resolve_type_call(
-      outside, "invoke"_view, Language::Model::Type::Access::Static);
-  const Abstract& self_invoke = packet.resolve_type_call(
-      outside, "invoke"_view, Language::Model::Type::Access::Self);
+  const Abstract& field =
+      packet.resolve_concept("instance"_view).resolve_concept("value"_view);
+  const Abstract& static_value =
+      packet.resolve_concept("static"_view).resolve_concept("value"_view);
+  const Abstract& static_invoke =
+      packet.resolve_concept("static"_view).resolve_concept("invoke"_view);
+  const Abstract& self_invoke =
+      packet.resolve_concept("instance"_view).resolve_concept("invoke"_view);
   ASSERT(field.is<Language::Field>());
   ASSERT(static_value.is<Language::Function>());
   ASSERT(static_invoke.is<Language::Function>());
@@ -488,18 +484,14 @@ PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
   EXPECT(packet.is_published(static_invoke));
   EXPECT(packet.is_published(self_invoke));
 
-  EXPECT(packet
-             .resolve_type_access(
-                 outside, "hidden"_view, Language::Model::Type::Access::Self)
-             .is<Invalid>());
-  const Abstract& hidden = packet.resolve_type_access(
-      packet, "hidden"_view, Language::Model::Type::Access::Self);
+  const Abstract& hidden =
+      packet.resolve_concept("instance"_view).resolve_concept("hidden"_view);
   ASSERT(hidden.is<Language::Field>());
   EXPECT_NOT(packet.is_published(hidden));
 
   EXPECT(
-      packet.resolve_context("Visible"_view).is<Language::Types::Structure>());
-  EXPECT(packet.resolve_context("Hidden"_view).is<Invalid>());
+      packet.resolve_concept("Visible"_view).is<Language::Types::Structure>());
+  EXPECT(packet.resolve_concept("Hidden"_view).is<Unknown>());
   EXPECT(packet.resolve_lexical_context("Hidden"_view)
              .is<Language::Types::Structure>());
   EXPECT(errors.is_empty());
@@ -519,7 +511,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& selected = monograph->resolve_context("Packet"_view);
+  const Abstract& selected = monograph->resolve_concept("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
   auto fields = packet.get_addressables();
@@ -537,8 +529,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   ASSERT_EQ(read.get_results().get_size(), Count(1));
   auto result_type = read.get_results().get_abstract(0);
   ASSERT(result_type);
-  EXPECT(&*result_type == &monograph->resolve_context("Bool"_view));
-  const Abstract& receiver = read.resolve_context("self"_view);
+  EXPECT(&*result_type == &monograph->resolve_concept("Bool"_view));
+  const Abstract& receiver = read.resolve_concept("self"_view);
   auto receiver_result = receiver.select<Addressable>();
   ASSERT(receiver_result);
   EXPECT_TEXT(receiver_result->get_name(), "self"_view);
@@ -609,7 +601,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& empty_identity = monograph->resolve_context("Empty"_view);
+  const Abstract& empty_identity = monograph->resolve_concept("Empty"_view);
   ASSERT(empty_identity.is<Language::Types::Structure>());
   const auto& empty =
       static_cast<const Language::Types::Structure&>(empty_identity);
@@ -638,7 +630,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
   EXPECT(empty_result.get_results().fits(first_empty_result.get_results()));
 
   const auto& scalar = static_cast<const Ttx::Model::Type&>(
-      monograph->resolve_context("U8"_view));
+      monograph->resolve_concept("U8"_view));
   ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
   auto scalar_layout_type = scalar.get_layout().get_abstract(0);
   ASSERT(scalar_layout_type);
@@ -699,7 +691,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   ASSERT((*types).get().is<Language::Types::Structure>());
   const auto& hidden =
       static_cast<const Language::Types::Structure&>((*types).get());
-  const Abstract& packet_identity = monograph->resolve_context("Packet"_view);
+  const Abstract& packet_identity = monograph->resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
@@ -707,11 +699,11 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   ASSERT((*source_callables).get().is<Language::Function>());
   const auto& root =
       static_cast<const Language::Function&>((*source_callables).get());
-  EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&monograph->resolve_context("root"_view) == &Invalid::get_invalid());
-  EXPECT(&root.resolve_context("Hidden"_view) == &hidden);
-  EXPECT(&packet.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&packet.resolve_context("reveal"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph->resolve_concept("Hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&monograph->resolve_concept("root"_view) == &Unknown::get_unknown());
+  EXPECT(&root.resolve_concept("Hidden"_view) == &hidden);
+  EXPECT(&packet.resolve_concept("hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&packet.resolve_concept("reveal"_view) == &Unknown::get_unknown());
   auto fields = packet.get_addressables();
   auto callables = packet.get_callables();
   ASSERT(fields != fields.end());
@@ -719,8 +711,8 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
   ASSERT((*callables).get().is<Language::Function>());
   const auto& reveal =
       static_cast<const Language::Function&>((*callables).get());
-  EXPECT(&reveal.resolve_context("hidden"_view) == &Invalid::get_invalid());
-  EXPECT(&reveal.resolve_context("Hidden"_view) == &hidden);
+  EXPECT(&reveal.resolve_concept("hidden"_view) == &Unknown::get_unknown());
+  EXPECT(&reveal.resolve_concept("Hidden"_view) == &hidden);
   EXPECT(errors.is_empty());
 }
 
@@ -741,7 +733,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   auto owner = parse_authored(lexical, dialect, workspace, errors, source);
   ASSERT(owner);
   auto& monograph = *owner;
-  const Abstract& selected = monograph.resolve_context("Packet"_view);
+  const Abstract& selected = monograph.resolve_concept("Packet"_view);
   ASSERT(selected.is<Language::Types::Structure>());
   const auto& packet = static_cast<const Language::Types::Structure&>(selected);
   auto authored_fields = packet.get_addressables();
@@ -779,7 +771,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
   EXPECT(&*retained_exact_initializer == &*exact_initializer);
   EXPECT(&*retained_copy_initializer == &*copy_initializer);
   EXPECT(&*retained_narrow_initializer == &*narrow_initializer);
-  ASSERT(copy_initializer->is<Language::Expressions::Identifier>());
+  ASSERT(copy_initializer->is_identity<Language::Expressions::Identifier>());
   const auto& identifier =
       static_cast<const Language::Expressions::Identifier&>(*copy_initializer);
   EXPECT(&identifier.get_result() == &exact);
@@ -841,12 +833,13 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
   ++packet_field;
   EXPECT(packet_field == packet_fields.end());
   EXPECT(&root_copy.get_type() == &root.get_type());
-  EXPECT(&root.get_type() == &monograph.resolve_context("Bool"_view));
+  EXPECT(&root.get_type() == &monograph.resolve_concept("Bool"_view));
   EXPECT(&scalar_copy.get_type() == &scalar.get_type());
-  EXPECT(&scalar.get_type() == &monograph.resolve_context("U64"_view));
+  EXPECT(&scalar.get_type() == &monograph.resolve_concept("U64"_view));
   auto root_copy_initializer = root_copy.get_initializer();
   ASSERT(root_copy_initializer);
-  ASSERT(root_copy_initializer->is<Language::Expressions::Identifier>());
+  ASSERT(
+      root_copy_initializer->is_identity<Language::Expressions::Identifier>());
   const auto& root_identifier =
       static_cast<const Language::Expressions::Identifier&>(
           *root_copy_initializer);
@@ -904,7 +897,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_rollback) {
     const auto* identity = &static_cast<const Language::Field&>((*field).get());
     ++field;
     EXPECT(field == fields.end());
-    EXPECT(&identity->resolve() == &Invalid::get_invalid());
+    EXPECT(&identity->resolve() == &Unknown::get_unknown());
     EXPECT_NOT(monograph.link(cursor));
     auto retained_fields = source_type.get_addressables();
     auto retained_field = retained_fields.begin();

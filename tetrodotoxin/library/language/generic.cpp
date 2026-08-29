@@ -8,7 +8,7 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/model/alias.hpp"
 
@@ -89,24 +89,24 @@ auto Language::Generic::normalize_argument(
   case Parameters::U64: {
     auto constant = argument.select<Constants::Unsigned>();
     const auto expected =
-        context.resolve_context("U64"_view).select<Language::Model::Type>();
+        context.resolve_concept("U64"_view).select<Language::Model::Type>();
     BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
     return Argument(constant->get_value());
   }
   case Parameters::S64: {
     auto constant = argument.select<Constants::Signed>();
     const auto expected =
-        context.resolve_context("S64"_view).select<Language::Model::Type>();
+        context.resolve_concept("S64"_view).select<Language::Model::Type>();
     BAIL_IF(!constant || !expected || &constant->get_type() != &*expected);
     return Argument(constant->get_value());
   }
   case Parameters::Bool: {
-    auto value = argument.select<Language::Model::Pack>();
+    auto value = Language::Model::Pack::from(argument);
     BAIL_IF(!value);
     auto actual = value->get_value_type(0)
                       .resolve()
                       .select<Language::Model::Types::Flag>();
-    auto expected = context.resolve_context("Bool"_view)
+    auto expected = context.resolve_concept("Bool"_view)
                         .resolve()
                         .select<Language::Model::Types::Flag>();
     BAIL_IF(!actual || !expected || &actual->resolve() != &expected->resolve());
@@ -174,7 +174,7 @@ auto Language::Generic::materialize(
         arguments.get_data()[i].find<const Language::Model::Type&>();
     if (type != nullptr) {
       const Ttx::Concept::Abstract& resolved = type->resolve();
-      if (!resolved.is<Ttx::Concept::Invalid>() && &resolved != type) {
+      if (!resolved.is<Ttx::Concept::Unknown>() && &resolved != type) {
         return Failure(Failure::Type::Parameter, i);
       }
     }
@@ -182,7 +182,7 @@ auto Language::Generic::materialize(
         arguments.get_data()[i].find<SemanticType>();
     if (semantic_type != nullptr) {
       const Ttx::Concept::Abstract& resolved = semantic_type->get().resolve();
-      if (!resolved.is<Ttx::Concept::Invalid>() &&
+      if (!resolved.is<Ttx::Concept::Unknown>() &&
           &resolved != &semantic_type->get()) {
         return Failure(Failure::Type::Parameter, i);
       }
@@ -230,9 +230,9 @@ auto Language::Generic::materialize(
   return entry.value;
 }
 
-auto Language::Generic::resolve_context(Core::View::Bytes) const
+auto Language::Generic::resolve_concept(Core::View::Bytes) const
     -> const Ttx::Concept::Abstract& {
   // Applying a Generic is explicit TypeReference syntax. Lending the creating
   // context here would make a selected Generic silently expose unrelated names.
-  return Ttx::Concept::Invalid::get_invalid();
+  return Ttx::Concept::Unknown::get_unknown();
 }

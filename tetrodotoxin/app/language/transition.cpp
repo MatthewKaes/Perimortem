@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/transition.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -107,7 +107,7 @@ auto App::Language::Transition::link_restored(const Abstract& context) -> Bool {
   return True;
 }
 
-auto App::Language::Transition::resolve_context(View::Bytes) const
+auto App::Language::Transition::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  return Invalid::get_invalid();
+  return Abstract::resolve_concept(route);
 }

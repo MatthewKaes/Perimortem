@@ -60,11 +60,11 @@ PERIMORTEM_UNIT_TEST(StructureInterface, negotiates_real_library_types) {
   ASSERT(monograph);
   ASSERT(errors.is_empty());
 
-  const Abstract& requirement = monograph->resolve_context("Host"_view);
-  const Abstract& sprite = monograph->resolve_context("Sprite"_view);
-  const Abstract& wrong_type = monograph->resolve_context("WrongType"_view);
-  const Abstract& hidden_state = monograph->resolve_context("HiddenState"_view);
-  const Abstract& inline_value = monograph->resolve_context("InlineValue"_view);
+  const Abstract& requirement = monograph->resolve_concept("Host"_view);
+  const Abstract& sprite = monograph->resolve_concept("Sprite"_view);
+  const Abstract& wrong_type = monograph->resolve_concept("WrongType"_view);
+  const Abstract& hidden_state = monograph->resolve_concept("HiddenState"_view);
+  const Abstract& inline_value = monograph->resolve_concept("InlineValue"_view);
   Library::Language::Interfaces::Structure hosting;
 
   EXPECT(

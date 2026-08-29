@@ -23,7 +23,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/alias.hpp"
@@ -47,9 +47,9 @@ class RouteType : public Type {
   TTX_NAME("Second"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  constexpr auto resolve_context(View::Bytes) const
+  constexpr auto resolve_concept(View::Bytes) const
       -> const Abstract& override {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 };
 
@@ -62,9 +62,9 @@ class RouteContext : public Abstract {
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
-  constexpr auto resolve_context(View::Bytes route) const
+  constexpr auto resolve_concept(View::Bytes route) const
       -> const Abstract& override {
-    return route == child_name ? child : Invalid::get_invalid();
+    return route == child_name ? child : Unknown::get_unknown();
   }
 
  private:
@@ -101,7 +101,7 @@ static auto find_field(
 static auto select_structure(
     const Language::Types::Source& source,
     View::Bytes name) -> Option<const Language::Types::Structure&> {
-  const Abstract& selected = source.resolve_context(name);
+  const Abstract& selected = source.resolve_concept(name);
   BAIL_IF(!selected.is<Language::Types::Structure>());
 
   return static_cast<const Language::Types::Structure&>(selected);
@@ -202,12 +202,13 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
 
   auto fixed = nested_view->get_element_type().select<Language::Types::Fixed>();
   ASSERT(fixed);
-  EXPECT(&fixed->get_element_type() == &monograph->resolve_context("U8"_view));
+  EXPECT(&fixed->get_element_type() == &monograph->resolve_concept("U8"_view));
   EXPECT_EQ(fixed->get_extent(), U64(4));
 
-  const Type* values_type = &values->get_type();
-  const Type* nested_type = &nested->get_type();
-  const Type* children_type = &children->get_type();
+  auto values_type = values->get_type().select<Type>();
+  auto nested_type = nested->get_type().select<Type>();
+  auto children_type = children->get_type().select<Type>();
+  ASSERT(values_type && nested_type && children_type);
 
   // Repeating completion observes the same Generic owned materializations
   // and the exact Types selected by the first pass.
@@ -226,14 +227,14 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
   ASSERT(values);
   ASSERT(nested);
   ASSERT(children);
-  EXPECT(&values->get_type() == values_type);
-  EXPECT(&nested->get_type() == nested_type);
-  EXPECT(&children->get_type() == children_type);
+  EXPECT(&values->get_type() == &*values_type);
+  EXPECT(&nested->get_type() == &*nested_type);
+  EXPECT(&children->get_type() == &*children_type);
 
   ASSERT(monograph->finalize(repeat_cursor));
   EXPECT(errors.is_empty());
   EXPECT(
-      &workspace.resolve_context("GenericTypeReference"_view) == &*monograph);
+      &workspace.resolve_concept("GenericTypeReference"_view) == &*monograph);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_aliases) {
@@ -259,9 +260,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_aliases) {
   auto later = select_structure(root, "Later"_view);
   ASSERT(later);
 
-  const Abstract& local_alias = root.resolve_context("LocalView"_view);
+  const Abstract& local_alias = root.resolve_concept("LocalView"_view);
   const Abstract& qualified_alias =
-      root.resolve_context("QualifiedAccess"_view);
+      root.resolve_concept("QualifiedAccess"_view);
   ASSERT(local_alias.is<Ttx::Model::Alias>());
   ASSERT(qualified_alias.is<Ttx::Model::Alias>());
 

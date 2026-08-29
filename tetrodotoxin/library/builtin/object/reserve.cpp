@@ -10,8 +10,8 @@ using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
 static auto create_entries(
-    Language::Parameter& self,
-    Language::Parameter& count)
+    Ttx::Model::Layouts::Addressable& self,
+    Ttx::Model::Layouts::Addressable& count)
     -> Core::Static::Vector<Reference<const Abstract>, 2> {
   const Core::Static::Vector<Reference<const Abstract>, 2> entries = {{
     Reference<const Abstract>(self),
@@ -21,8 +21,8 @@ static auto create_entries(
 }
 
 Builtin::Object::Reserve::Reserve(
-    Language::Parameter& self,
-    Language::Parameter& count,
+    Ttx::Model::Layouts::Addressable& self,
+    Ttx::Model::Layouts::Addressable& count,
     const Language::Model::Type& result)
     : parameter_entries(create_entries(self, count)),
       parameters(parameter_entries.get_view()),
@@ -33,10 +33,10 @@ auto Builtin::Object::Reserve::create(
     const Language::Model::Type& receiver,
     const Language::Model::Type& count,
     const Language::Model::Type& result) -> Reserve& {
-  auto& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, receiver);
-  auto& count_parameter =
-      Language::Parameter::create_synthetic(domain, "count"_view, count);
+  auto& self = Ttx::Model::Layouts::Addressable::create_synthetic(
+      domain, "self"_view, receiver);
+  auto& count_parameter = Ttx::Model::Layouts::Addressable::create_synthetic(
+      domain, "count"_view, count);
   return domain.construct_from<Reserve>(
       [&]() -> Reserve { return Reserve(self, count_parameter, result); });
 }

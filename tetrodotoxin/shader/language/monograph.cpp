@@ -5,7 +5,8 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -128,8 +129,14 @@ auto Shader::Language::Monograph::get_layer(const Abstract& requested) const
              : Option<const Tetrodotoxin::Language::Monograph&>();
 }
 
-auto Shader::Language::Monograph::resolve_context(View::Bytes route) const
+auto Shader::Language::Monograph::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "static"_view) {
+    return *this;
+  }
+  if (route == "instance"_view) {
+    return None::get_none();
+  }
   for (const Reference<Program>& program : programs.get_view()) {
     if (route == "Material"_view) {
       return program.get().get_instance();
@@ -141,9 +148,9 @@ auto Shader::Language::Monograph::resolve_context(View::Bytes route) const
     }
   }
 
-  const Abstract& child = library.resolve_context(route);
-  return child.is<Invalid>()
-             ? Tetrodotoxin::Language::Monograph::resolve_context(route)
+  const Abstract& child = library.resolve_concept(route);
+  return child.is<Unknown>() || child.is<None>()
+             ? Tetrodotoxin::Language::Monograph::resolve_concept(route)
              : child;
 }
 
@@ -161,7 +168,7 @@ auto Shader::Language::Monograph::resolve_lexical_context(
   }
 
   const Abstract& child = library.resolve_lexical_context(route);
-  return child.is<Invalid>()
+  return child.is<Unknown>() || child.is<None>()
              ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
              : child;
 }

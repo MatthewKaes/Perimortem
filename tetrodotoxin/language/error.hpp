@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 namespace Tetrodotoxin::Language {
@@ -20,8 +20,6 @@ class Error : public Ttx::Concept::Abstract {
   TTX_NAME("Error"_view);
 
   TTX_EMPTY_DOCUMENTATION();
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   virtual auto describe(Ttx::Lexical::Errors::Report& report) const -> void = 0;
 };

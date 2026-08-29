@@ -6,7 +6,8 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -25,9 +26,27 @@ auto Language::Flow::Local::create_authored(
     Anchor anchor) -> Local& {
   return domain.construct_from<Local>([&]() -> Local {
     return Local(
-        domain, host, name_token, name, writability, type_reference, initializer,
-        anchor);
+        domain, host, name_token, name, writability, type_reference,
+        initializer, anchor);
   });
+}
+
+auto Language::Flow::Local::get_type() const -> const Abstract& {
+  if (type) {
+    return type->get();
+  }
+  if (!type_reference) {
+    return Unknown::get_unknown();
+  }
+
+  Core::Option<const Abstract&> selected;
+  type_reference->resolve_lexical(host).visit(
+      [&](const Abstract& answer) { selected = answer; },
+      [](const TypeReference::Failure&) {});
+  auto selected_type = selected ? selected->select<Language::Model::Type>()
+                                : Core::Option<const Language::Model::Type&>();
+  return selected_type ? static_cast<const Abstract&>(*selected_type)
+                       : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
 auto Language::Flow::Local::link(
@@ -89,7 +108,7 @@ auto Language::Flow::Local::link(
   BAIL_IF(!selected_initializer->link(cursor, host, access_scope));
   // Linking a Type name is valid when a later access consumes its identity.
   // Local is a value owner, so it proves real Pack flow before reading Layout.
-  if (&selected_initializer->resolve() != &*selected_initializer) {
+  if (!selected_initializer->is_complete()) {
     cursor.create_expression_error(
         anchor, "Local initializer did not produce value flow."_view,
         "Use a Type result only as an access receiver."_view);
@@ -152,34 +171,10 @@ auto Language::Flow::Local::link(
 
 auto Language::Flow::Local::resolve() const -> const Abstract& {
   if (!type || !initializer_linked) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return *this;
-}
-
-auto Language::Flow::Local::resolve_access(
-    const Abstract& access_host,
-    Core::View::Bytes route) const -> const Abstract& {
-  return type.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
-      [&](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& {
-        return selected.get().resolve_type_access(
-            access_host, route, Language::Model::Type::Access::Self);
-      });
-}
-
-auto Language::Flow::Local::resolve_call(
-    const Abstract& access_host,
-    Core::View::Bytes route) const -> const Abstract& {
-  return type.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
-      [&](const Reference<const Language::Model::Type>& selected)
-          -> const Abstract& {
-        return selected.get().resolve_type_call(
-            access_host, route, Language::Model::Type::Access::Self);
-      });
 }
 
 auto Language::Flow::Local::get_documentation() const -> const Documentation& {
@@ -204,9 +199,8 @@ auto Language::Flow::Local::get_constant() const -> Core::Option<Model::Pack&> {
 
   return constant.visit(
       []() -> Core::Option<Model::Pack&> { return {}; },
-      [](const Reference<Model::Pack>& selected) -> Core::Option<Model::Pack&> {
-        return selected.get();
-      });
+      [](const Ttx::Model::PackReference<Model::Pack>& selected)
+          -> Core::Option<Model::Pack&> { return selected.get(); });
 }
 
 auto Language::Flow::Local::link_constant(Cursor& cursor) const -> Bool {
@@ -233,28 +227,32 @@ auto Language::Flow::Local::cache_constant() const -> Bool {
   }
 
   constant_state = ConstantState::Folding;
+  auto local_type = get_type().select<Model::Type>();
+  BAIL_IF(!local_type);
   // Target owned fitting runs before ordinary folding because the receiving
   // Type may construct a value whose Layout differs from the authored source.
   auto fitted = initializer.visit(
       []() -> Core::Option<Model::Pack&> { return {}; },
       [&](Model::Pack& source) {
-        return get_type().create_fitted(domain, source);
+        return local_type->create_fitted(domain, source);
       });
   if (fitted) {
-    constant = Reference<Model::Pack>(*fitted);
+    constant = Ttx::Model::PackReference<Model::Pack>(*fitted);
     constant_state = ConstantState::Folded;
     return True;
   }
 
-  auto expression = initializer.visit(
-      []() -> Core::Option<Expression&> { return {}; },
-      [](Model::Pack& selected) { return selected.select<Expression>(); });
-  if (!expression) {
+  auto source = initializer.visit(
+      []() -> Core::Option<Model::Pack&> { return {}; },
+      [](Model::Pack& selected) -> Core::Option<Model::Pack&> {
+        return selected;
+      });
+  if (!source) {
     constant_state = ConstantState::Failed;
     return False;
   }
 
-  expression->fold().visit(
+  Expression::fold(*source).visit(
       [&](const Core::Option<Model::Pack&>& folded) {
         // Dynamic absence may become constant after another declaration closes,
         // so it returns to Unresolved rather than poisoning future attempts.
@@ -262,7 +260,7 @@ auto Language::Flow::Local::cache_constant() const -> Bool {
           constant_state = ConstantState::Unresolved;
           return;
         }
-        constant = Reference<Model::Pack>(*folded);
+        constant = Ttx::Model::PackReference<Model::Pack>(*folded);
         constant_state = ConstantState::Folded;
       },
       [&](const Expression::Error&) {

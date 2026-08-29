@@ -10,7 +10,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
@@ -56,12 +55,9 @@ class Dialect : public Ttx::Concept::Abstract {
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
-  // A persistent Dialect chooses the durable facts that can rebuild its own
-  // Monograph. An engaged empty value is a valid empty payload, while absence
-  // reports that encoding was unavailable or failed.
-  virtual auto encode(
-      const Ttx::Concept::Abstract& monograph,
-      Persistence::Profile profile) const
+  // A persistent Dialect retains the complete facts needed to rebuild its own
+  // Monograph. An engaged empty value is a valid payload.
+  virtual auto encode(const Ttx::Concept::Abstract& monograph) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   // Restoration receives the same Arena, Documentation, and outer context as
@@ -70,9 +66,17 @@ class Dialect : public Ttx::Concept::Abstract {
   virtual auto restore(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Persistence::Profile profile,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
+
+  // A completed source asks its selected Dialect for the default external
+  // product. The graph is supplied only through Abstract concepts, keeping
+  // Puffer and concrete Dialects independent from Workspace representation.
+  virtual auto produce(
+      Perimortem::Memory::Allocator::Arena& arena,
+      const Ttx::Concept::Abstract& graph,
+      const Monograph& monograph) const
+      -> Perimortem::Core::Option<const Ttx::Concept::Pack&>;
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;
@@ -83,7 +87,7 @@ class Dialect : public Ttx::Concept::Abstract {
     return Ttx::Concept::Documentation::get_empty();
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
  private:

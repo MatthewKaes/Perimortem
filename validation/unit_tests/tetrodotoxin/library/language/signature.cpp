@@ -12,10 +12,10 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -76,16 +76,17 @@ PERIMORTEM_UNIT_TEST(SignatureTests, signature_shape) {
   ASSERT(parameters.get_name(0));
   EXPECT_TEXT(*parameters.get_name(0), "input"_view);
   auto parameter = parameters.get_abstract(0);
-  ASSERT(parameter && parameter->is<Language::Parameter>());
-  const auto& input = static_cast<const Language::Parameter&>(*parameter);
-  EXPECT(&input.get_type() == &monograph->resolve_context("Bool"_view));
+  ASSERT(parameter && parameter->is<Ttx::Model::Layouts::Addressable>());
+  const auto& input =
+      static_cast<const Ttx::Model::Layouts::Addressable&>(*parameter);
+  EXPECT(&input.get_type() == &monograph->resolve_concept("Bool"_view));
 
   ASSERT_EQ(results.get_size(), Count(2));
   ASSERT(results.get_name(0) && results.get_name(1));
   EXPECT_TEXT(*results.get_name(0), "count"_view);
   EXPECT_TEXT(*results.get_name(1), "accepted"_view);
-  EXPECT(&*results.get_abstract(0) == &monograph->resolve_context("U64"_view));
-  EXPECT(&*results.get_abstract(1) == &monograph->resolve_context("Bool"_view));
+  EXPECT(&*results.get_abstract(0) == &monograph->resolve_concept("U64"_view));
+  EXPECT(&*results.get_abstract(1) == &monograph->resolve_concept("Bool"_view));
   EXPECT(results.get_abstract(0)->is<Ttx::Model::Type>());
   EXPECT(results.get_abstract(1)->is<Ttx::Model::Type>());
 
@@ -109,7 +110,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, self_reference) {
   ASSERT(monograph);
 
   auto buffer = monograph->get_source()
-                    .resolve_context("Buffer"_view)
+                    .resolve_concept("Buffer"_view)
                     .select<Language::Types::Composite>();
   ASSERT(buffer);
   auto clear = find_function(*buffer, "clear"_view);
@@ -118,7 +119,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, self_reference) {
   auto parameter = clear->get_parameters().get_abstract(0);
   auto returned = clear->get_results().get_abstract(0);
   ASSERT(parameter && returned);
-  EXPECT(parameter->is<Language::Parameter>());
+  EXPECT(parameter->is<Ttx::Model::Layouts::Addressable>());
   EXPECT(&*parameter == &*returned);
   EXPECT(clear->get_self_result());
   EXPECT_NOT(clear->get_results().get_name(0));

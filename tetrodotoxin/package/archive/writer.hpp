@@ -14,12 +14,8 @@
 
 namespace Tetrodotoxin::Package::Archive {
 
-// Emits one canonical Package Archive from a validated value. Resource free
-// values preserve Format 2, while a Package that selected Resources uses
-// Format 3 and carries each route and byte value once. Format 5 carries the
-// source graph with each Import Type's Visibility and chained route. Writer
-// measures the complete envelope before allocation and preserves every
-// supplied list order.
+// Emits one canonical complete Package graph. The envelope contains only its
+// coordinate, opaque Dialect members, Resources, and exact Import edges.
 class Writer {
  public:
   class GraphMember {
@@ -54,11 +50,8 @@ class Writer {
       const Package::Language::Monograph& package,
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       Perimortem::Core::View::Vector<GraphMember> members,
-      Perimortem::Core::View::Vector<GraphImport> imports,
-      Perimortem::Core::View::Vector<Artifact> artifacts = {},
-      Perimortem::Core::View::Vector<Export> exports = {})
+      Perimortem::Core::View::Vector<GraphImport> imports)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 };
 

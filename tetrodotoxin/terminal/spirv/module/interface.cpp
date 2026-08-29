@@ -93,18 +93,19 @@ auto Module::Interface::prepare_bindings(
   Count push_index = 0;
   for (const Shader::Language::Binding& binding : program.get_bindings()) {
     const Library::Language::Field& field = binding.get_field();
-    const Library::Language::Model::Type& type = field.get_type();
+    auto type = field.get_type().select<Library::Language::Model::Type>();
+    BAIL_IF(!type);
     Assembler::SpirV::StorageClass storage;
     if (binding.get_kind() == Render::Language::Binding::Kind::Push) {
       storage = Assembler::SpirV::StorageClass::PushConstant;
-      BAIL_IF(!types.collect_pointer(type, storage));
+      BAIL_IF(!types.collect_pointer(*type, storage));
       if (push_type_id == 0) {
         push_type_id = ids.take();
         push_pointer_id = ids.take();
         push_variable_id = ids.take();
       }
       bindings.insert(Variable(
-          field, type, field.get_name(),
+          field, *type, field.get_name(),
           field.get_definition().get_attributes(), storage, 0, push_index++,
           ids.take()));
       continue;
@@ -112,12 +113,12 @@ auto Module::Interface::prepare_bindings(
         binding.get_kind() == Render::Language::Binding::Kind::Resource) {
       BAIL_IF(binding.get_access() != Render::Language::Binding::Access::Read);
       storage = Assembler::SpirV::StorageClass::UniformConstant;
-      BAIL_IF(!types.collect_resource(type));
+      BAIL_IF(!types.collect_resource(*type));
     } else {
       return False;
     }
     bindings.insert(Variable(
-        field, type, field.get_name(), field.get_definition().get_attributes(),
+        field, *type, field.get_name(), field.get_definition().get_attributes(),
         storage, ids.take()));
   }
   if (push_type_id != 0) {

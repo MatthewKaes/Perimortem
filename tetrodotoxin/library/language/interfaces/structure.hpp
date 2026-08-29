@@ -28,8 +28,8 @@ class Structure : public Ttx::Concept::Interface {
 
  private:
   static auto compatible_type(
-      const Tetrodotoxin::Library::Language::Model::Type& required,
-      const Tetrodotoxin::Library::Language::Model::Type& supplied) -> Bool;
+      const Ttx::Concept::Abstract& required,
+      const Ttx::Concept::Abstract& supplied) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Interfaces

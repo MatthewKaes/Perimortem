@@ -11,8 +11,9 @@ auto Builtin::Fixed::Access::create(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& receiver,
     const Language::Model::Type& result) -> Access& {
-  Language::Parameter& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, receiver);
+  Ttx::Model::Layouts::Addressable& self =
+      Ttx::Model::Layouts::Addressable::create_synthetic(
+          domain, "self"_view, receiver);
   return domain.construct_from<Access>(
       [&]() -> Access { return Access(self, result); });
 }

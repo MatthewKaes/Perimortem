@@ -6,7 +6,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
 #include "tetrodotoxin/render/archive/tag.hpp"
 #include "tetrodotoxin/render/language/layout.hpp"
@@ -20,9 +19,7 @@ namespace Tetrodotoxin::Render::Archive {
 // the independent Terminal that consumes the reconstructed graph.
 class Writer {
  public:
-  static auto encode(
-      const Tetrodotoxin::Render::Language::Monograph& monograph,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto encode(const Tetrodotoxin::Render::Language::Monograph& monograph)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
  private:
@@ -36,7 +33,7 @@ class Writer {
     Count offset;
   };
 
-  explicit Writer(Tetrodotoxin::Language::Persistence::Profile profile);
+  Writer();
 
   auto begin(Tag tag) -> Record;
   auto finish(Record record) -> Bool;
@@ -59,11 +56,6 @@ class Writer {
   auto write(const Tetrodotoxin::Render::Language::Monograph& monograph)
       -> Bool;
 
-  constexpr auto public_only() const -> Bool {
-    return profile == Tetrodotoxin::Language::Persistence::Profile::Contract;
-  }
-
-  Tetrodotoxin::Language::Persistence::Profile profile;
   Perimortem::Memory::Dynamic::Bytes bytes;
 };
 

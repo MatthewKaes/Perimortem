@@ -13,7 +13,8 @@ using namespace Tetrodotoxin::Terminal;
 
 auto Llvm::Lowering::Execution::lower(
     const Tetrodotoxin::Library::Language::Model::Pack& pack) const -> Bool {
-  auto expression = pack.select<Tetrodotoxin::Library::Language::Expression>();
+  auto expression =
+      pack.select_identity<Tetrodotoxin::Library::Language::Expression>();
   if (expression) {
     auto folded = expression->get_folded();
     if (folded && &*folded != &pack) {
@@ -29,7 +30,7 @@ auto Llvm::Lowering::Execution::lower(
     return Access::lower(*this, *expression);
   }
 
-  for (const Ttx::Concept::Reference<
+  for (const Ttx::Model::PackReference<
            Tetrodotoxin::Library::Language::Model::Pack>& entry :
        pack.get_entries()) {
     if (!lower(entry.get())) {

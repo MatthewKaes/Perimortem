@@ -159,7 +159,7 @@ static auto select_field_type(const Ttx::Concept::Layout& fields, Count index)
   auto entry = fields.get_abstract(index);
   auto field = entry ? entry->select<Ttx::Model::Addressable>()
                      : Core::Option<const Ttx::Model::Addressable&>();
-  return field ? Core::Option<const Ttx::Model::Type&>(field->get_type())
+  return field ? field->get_type().select<Ttx::Model::Type>()
                : Core::Option<const Ttx::Model::Type&>();
 }
 
@@ -801,8 +801,13 @@ auto Llvm::Module::Carriers::complete_aggregate(
           "LLVM received an aggregate Layout entry without an Addressable."_view);
     }
 
-    const Ttx::Model::Type& field_type = field->get_type();
-    auto field_carrier = carriers.find(&field_type);
+    auto field_type = field->get_type().select<Ttx::Model::Type>();
+    if (!field_type) {
+      return fail_toolchain(
+          program,
+          "LLVM cannot complete an aggregate before every Field Type."_view);
+    }
+    auto field_carrier = carriers.find(&*field_type);
     if (!field_carrier || !field_carrier->value.native) {
       return fail_toolchain(
           program,
@@ -1579,7 +1584,7 @@ auto Llvm::Module::Carriers::assemble(
 
 auto Llvm::Module::Carriers::fit_values(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Pack& source,
+    const Library::Language::Model::Pack& source,
     const Ttx::Concept::Layout& target,
     Core::View::Vector<LLVMValueRef> values) const
     -> Core::Option<Memory::Dynamic::Vector<LLVMValueRef>> {
@@ -1637,7 +1642,7 @@ auto Llvm::Module::Carriers::fit_values(
 auto Llvm::Module::Carriers::fit_and_assemble(
     Llvm::Module::Emission& body,
     const Ttx::Model::Type& type,
-    const Ttx::Model::Pack& source,
+    const Library::Language::Model::Pack& source,
     Core::View::Vector<LLVMValueRef> elements) const
     -> Core::Option<LLVMValueRef> {
   auto native_body = get_body(body);
@@ -1662,12 +1667,9 @@ auto Llvm::Module::Carriers::fit_and_assemble(
     // its lifetime into the resulting Implementation value exactly once.
     auto implementation =
         type.select<Tetrodotoxin::Library::Language::Types::Implementation>();
-    auto semantic =
-        source.select<Tetrodotoxin::Library::Language::Model::Pack>();
+    const Library::Language::Model::Pack& semantic = source;
     auto candidate =
-        semantic
-            ? semantic->get_value_type(0).resolve().select<Ttx::Model::Type>()
-            : Core::Option<const Ttx::Model::Type&>();
+        semantic.get_value_type(0).resolve().select<Ttx::Model::Type>();
     auto candidate_native =
         candidate ? get_type(*candidate) : Core::Option<LLVMTypeRef>();
     auto projection = implementation && candidate && candidate_native &&
@@ -1675,8 +1677,7 @@ auto Llvm::Module::Carriers::fit_and_assemble(
                                   llvm::unwrap(*candidate_native)
                           ? get_implementation_projection(body, *candidate)
                           : Core::Option<LLVMValueRef>();
-    if (!projection || !candidate || !semantic ||
-        !implementation->accepts(*semantic) ||
+    if (!projection || !candidate || !implementation->accepts(semantic) ||
         !native_body->acquire(*candidate, elements[0])) {
       return {};
     }
@@ -1713,10 +1714,8 @@ auto Llvm::Module::Carriers::fit_and_assemble(
   }
 
   if (carrier.kind == Kind::Result && carrier.element && carrier.error) {
-    auto semantic =
-        source.select<Tetrodotoxin::Library::Language::Model::Pack>();
-    Bool value = semantic ? semantic->fits_into(*carrier.element) : False;
-    Bool error = semantic ? semantic->fits_into(*carrier.error) : False;
+    Bool value = source.fits_into(*carrier.element);
+    Bool error = source.fits_into(*carrier.error);
     if (value == error) {
       fail_toolchain(
           get_program(body),
@@ -1746,7 +1745,7 @@ auto Llvm::Module::Carriers::fit_and_assemble(
 
 auto Llvm::Module::Carriers::fit(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Pack& source,
+    const Library::Language::Model::Pack& source,
     const Ttx::Concept::Layout& target,
     Core::View::Vector<LLVMValueRef> values) const
     -> Core::Option<Memory::Dynamic::Vector<LLVMValueRef>> {

@@ -8,7 +8,6 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/attribute.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
@@ -34,27 +33,21 @@ class Writer {
     Count offset;
   };
 
-  Writer(Tetrodotoxin::Language::Persistence::Profile profile);
+  Writer();
 
-  static auto write(
-      const Language::Monograph& monograph,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto write(const Language::Monograph& monograph)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   // An embedding Dialect may own a concrete Library Composite subtype while
   // Library still owns its member meaning. This payload keeps those members in
   // the Library schema and lets the outer owner reconstruct the exact subtype
   // before asking Library to restore its contents.
-  static auto encode_declarations(
-      const Language::Types::Composite& composite,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto encode_declarations(const Language::Types::Composite& composite)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   // Shader Bridges can retain recursive Library Type routes without learning
   // the record schema that represents their Generic arguments and literals.
-  static auto encode_type_reference(
-      const Language::TypeReference& reference,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto encode_type_reference(const Language::TypeReference& reference)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
   auto begin(Tag tag, Bool optional = False) -> Record;
@@ -79,15 +72,9 @@ class Writer {
 
   auto write(const Tetrodotoxin::Language::Attribute& attribute) -> Bool;
 
-  constexpr auto get_profile() const
-      -> Tetrodotoxin::Language::Persistence::Profile {
-    return profile;
-  }
-
   auto take() -> Perimortem::Memory::Dynamic::Bytes;
 
  private:
-  Tetrodotoxin::Language::Persistence::Profile profile;
   Perimortem::Memory::Dynamic::Bytes bytes;
 };
 

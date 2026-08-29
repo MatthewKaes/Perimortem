@@ -5,7 +5,7 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -66,7 +66,7 @@ auto Language::Function::link_declaration_body(Cursor& cursor) -> Bool {
   BAIL_IF(!body);
 
   // Signature edges publish before Block linking so every Identifier can reach
-  // the exact Parameter object created for its authored declaration.
+  // the exact Layout-owned Addressable for its authored parameter slot.
   BAIL_IF(!body->link(cursor));
   if (!get_results().is_empty() && !get_self_result() &&
       body->reaches_next_statement()) {
@@ -99,16 +99,17 @@ auto Language::Function::finalize_declaration(Cursor& cursor) -> Bool {
 
 auto Language::Function::resolve() const -> const Abstract& {
   if (!is_signature_linked()) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return *this;
 }
 
-auto Language::Function::resolve_context(View::Bytes route) const
+auto Language::Function::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  const Abstract& parameter = signature.get_parameters().resolve_named(route);
-  if (&parameter != &Invalid::get_invalid()) {
+  const Abstract& parameter =
+      signature.get_parameters().resolve_named(route, get_host());
+  if (&parameter != &Unknown::get_unknown()) {
     return parameter;
   }
 

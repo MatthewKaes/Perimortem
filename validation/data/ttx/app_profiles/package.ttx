@@ -4,5 +4,6 @@
 // App startup profile acceptance.
 //
 dialect : Package;
+package(.name = "Validation.AppProfiles", .version = "1.0");
 
 public Application : alias = source("app.ttx");

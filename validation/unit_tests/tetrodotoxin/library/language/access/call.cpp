@@ -27,7 +27,8 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -91,12 +92,17 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto find_type_callable(
-    const Language::Model::Type& type,
+    const Abstract& answer,
     View::Bytes name,
     Tetrodotoxin::Language::Visibility visibility =
         Tetrodotoxin::Language::Visibility::Private)
     -> Option<const Language::Model::Callable&> {
-  for (const Reference<Abstract>& binding : type.get_callables(visibility)) {
+  auto type = answer.select<Language::Model::Type>();
+  if (!type) {
+    type = answer.resolve().select<Language::Model::Type>();
+  }
+  BAIL_IF(!type);
+  for (const Reference<Abstract>& binding : type->get_callables(visibility)) {
     auto callable = binding.get().resolve().select<Language::Model::Callable>();
     if (binding.get().get_name() == name && callable) {
       return *callable;
@@ -212,7 +218,7 @@ PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
   ASSERT(access_empty_call.get_callable());
   EXPECT(&*access_empty_call.get_callable() == &*access_empty);
   ASSERT(borrowed.get_initializer());
-  ASSERT(borrowed.get_initializer()->is<Language::Access::Call>());
+  ASSERT(borrowed.get_initializer()->is_identity<Language::Access::Call>());
   const auto& get_access =
       static_cast<const Language::Access::Call&>(*borrowed.get_initializer());
   ASSERT(get_access.get_callable());
@@ -221,7 +227,7 @@ PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
 
   const auto& returned = static_cast<const Language::Flow::Return&>(
       statements.get_data()[6].get_root());
-  ASSERT(returned.get_pack().is<Language::Access::Call>());
+  ASSERT(returned.get_pack().is_identity<Language::Access::Call>());
   const auto& get_size =
       static_cast<const Language::Access::Call&>(returned.get_pack());
   ASSERT(get_size.get_callable());
@@ -229,7 +235,7 @@ PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
   EXPECT_TEXT(get_size.get_type().resolve().get_name(), "U64"_view);
 
   const Abstract& custom_identity =
-      monograph->get_source().resolve_context("Custom"_view);
+      monograph->get_source().resolve_concept("Custom"_view);
   auto custom = custom_identity.select<Language::Model::Type>();
   ASSERT(custom);
   auto custom_size = find_type_callable(
@@ -279,7 +285,8 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
   const auto& label = static_cast<const Language::Flow::Local&>(
       statements.get_data()[0].get_root());
   ASSERT(label.get_initializer());
-  auto get_view = label.get_initializer()->select<Language::Access::Call>();
+  auto get_view =
+      label.get_initializer()->select_identity<Language::Access::Call>();
   ASSERT(get_view && get_view->get_callable());
   EXPECT(get_view->get_receiver()
              .get_type()
@@ -287,7 +294,7 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
              .is<Language::Types::Fixed>());
   EXPECT(get_view->get_callable()->is<Builtin::Fixed::View>());
   auto folded = label.get_constant();
-  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
       "Echo"_view);
@@ -295,7 +302,7 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
   const auto& label_tail = static_cast<const Language::Flow::Local&>(
       statements.get_data()[3].get_root());
   folded = label_tail.get_constant();
-  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
       "cho"_view);
@@ -334,7 +341,7 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
   const auto& repack = static_cast<const Language::Flow::Local&>(
       statements.get_data()[0].get_root());
   auto folded = repack.get_constant();
-  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
       "file: Per"_view);
@@ -342,7 +349,7 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
   const auto& viewed = static_cast<const Language::Flow::Local&>(
       statements.get_data()[1].get_root());
   folded = viewed.get_constant();
-  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
       "file: Per"_view);
@@ -422,7 +429,7 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   ASSERT(monograph);
 
   const Abstract& packet_identity =
-      monograph->get_source().resolve_context("Packet"_view);
+      monograph->get_source().resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
@@ -433,9 +440,9 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   ASSERT(named);
   ASSERT(invoke);
   ASSERT(positional->get_initializer());
-  ASSERT(positional->get_initializer()->is<Language::Access::Call>());
+  ASSERT(positional->get_initializer()->is_identity<Language::Access::Call>());
   ASSERT(named->get_initializer());
-  ASSERT(named->get_initializer()->is<Language::Access::Call>());
+  ASSERT(named->get_initializer()->is_identity<Language::Access::Call>());
   auto self_call = find_call(*invoke);
   ASSERT(self_call);
 
@@ -448,15 +455,19 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   ASSERT(self_call->get_callable());
   auto self_entry = invoke->get_parameters().get_abstract(0);
   ASSERT(self_entry);
-  auto self = self_entry->select<Language::Model::Addressable>();
+  auto self = self_entry->select<Ttx::Model::Addressable>();
   ASSERT(self);
-  const Abstract& u64 = monograph->resolve_context("U64"_view);
-  const Abstract& boolean = monograph->resolve_context("Bool"_view);
-  EXPECT(&self->resolve_context("Packet"_view) == &Invalid::get_invalid());
-  EXPECT(&self->resolve_access(packet, "positional"_view) == &*positional);
+  const Abstract& u64 = monograph->resolve_concept("U64"_view);
+  const Abstract& boolean = monograph->resolve_concept("Bool"_view);
+  EXPECT(&self->resolve_concept("Packet"_view) == &None::get_none());
   EXPECT(
-      &self->resolve_call(packet, "choose"_view) ==
-      &*self_call->get_callable());
+      &self->get_type()
+           .resolve_concept("instance"_view)
+           .resolve_concept("positional"_view) == &*positional);
+  EXPECT(
+      &self->get_type()
+           .resolve_concept("instance"_view)
+           .resolve_concept("choose"_view) == &*self_call->get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());
   EXPECT(self_call->get_callable()->is_type_bound(packet));
   EXPECT(&positional->get_type() == &u64);
@@ -465,9 +476,9 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   EXPECT(&self_call->get_type() == &boolean);
 
   const Abstract& first_identity =
-      monograph->get_source().resolve_context("First"_view);
+      monograph->get_source().resolve_concept("First"_view);
   const Abstract& later_identity =
-      monograph->get_source().resolve_context("Later"_view);
+      monograph->get_source().resolve_concept("Later"_view);
   ASSERT(first_identity.is<Language::Types::Structure>());
   ASSERT(later_identity.is<Language::Types::Structure>());
   auto copy = find_field(
@@ -552,11 +563,11 @@ PERIMORTEM_UNIT_TEST(CallTests, host_authority) {
   ASSERT(monograph);
 
   const Abstract& vault_identity =
-      monograph->get_source().resolve_context("Vault"_view);
+      monograph->get_source().resolve_concept("Vault"_view);
   ASSERT(vault_identity.is<Language::Types::Structure>());
   const auto& vault =
       static_cast<const Language::Types::Structure&>(vault_identity);
-  const Abstract& nested_identity = vault.resolve_context("Nested"_view);
+  const Abstract& nested_identity = vault.resolve_concept("Nested"_view);
   ASSERT(nested_identity.is<Language::Types::Structure>());
   const auto& nested =
       static_cast<const Language::Types::Structure&>(nested_identity);
@@ -564,7 +575,7 @@ PERIMORTEM_UNIT_TEST(CallTests, host_authority) {
   auto public_alias = find_field(monograph->get_source(), "public_alias"_view);
   ASSERT(observed);
   ASSERT(public_alias);
-  const Abstract& boolean = monograph->resolve_context("Bool"_view);
+  const Abstract& boolean = monograph->resolve_concept("Bool"_view);
   EXPECT(&observed->get_type() == &boolean);
   EXPECT(&public_alias->get_type() == &boolean);
   EXPECT(errors.is_empty());
@@ -633,14 +644,14 @@ PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
   const auto& self_one = static_cast<const Language::Access::Call&>(
       statements.get_data()[4].get_root());
   EXPECT(none.get_layout().is_empty());
-  EXPECT(&none.get_type() == &Invalid::get_invalid());
+  EXPECT(&none.get_type() == &Unknown::get_unknown());
   EXPECT_EQ(one.get_layout().get_size(), Count(1));
-  EXPECT(&one.get_type() == &monograph->resolve_context("Bool"_view));
+  EXPECT(&one.get_type() == &monograph->resolve_concept("Bool"_view));
   EXPECT_EQ(many.get_layout().get_size(), Count(2));
-  EXPECT(&many.get_type() == &Invalid::get_invalid());
-  EXPECT(&many.get_value_type(0) == &monograph->resolve_context("U64"_view));
-  EXPECT(&many.get_value_type(1) == &monograph->resolve_context("Bool"_view));
-  EXPECT(&many.get_value_type(2) == &Invalid::get_invalid());
+  EXPECT(&many.get_type() == &Unknown::get_unknown());
+  EXPECT(&many.get_value_type(0) == &monograph->resolve_concept("U64"_view));
+  EXPECT(&many.get_value_type(1) == &monograph->resolve_concept("Bool"_view));
+  EXPECT(&many.get_value_type(2) == &Unknown::get_unknown());
   EXPECT(self_none.get_layout().is_empty());
   EXPECT_EQ(self_one.get_layout().get_size(), Count(1));
   ASSERT(self_none.get_callable());
@@ -663,11 +674,11 @@ PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
   auto selected = find_field(monograph->get_source(), "selected"_view);
   ASSERT(selected);
   ASSERT(selected->get_initializer());
-  ASSERT(selected->get_initializer()->is<Language::Access::Address>());
+  ASSERT(selected->get_initializer()->is_identity<Language::Access::Address>());
   const auto& address = static_cast<const Language::Access::Address&>(
       *selected->get_initializer());
   EXPECT(address.get_receiver().get_result().is<Ttx::Model::Addressable>());
-  EXPECT(&selected->get_type() == &monograph->resolve_context("U64"_view));
+  EXPECT(&selected->get_type() == &monograph->resolve_concept("U64"_view));
   EXPECT(errors.is_empty());
 
   static constexpr View::Bytes invalid_source =

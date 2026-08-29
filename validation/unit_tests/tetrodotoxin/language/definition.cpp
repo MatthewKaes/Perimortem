@@ -10,7 +10,7 @@
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -40,8 +40,8 @@ class DefinitionHost : public Monograph {
     return "DefinitionHost"_view;
   }
 
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 

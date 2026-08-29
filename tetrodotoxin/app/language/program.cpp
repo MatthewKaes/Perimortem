@@ -6,8 +6,9 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -28,7 +29,7 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
 
     View::Bytes segment = route.slice(start, index - start);
     if (segment.is_empty()) {
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
 
     const Abstract& queried =
@@ -36,13 +37,13 @@ static auto resolve_route(const Abstract& context, View::Bytes route)
             [&](const Tetrodotoxin::Language::Monograph& monograph)
                 -> const Abstract& {
               return start == 0 ? monograph.resolve_lexical_context(segment)
-                                : monograph.resolve_context(segment);
+                                : monograph.resolve_concept(segment);
             },
             [&](const Abstract& selected_context) -> const Abstract& {
-              return selected_context.resolve_context(segment);
+              return selected_context.resolve_concept(segment);
             });
     const Abstract& candidate = queried.resolve();
-    if (candidate.is<Invalid>()) {
+    if (candidate.is<Unknown>() || candidate.is<None>()) {
       return candidate;
     }
     selected = Reference<const Abstract>(candidate);
@@ -61,9 +62,10 @@ static auto select_entry(
     View::Bytes route,
     View::Bytes callable_name) -> Option<const Ttx::Model::Callable&> {
   const Abstract& receiver = resolve_route(context, route);
-  BAIL_IF(receiver.is<Invalid>());
-  const Abstract& selected =
-      receiver.resolve_call(context, callable_name).resolve();
+  BAIL_IF(receiver.is<Unknown>() || receiver.is<None>());
+  const Abstract& selected = receiver.resolve_concept("static"_view)
+                                 .resolve_concept(callable_name)
+                                 .resolve();
   auto callable = selected.select<Ttx::Model::Callable>();
   BAIL_IF(
       !callable || !callable->get_parameters().is_empty() ||
@@ -98,7 +100,7 @@ auto Language::Program::create_synthetic(
 
 auto Language::Program::link(Cursor& cursor, Abstract& context) -> Bool {
   const Abstract& receiver = resolve_route(context, route);
-  if (receiver.is<Invalid>()) {
+  if (receiver.is<Unknown>() || receiver.is<None>()) {
     auto report = cursor.create_report(selection_anchor);
     report << "Program entry route `"_view << route
            << "` does not resolve in this Package."_view;
@@ -107,8 +109,9 @@ auto Language::Program::link(Cursor& cursor, Abstract& context) -> Bool {
     return False;
   }
 
-  const Abstract& selected =
-      receiver.resolve_call(context, callable_name).resolve();
+  const Abstract& selected = receiver.resolve_concept("static"_view)
+                                 .resolve_concept(callable_name)
+                                 .resolve();
   auto callable = selected.select<Ttx::Model::Callable>();
   if (!callable) {
     auto report = cursor.create_report(selection_anchor);
@@ -145,6 +148,7 @@ auto Language::Program::link_restored(Abstract& context) -> Bool {
   return True;
 }
 
-auto Language::Program::resolve_context(View::Bytes) const -> const Abstract& {
-  return Invalid::get_invalid();
+auto Language::Program::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  return Abstract::resolve_concept(route);
 }

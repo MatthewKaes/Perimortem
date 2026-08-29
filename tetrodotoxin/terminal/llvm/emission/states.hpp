@@ -8,6 +8,7 @@
 
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/language/resource.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -79,80 +80,88 @@ class States {
 
   auto unsigned_value(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       U64 value) const -> Bool;
   auto signed_value(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       S64 value) const -> Bool;
   auto real_value(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       R64 value) const -> Bool;
   auto bytes_value(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       Perimortem::Core::View::Bytes value,
       Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&>
           resource = {}) const -> Bool;
   auto object_value(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool;
   auto enumeration_name(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Type& result_type,
       LLVMValueRef value,
       Perimortem::Core::View::Vector<U64> values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names) const
       -> Bool;
   auto logical_not(
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& operand) const -> Bool;
-  auto begin_logic(Logical operation, const Ttx::Model::Pack& left) const
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& operand) const
+      -> Bool;
+  auto begin_logic(
+      Logical operation,
+      const Tetrodotoxin::Library::Language::Model::Pack& left) const
       -> Perimortem::Core::Option<Logic>;
   auto end_logic(
       Logic state,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& left,
-      const Ttx::Model::Pack& right) const -> Bool;
-  auto absent(const Ttx::Model::Type& carrier, const Ttx::Model::Pack& result)
-      const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& left,
+      const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;
+  auto absent(
+      const Ttx::Model::Type& carrier,
+      const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool;
   auto present(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& payload) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& payload) const
+      -> Bool;
   auto result(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& payload) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& payload) const
+      -> Bool;
   auto begin_unwrap(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& option) const -> Perimortem::Core::Option<Choice>;
+      const Tetrodotoxin::Library::Language::Model::Pack& option) const
+      -> Perimortem::Core::Option<Choice>;
   auto end_unwrap(
       Choice state,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& fallback) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& fallback) const
+      -> Bool;
   auto propagate_option(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& option,
-      const Ttx::Model::Pack& escape) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& option,
+      const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool;
   auto propagate_flag(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& flag,
-      const Ttx::Model::Pack& escape) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& flag,
+      const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool;
   auto propagate_result(
       const Ttx::Model::Type& carrier,
       const Ttx::Model::Type& value,
       const Ttx::Model::Type& error,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& source,
-      const Ttx::Model::Pack& escape) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& source,
+      const Tetrodotoxin::Library::Language::Model::Pack& escape) const -> Bool;
 
  private:
   Module::Body& body;

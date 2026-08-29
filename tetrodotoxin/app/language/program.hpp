@@ -57,7 +57,7 @@ class Program : public Ttx::Concept::Abstract {
                  : Perimortem::Core::Option<const Ttx::Model::Callable&>();
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
+  auto resolve_concept(Perimortem::Core::View::Bytes) const
       -> const Ttx::Concept::Abstract& override;
 
  private:

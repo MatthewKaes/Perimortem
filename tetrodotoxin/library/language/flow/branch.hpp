@@ -11,8 +11,8 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/statement.hpp"
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -58,7 +58,6 @@ class Branch : public Ttx::Concept::Abstract {
 
   TTX_NAME("Branch"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 
   constexpr auto get_kind() const -> Kind { return kind; }
 
@@ -86,7 +85,7 @@ class Branch : public Ttx::Concept::Abstract {
       : kind(kind), condition(condition), anchor(anchor) {}
 
   Kind kind;
-  Ttx::Concept::Reference<Model::Pack> condition;
+  Ttx::Model::PackReference<Model::Pack> condition;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
   Perimortem::Core::Option<Statement> alternate;
   Ttx::Lexical::Anchor anchor;

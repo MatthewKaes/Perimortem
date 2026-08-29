@@ -46,21 +46,14 @@ class Structure : public Ttx::Model::Type {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes name) const
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   auto resolve_local_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract&;
-
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes name) const
-      -> const Ttx::Concept::Abstract& override;
 
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 

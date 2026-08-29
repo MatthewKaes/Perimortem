@@ -3,17 +3,21 @@
 
 #pragma once
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
+
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Signed is the Constant contract for a signed integer value. Its resolved Type
-// remains part of identity while fitting may prove that the value is in range
-// for another Signed width.
-class Signed : public Constant {
+// Signed is the Tetrodotoxin::Library::Language::Constant contract for a signed
+// integer value. Its resolved Type remains part of identity while fitting may
+// prove that the value is in range for another Signed width.
+class Signed : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Signed, Constant);
+  TTX_CONTRACT(Signed, Tetrodotoxin::Library::Language::Constant);
   using Value = S64;
 
   static auto create_authored(
@@ -21,18 +25,20 @@ class Signed : public Constant {
       const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Signed& {
-    return Expression::create_authored<Signed>(
-        domain, anchor,
-        [&](auto source) -> Signed { return Signed(type, value, source); });
+    return Constant::create_authored<Signed>(
+        domain, anchor, [&](auto source) -> Signed {
+          return Signed(domain, type, value, source);
+        });
   }
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value) -> Signed& {
-    return Expression::create_synthetic<Signed>(
-        domain,
-        [&](auto source) -> Signed { return Signed(type, value, source); });
+    return Constant::create_synthetic<Signed>(
+        domain, [&](auto source) -> Signed {
+          return Signed(domain, type, value, source);
+        });
   }
 
   constexpr auto get_type() const
@@ -42,7 +48,12 @@ class Signed : public Constant {
 
   virtual constexpr auto get_value() const -> Value { return value; }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool override {
+  auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name.get_view();
+  }
+
+  constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
+      const -> Bool override {
     return rhs.visit<Signed>(
         [this, &rhs](const Signed& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
@@ -82,14 +93,24 @@ class Signed : public Constant {
   }
 
  private:
-  constexpr Signed(
+  Signed(
+      Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Signed& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), value(value) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor),
+        type(type),
+        value(value),
+        name(domain) {
+    Perimortem::Serialization::Stream::Textual<
+        Perimortem::Memory::Managed::Bytes>
+        output(name);
+    output << value;
+  }
 
   const Tetrodotoxin::Library::Language::Model::Types::Signed& type;
   Value value;
+  Perimortem::Memory::Managed::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

@@ -11,19 +11,14 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
 static auto parse_index(const Abstract& context, Cursor& cursor)
-    -> Option<Language::Expression&> {
-  auto pack = Interpreter::Expression::parse(context, cursor);
-  return pack.visit(
-      []() -> Option<Language::Expression&> { return {}; },
-      [](Language::Model::Pack& selected) {
-        return selected.select<Language::Expression>();
-      });
+    -> Option<Language::Model::Pack&> {
+  return Interpreter::Expression::parse(context, cursor);
 }
 
 auto Interpreter::Access::Index::parse(
     const Abstract& context,
     Cursor& cursor,
-    Language::Expression& receiver) -> Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Option<Language::Expression&> {
   Token opening = cursor.require(
       Code::Type::BracketStart,
       "Index reference access requires an opening `[`."_view);
@@ -37,7 +32,7 @@ auto Interpreter::Access::Index::parse(
     return {};
   }
 
-  Option<Language::Expression&> count;
+  Option<Language::Model::Pack&> count;
   if (cursor.matches(Code::Type::PackingOp)) {
     cursor.consume();
     count = parse_index(context, cursor);

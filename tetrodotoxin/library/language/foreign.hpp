@@ -15,8 +15,10 @@
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -83,9 +85,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-    constexpr auto get_type() const -> const Model::Type& override {
-      return type->get();
-    }
+    auto get_type() const -> const Ttx::Concept::Abstract& override;
 
     constexpr auto permits_write_from(const Model::Type&) const
         -> Bool override {
@@ -160,7 +160,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
     auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-    auto resolve_context(Perimortem::Core::View::Bytes) const
+    auto resolve_concept(Perimortem::Core::View::Bytes) const
         -> const Ttx::Concept::Abstract& override;
 
     constexpr auto get_parameters() const
@@ -248,17 +248,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
  private:
@@ -267,6 +257,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
   Perimortem::Memory::Allocator::Arena& domain;
   Ttx::Concept::Abstract& parent;
+  Types::Static& static_authority;
   const Ttx::Concept::Documentation* documentation;
   Perimortem::Core::Option<Perimortem::Core::View::Bytes> abi;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<State>> states;

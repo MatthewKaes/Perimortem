@@ -11,9 +11,9 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // Implementation is the empty default for one explicit erased value. A real
 // Object enters the same Type through receiving Type fitting, so the default
 // needs no placeholder candidate or physical Projection.
-class Implementation : public Constant {
+class Implementation : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Implementation, Constant);
+  TTX_CONTRACT(Implementation, Tetrodotoxin::Library::Language::Constant);
 
   static auto create_empty(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -23,13 +23,16 @@ class Implementation : public Constant {
     return type;
   }
 
-  auto equals(const Constant& rhs) const -> Bool override;
+  TTX_NAME("unconfigured"_view);
+
+  auto equals(const Tetrodotoxin::Library::Language::Constant& rhs) const
+      -> Bool override;
 
  private:
   constexpr Implementation(
       const Types::Implementation& type,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor), type(type) {}
 
   const Types::Implementation& type;
 };

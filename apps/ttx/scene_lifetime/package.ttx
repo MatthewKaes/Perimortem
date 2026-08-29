@@ -4,5 +4,6 @@
 // Records exact external Package requests and member Source routes. The Package
 // transaction resolves those requests before publishing any member Source.
 dialect : Package;
+package(.name = "Tetrodotoxin.SceneLifetime", .version = "1.0");
 
 public MainSource : alias = source("main.ttx");

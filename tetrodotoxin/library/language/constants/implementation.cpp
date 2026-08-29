@@ -8,7 +8,7 @@ using namespace Tetrodotoxin::Library::Language;
 auto Constants::Implementation::create_empty(
     Perimortem::Memory::Allocator::Arena& domain,
     const Types::Implementation& type) -> Implementation& {
-  return Expression::create_synthetic<Implementation>(
+  return Constant::create_synthetic<Implementation>(
       domain, [&](auto source) -> Implementation {
         return Implementation(type, source);
       });

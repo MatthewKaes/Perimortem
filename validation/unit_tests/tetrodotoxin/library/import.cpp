@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/source/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -42,12 +42,12 @@ class ImportContext : public Abstract {
     return True;
   }
 
-  auto resolve_context(View::Bytes local_name) const
+  auto resolve_concept(View::Bytes local_name) const
       -> const Abstract& override {
     return bindings.visit(
         local_name,
         [](const Abstract& selected) -> const Abstract& { return selected; },
-        []() -> const Abstract& { return Invalid::get_invalid(); });
+        []() -> const Abstract& { return Unknown::get_unknown(); });
   }
 
  private:
@@ -174,11 +174,11 @@ PERIMORTEM_UNIT_TEST(LibraryImports, selected_fallback) {
   ASSERT(importer);
   ASSERT(complete_library(arena, *importer, importer_source, errors));
 
-  const Abstract& provided = provider->resolve_context("Provided"_view);
+  const Abstract& provided = provider->resolve_concept("Provided"_view);
   EXPECT(
-      &importer->resolve_context("Provided"_view).resolve() ==
+      &importer->resolve_concept("Provided"_view).resolve() ==
       &provided.resolve());
-  EXPECT(importer->resolve_context("Hidden"_view).is<Invalid>());
+  EXPECT(importer->resolve_concept("Hidden"_view).is<Unknown>());
   auto local_types = importer->get_source().get_types();
   ASSERT(local_types != local_types.end());
   EXPECT_TEXT((*local_types).get().get_name(), "Local"_view);
@@ -225,9 +225,9 @@ PERIMORTEM_UNIT_TEST(LibraryImports, fallback_composition) {
   ASSERT(importer);
   ASSERT(complete_library(arena, *importer, importer_source, errors));
 
-  const Abstract& upstream_type = upstream->resolve_context("Upstream"_view);
+  const Abstract& upstream_type = upstream->resolve_concept("Upstream"_view);
   EXPECT(
-      &importer->resolve_context("Upstream"_view).resolve() ==
+      &importer->resolve_concept("Upstream"_view).resolve() ==
       &upstream_type.resolve());
   EXPECT(errors.is_empty());
 }
@@ -319,6 +319,6 @@ PERIMORTEM_UNIT_TEST(LibraryImports, ambiguous_fallback) {
       arena, library, package_context, importer_source, errors);
   ASSERT(importer);
   ASSERT(complete_library(arena, *importer, importer_source, errors));
-  EXPECT(importer->resolve_context("Shared"_view).is<Invalid>());
+  EXPECT(importer->resolve_concept("Shared"_view).is<Unknown>());
   EXPECT(errors.is_empty());
 }

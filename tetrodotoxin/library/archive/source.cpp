@@ -53,17 +53,13 @@ auto Archive::write(Writer& writer, const Language::Types::Source& source)
   writer.write(U8(foreign.is_authored() ? 1 : 0));
   BAIL_IF(foreign.is_authored() && !Archive::write(writer, foreign));
 
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
-  return write_declarations(writer, source, public_only) &&
-         writer.finish(record);
+  return write_declarations(writer, source) && writer.finish(record);
 }
 
 auto Archive::read_source(
     Reader& reader,
     Allocator::Arena& arena,
-    Language::Types::Source& source,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
+    Language::Types::Source& source) -> Bool {
   auto import_count = reader.read_u32();
   BAIL_IF(!import_count || Count(*import_count) > reader.get_remaining_size());
   for (Count index = 0; index < *import_count; index++) {
@@ -75,5 +71,5 @@ auto Archive::read_source(
   BAIL_IF(!has_foreign || *has_foreign > 1);
   BAIL_IF(
       *has_foreign == 1 && !read_foreign(reader, arena, source.get_foreign()));
-  return read_declarations(reader, arena, source, profile);
+  return read_declarations(reader, arena, source);
 }

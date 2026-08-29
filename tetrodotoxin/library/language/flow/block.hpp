@@ -35,9 +35,8 @@ class Block : public Scope {
       const Ttx::Concept::Abstract& lexical_context,
       Model::Callable& function,
       const Model::Type& access_scope,
-      Perimortem::Core::Option<
-          Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
-          enclosing_loop = {}) -> Block&;
+      Perimortem::Core::Option<Ttx::Concept::Reference<
+          const Ttx::Concept::Abstract>> enclosing_loop = {}) -> Block&;
 
   auto retain_authored_statement(Statement statement) -> void;
 
@@ -57,7 +56,7 @@ class Block : public Scope {
   TTX_NAME("Block"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   // An authored lookup uses the querying Token's position instead of the

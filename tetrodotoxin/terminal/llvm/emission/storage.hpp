@@ -7,6 +7,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "llvm-c/Types.h"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -91,64 +92,70 @@ class Storage {
 
   auto range(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& start,
-      const Ttx::Model::Pack& end) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& start,
+      const Tetrodotoxin::Library::Language::Model::Pack& end) const -> Bool;
   auto empty_range(
       const Ttx::Model::Type& carrier,
-      const Ttx::Model::Pack& result) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result) const -> Bool;
   auto select_index(
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& receiver,
-      const Ttx::Model::Pack& index) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& receiver,
+      const Tetrodotoxin::Library::Language::Model::Pack& index) const -> Bool;
   auto select_range(
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& receiver,
-      const Ttx::Model::Pack& start,
-      const Ttx::Model::Pack& count,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& receiver,
+      const Tetrodotoxin::Library::Language::Model::Pack& start,
+      const Tetrodotoxin::Library::Language::Model::Pack& count,
       Count size) const -> Bool;
   auto begin_slice(
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& receiver,
-      const Ttx::Model::Pack& index) const -> Perimortem::Core::Option<Choice>;
+      const Tetrodotoxin::Library::Language::Model::Pack& receiver,
+      const Tetrodotoxin::Library::Language::Model::Pack& index) const
+      -> Perimortem::Core::Option<Choice>;
   auto end_slice(
       Choice state,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& fallback) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& fallback) const
+      -> Bool;
   auto begin_slice_range(
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& receiver,
-      const Ttx::Model::Pack& start) const
+      const Tetrodotoxin::Library::Language::Model::Pack& receiver,
+      const Tetrodotoxin::Library::Language::Model::Pack& start) const
       -> Perimortem::Core::Option<SliceRange>;
   auto begin_slice_slot(const SliceRange& range, Count offset) const
       -> Perimortem::Core::Option<Choice>;
   auto end_slice_slot(
       Choice state,
       const Ttx::Model::Type& element,
-      const Ttx::Model::Pack& fallback) const
+      const Tetrodotoxin::Library::Language::Model::Pack& fallback) const
       -> Perimortem::Core::Option<LLVMValueRef>;
   auto end_slice_range(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       Perimortem::Core::View::Vector<LLVMValueRef> values) const -> Bool;
   auto select(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Addressable& addressable) const -> Bool;
   auto select_member(
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Addressable& addressable,
-      const Ttx::Model::Pack& receiver) const -> Bool;
-  auto load(const Ttx::Model::Pack& result) const -> Bool;
-  auto compose(const Ttx::Model::Pack& result) const -> Bool;
-  auto alias(const Ttx::Model::Pack& result, const Ttx::Model::Pack& source)
-      const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& receiver) const
+      -> Bool;
+  auto load(const Tetrodotoxin::Library::Language::Model::Pack& result) const
+      -> Bool;
+  auto compose(const Tetrodotoxin::Library::Language::Model::Pack& result) const
+      -> Bool;
+  auto alias(
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& source) const -> Bool;
   auto write(
       Write kind,
-      const Ttx::Model::Pack& result,
-      const Ttx::Model::Pack& target,
-      const Ttx::Model::Pack& source) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& target,
+      const Tetrodotoxin::Library::Language::Model::Pack& source) const -> Bool;
 
  private:
   Module::Body& body;

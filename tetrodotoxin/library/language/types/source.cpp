@@ -5,10 +5,12 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -17,7 +19,6 @@ using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library::Language;
 
 using Tetrodotoxin::Language::Visibility;
-using Type = Model::Type;
 
 auto Types::Source::create_synthetic(
     Allocator::Arena& domain,
@@ -148,6 +149,9 @@ auto Types::Source::can_bind_static(const Abstract& binding, Category category)
   if (category != Category::Type) {
     return True;
   }
+  if (binding.is<Tetrodotoxin::Language::Import>()) {
+    return True;
+  }
 
   auto monograph = get_host().select<Library::Language::Monograph>();
   return !monograph || monograph->can_bind_source_type(binding.get_name());
@@ -155,7 +159,7 @@ auto Types::Source::can_bind_static(const Abstract& binding, Category category)
 
 auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
   const Abstract& context = imported.resolve();
-  BAIL_IF(context.is<Invalid>() || &context == this);
+  BAIL_IF(context.is<Unknown>() || context.is<None>() || &context == this);
 
   if (imports.get_view().contains(
           [&](const Reference<const Abstract>& retained) -> Bool {
@@ -171,9 +175,9 @@ auto Types::Source::retain_import_context(const Abstract& imported) -> Bool {
             return composite.resolve_public_context(binding.get().get_name());
           },
           [&](const Abstract& selected) -> const Abstract& {
-            return selected.resolve_context(binding.get().get_name());
+            return selected.resolve_concept(binding.get().get_name());
           });
-      if (!visible.is<Invalid>()) {
+      if (!visible.is<Unknown>() && !visible.is<None>()) {
         return True;
       }
     }
@@ -222,7 +226,7 @@ auto Types::Source::link_imports(
 
     auto selected = import.get_type_reference().resolve_authored(
         cursor, interpretation_context);
-    if (!selected || selected->resolve().is<Invalid>()) {
+    if (!selected || selected->resolve().is<Unknown>()) {
       if (selected) {
         cursor.create_expression_error(
             Anchor::create(import.get_span()),
@@ -248,7 +252,10 @@ auto Types::Source::link_imports(
   return True;
 }
 
-auto Types::Source::bind_static(Abstract& binding, Category category) -> Bool {
+auto Types::Source::bind_static(
+    Abstract& binding,
+    Category category,
+    Bool published) -> Bool {
   // Types and Callables enter only while the source declaration is open.
   // Addressables also have one deliberate late phase after every provider
   // Field has settled, but before any initializer consumes source lookup.
@@ -259,7 +266,7 @@ auto Types::Source::bind_static(Abstract& binding, Category category) -> Bool {
 
   // Synthetic bindings admitted through this path have no Definition and
   // therefore never enter this source's public lookup index.
-  publish_binding(binding, category, False, False);
+  publish_binding(binding, category, published, False);
   return True;
 }
 
@@ -305,7 +312,7 @@ auto Types::Source::retain_binding(
   return True;
 }
 
-auto Types::Source::resolve_context(View::Bytes route) const
+auto Types::Source::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   // Foreign is one reserved receiver context, while authored Source names use
   // the ordinary public categories. The Monograph fallback supplies intrinsic
@@ -313,9 +320,14 @@ auto Types::Source::resolve_context(View::Bytes route) const
   if (route == "foreign"_view && foreign.is_authored()) {
     return foreign;
   }
+  if (route == "static"_view || route == "instance"_view) {
+    return Composite::resolve_concept(route);
+  }
 
   const Abstract& local = resolve_public_context(route);
-  return !local.is<Invalid>() ? local : get_host().resolve_context(route);
+  return !local.is<Unknown>() && !local.is<None>()
+             ? local
+             : get_host().resolve_concept(route);
 }
 
 auto Types::Source::resolve_lexical_context(View::Bytes route) const
@@ -342,7 +354,7 @@ auto Types::Source::resolve_imports(View::Bytes route) const
   // Using contexts are composable query fallbacks, not an ordered shadowing
   // list. Context, access, and call queries all accept no answer as missing and
   // repeated answers only when they resolve to the same identity. Distinct
-  // provider identities make the query ambiguous and therefore Invalid.
+  // provider identities make the query ambiguous and therefore Unknown.
   Option<const Abstract&> selected;
   for (const Reference<const Abstract>& retained : imports.get_view()) {
     const Abstract& context = retained.get();
@@ -351,100 +363,23 @@ auto Types::Source::resolve_imports(View::Bytes route) const
           return composite.resolve_public_context(route);
         },
         [&](const Abstract& provider) -> const Abstract& {
-          return provider.resolve_context(route);
+          return provider.resolve_concept(route);
         });
-    if (candidate.is<Invalid>()) {
+    if (candidate.is<Unknown>() || candidate.is<None>()) {
       continue;
     }
     if (selected && &selected->resolve() != &candidate.resolve()) {
-      return Invalid::get_invalid();
+      return Unknown::get_unknown();
     }
     selected = candidate;
   }
 
-  return selected ? *selected : Invalid::get_invalid();
-}
-
-auto Types::Source::resolve_type_access(
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) const -> const Abstract& {
-  const Abstract& local = Composite::resolve_type_access(host, route, access);
-  if (!local.is<Invalid>()) {
-    return local;
-  }
-
-  Option<const Abstract&> selected;
-  for (const Reference<const Abstract>& retained : imports.get_view()) {
-    const Abstract& context = retained.get();
-    const Abstract& candidate = context.visit<Type>(
-        [&](const Type& type) -> const Abstract& {
-          return type.resolve_type_access(host, route, Type::Access::Static);
-        },
-        [&](const Abstract& provider) -> const Abstract& {
-          return provider.resolve_access(host, route);
-        });
-    if (candidate.is<Invalid>()) {
-      continue;
-    }
-    if (selected && &selected->resolve() != &candidate.resolve()) {
-      return Invalid::get_invalid();
-    }
-    selected = candidate;
-  }
-
-  return selected ? *selected : Invalid::get_invalid();
-}
-
-auto Types::Source::resolve_type_call(
-    const Abstract& host,
-    View::Bytes route,
-    Type::Access access) const -> const Abstract& {
-  const Abstract& local = Composite::resolve_type_call(host, route, access);
-  if (!local.is<Invalid>()) {
-    return local;
-  }
-
-  Option<const Abstract&> selected;
-  for (const Reference<const Abstract>& retained : imports.get_view()) {
-    const Abstract& context = retained.get();
-    const Abstract& candidate = context.visit<Type>(
-        [&](const Type& type) -> const Abstract& {
-          return type.resolve_type_call(host, route, Type::Access::Static);
-        },
-        [&](const Abstract& provider) -> const Abstract& {
-          return provider.resolve_call(host, route);
-        });
-    if (candidate.is<Invalid>()) {
-      continue;
-    }
-    if (selected && &selected->resolve() != &candidate.resolve()) {
-      return Invalid::get_invalid();
-    }
-    selected = candidate;
-  }
-
-  return selected ? *selected : Invalid::get_invalid();
+  return selected ? *selected : Unknown::get_unknown();
 }
 
 auto Types::Source::resolve_local(View::Bytes route, Visibility visibility)
     const -> const Abstract& {
-  const Abstract& addressable =
-      resolve_binding(route, Category::Addressable, visibility);
-  if (!addressable.is<Invalid>()) {
-    return addressable;
-  }
-
-  const Abstract& type = resolve_binding(route, Category::Type, visibility);
-  if (!type.is<Invalid>()) {
-    return type;
-  }
-
-  const Abstract& callable =
-      resolve_binding(route, Category::Callable, visibility, False);
-  if (!callable.is<Invalid>()) {
-    return callable;
-  }
-
-  return Invalid::get_invalid();
+  return visibility == Visibility::Private
+             ? get_static_authority().resolve_concept(route)
+             : get_static_authority().resolve_published(route);
 }

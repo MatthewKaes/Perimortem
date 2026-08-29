@@ -6,9 +6,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/language/import.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/package/archive/graph_import.hpp"
-#include "tetrodotoxin/package/language/dependency.hpp"
+#include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -21,18 +20,6 @@ auto Puffer::Dependencies::contains(
         return archive.get_identity() == identity &&
                archive.get_version() == version;
       });
-}
-
-auto Puffer::Dependencies::retain(const Package::Archive::Archive& archive)
-    -> Bool {
-  BAIL_IF(archive.get_profile() != Language::Persistence::Profile::Contract);
-
-  for (const Package::Archive::Archive& retained : archives.get_view()) {
-    BAIL_IF(retained.get_identity() == archive.get_identity());
-  }
-
-  archives.insert(archive);
-  return True;
 }
 
 auto Puffer::Dependencies::acquire(
@@ -51,29 +38,29 @@ auto Puffer::Dependencies::acquire(
   }
 
   Core::Option<const Package::Archive::Archive&> selected;
-  repository.select_archive(identity, version)
+  terminal_repository.select_archive(identity, version)
       .visit(
           [&](const Package::Archive::Archive& archive) { selected = archive; },
           [](Package::Repository::Repository::Error) {});
-  BAIL_IF(
-      !selected ||
-      selected->get_profile() != Language::Persistence::Profile::Contract);
+  if (!selected && package_repository) {
+    package_repository->select_archive(identity, version)
+        .visit(
+            [&](const Package::Archive::Archive& archive) {
+              selected = archive;
+            },
+            [](Package::Repository::Repository::Error) {});
+  }
+  BAIL_IF(!selected);
 
   active.insert(Coordinate(identity, version));
   Bool complete = True;
 
-  // Archive coordinates carry enough Package meaning to order their complete
-  // Contract closure before a fresh Workspace receives any restored graph.
+  // Exact Package Import edges order the complete closure before a fresh
+  // Workspace receives any restored graph.
   for (const Package::Archive::GraphImport& import : selected->get_imports()) {
     if (import.get_kind() == Language::Import::Kind::Package) {
       complete &= acquire(import.get_target(), import.get_version());
     }
-  }
-
-  for (const Package::Language::Dependency& dependency :
-       selected->get_dependencies()) {
-    complete &=
-        acquire(dependency.get_package_name(), dependency.get_version());
   }
 
   active.remove(active.get_size() - 1);
@@ -82,4 +69,43 @@ auto Puffer::Dependencies::acquire(
   }
 
   return complete;
+}
+
+auto Puffer::Dependencies::restore(Environment::Workspace& workspace) const
+    -> Bool {
+  for (const Package::Archive::Archive& archive : archives.get_view()) {
+    BAIL_IF(!workspace.restore_package(archive, archive.get_identity()));
+  }
+  return True;
+}
+
+auto Puffer::Dependencies::discover(
+    Environment::Toolchain& toolchain,
+    Core::View::Bytes root,
+    Core::View::Bytes semantic_name,
+    Core::View::Bytes route,
+    Core::Option<Memory::Dynamic::Record<Package::Snapshots>> snapshots)
+    -> Bool {
+  constexpr Count maximum_passes = 256;
+  for (Count pass = 0; pass < maximum_passes; pass++) {
+    Environment::Workspace inspection(toolchain, snapshots);
+    BAIL_IF(!restore(inspection));
+    Ttx::Lexical::Errors errors;
+    if (inspection.import_package(errors, root, semantic_name, route)) {
+      return True;
+    }
+
+    Count retained = archives.get_size();
+    for (const Ttx::Concept::Reference<Language::Import>& pending :
+         inspection.get_pending_package_imports()) {
+      BAIL_IF(
+          !acquire(pending.get().get_locator(), pending.get().get_version()));
+    }
+    if (archives.get_size() == retained) {
+      // Discovery is complete even when the final semantic barriers reject the
+      // source. Its real Workspace still retains that strongest partial graph.
+      return True;
+    }
+  }
+  return False;
 }

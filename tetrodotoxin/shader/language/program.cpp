@@ -235,14 +235,15 @@ auto Shader::Language::Program::project_binding(
   return True;
 }
 
-auto Shader::Language::Program::project_type(
-    const Ttx::Model::Type& requirement) const
+auto Shader::Language::Program::project_type(const Abstract& requirement) const
     -> Option<const Library::Language::Model::Type&> {
-  auto direct = requirement.select<Library::Language::Model::Type>();
+  auto exact = requirement.select<Ttx::Model::Type>();
+  BAIL_IF(!exact);
+  auto direct = exact->select<Library::Language::Model::Type>();
   if (direct) {
     return *direct;
   }
-  auto render = requirement.select<Render::Language::Structure>();
+  auto render = exact->select<Render::Language::Structure>();
   BAIL_IF(!render);
   for (const InheritedType& inherited : inherited_types.get_view()) {
     if (&inherited.requirement.get() == &*render) {

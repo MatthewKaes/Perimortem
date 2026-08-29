@@ -7,7 +7,8 @@
 
 #include "perimortem/system/path.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -127,10 +128,12 @@ auto Package::Resources::resolve(View::Bytes logical_route) -> const Abstract& {
   }
 
   // Sealing removes the only physical capability. Existing identities were
-  // selected above, while a new request stays Invalid instead of reopening or
+  // selected above; a new route is then proven absent rather than reopening or
   // retaining Storage through the semantic Package graph.
   if (stage != Stage::Connected) {
-    return Invalid::get_invalid();
+    return stage == Stage::Sealed
+               ? static_cast<const Abstract&>(None::get_none())
+               : static_cast<const Abstract&>(Unknown::get_unknown());
   }
 
   auto read = storage->read(logical_route);

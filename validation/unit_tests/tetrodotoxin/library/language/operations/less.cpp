@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -65,16 +65,22 @@ class LessExpression : public Expression {
 
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
-    -> Option<Expression&> {
+    -> Option<Tetrodotoxin::Library::Language::Constant&> {
   return result.visit(
-      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return folded.visit(
-            []() -> Option<Expression&> { return {}; },
-            [](Model::Pack& selected) -> Option<Expression&> {
-              return selected.select<Expression>();
+            []() -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return {};
+            },
+            [](Model::Pack& selected)
+                -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return selected
+                  .select_identity<Tetrodotoxin::Library::Language::Constant>();
             });
       },
-      [](const Expression::Error&) -> Option<Expression&> { return {}; });
+      [](const Expression::Error&)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
 PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
@@ -95,7 +101,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
   LessExpression signed_right("signed right"_view, s8);
   LessExpression real_left("real"_view, r32);
   LessExpression real_right("real right"_view, r32);
-  LessExpression unresolved("unresolved"_view, Invalid::get_invalid());
+  LessExpression unresolved("unresolved"_view, Unknown::get_unknown());
   auto& wide_constant = Constants::Unsigned::create_synthetic(domain, u64, 12);
   auto& other_constant = Constants::Unsigned::create_synthetic(domain, u16, 12);
   auto& truth =
@@ -116,7 +122,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
   auto& byte_values = Operations::Less::create_synthetic(domain, bytes, bytes);
   auto& invalid = Operations::Less::create_synthetic(domain, unresolved, same);
 
-  EXPECT(exact.get_type().resolve().is<Invalid>());
+  EXPECT(exact.get_type().resolve().is<Unknown>());
   EXPECT_NOT(exact.get_anchor());
   EXPECT(link_operation(exact, source));
   EXPECT(!link_operation(mixed_left, source));
@@ -131,15 +137,15 @@ PERIMORTEM_UNIT_TEST(LibraryLess, type_selection) {
   auto exact_result = selected(exact.fold());
 
   EXPECT(&exact.get_type() == &resolve_library_flag(source));
-  EXPECT(mixed_left.get_type().resolve().is<Invalid>());
+  EXPECT(mixed_left.get_type().resolve().is<Unknown>());
   EXPECT(&signed_exact.get_type() == &resolve_library_flag(source));
   EXPECT(&real_exact.get_type() == &resolve_library_flag(source));
   EXPECT_NOT(exact_result);
-  EXPECT(mismatch.get_type().resolve().is<Invalid>());
-  EXPECT(mixed_constants.get_type().resolve().is<Invalid>());
-  EXPECT(flags.get_type().resolve().is<Invalid>());
-  EXPECT(byte_values.get_type().resolve().is<Invalid>());
-  EXPECT(invalid.get_type().resolve().is<Invalid>());
+  EXPECT(mismatch.get_type().resolve().is<Unknown>());
+  EXPECT(mixed_constants.get_type().resolve().is<Unknown>());
+  EXPECT(flags.get_type().resolve().is<Unknown>());
+  EXPECT(byte_values.get_type().resolve().is<Unknown>());
+  EXPECT(invalid.get_type().resolve().is<Unknown>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
@@ -160,7 +166,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   auto& signed_false =
       Operations::Less::create_synthetic(domain, maximum, minimum);
 
-  EXPECT(unsigned_true.get_type().resolve().is<Invalid>());
+  EXPECT(unsigned_true.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(unsigned_true, source));
   EXPECT(link_operation(unsigned_false, source));
   EXPECT(link_operation(signed_true, source));
@@ -172,10 +178,10 @@ PERIMORTEM_UNIT_TEST(LibraryLess, integer_ordering) {
   auto signed_no = selected(signed_false.fold());
 
   ASSERT(unsigned_yes && unsigned_no && signed_yes && signed_no);
-  EXPECT(unsigned_yes->is<Constants::True>());
-  EXPECT(unsigned_no->is<Constants::False>());
-  EXPECT(signed_yes->is<Constants::True>());
-  EXPECT(signed_no->is<Constants::False>());
+  EXPECT(unsigned_yes->is_identity<Constants::True>());
+  EXPECT(unsigned_no->is_identity<Constants::False>());
+  EXPECT(signed_yes->is_identity<Constants::True>());
+  EXPECT(signed_no->is_identity<Constants::False>());
   EXPECT(&unsigned_yes->get_type() == &resolve_library_flag(source));
   EXPECT(&signed_no->get_type() == &resolve_library_flag(source));
 }
@@ -197,7 +203,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   auto& infinite = Operations::Less::create_synthetic(domain, infinity, finite);
   auto& unordered = Operations::Less::create_synthetic(domain, nan, finite);
 
-  EXPECT(narrow.get_type().resolve().is<Invalid>());
+  EXPECT(narrow.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(narrow, source));
   EXPECT(link_operation(infinite, source));
   EXPECT(link_operation(unordered, source));
@@ -207,9 +213,9 @@ PERIMORTEM_UNIT_TEST(LibraryLess, ieee_ordering) {
   auto unordered_result = selected(unordered.fold());
 
   ASSERT(narrow_result && infinite_result && unordered_result);
-  EXPECT(narrow_result->is<Constants::True>());
-  EXPECT(infinite_result->is<Constants::False>());
-  EXPECT(unordered_result->is<Constants::False>());
+  EXPECT(narrow_result->is_identity<Constants::True>());
+  EXPECT(infinite_result->is_identity<Constants::False>());
+  EXPECT(unordered_result->is_identity<Constants::False>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryLess, stable_folding) {
@@ -222,7 +228,7 @@ PERIMORTEM_UNIT_TEST(LibraryLess, stable_folding) {
   auto& child = Operations::Multiply::create_synthetic(domain, two, two);
   auto& less = Operations::Less::create_synthetic(domain, child, five);
 
-  EXPECT(less.get_type().resolve().is<Invalid>());
+  EXPECT(less.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(less, source));
   EXPECT(link_operation(less, source));
   EXPECT(&less.get_type() == &resolve_library_flag(source));
@@ -233,6 +239,6 @@ PERIMORTEM_UNIT_TEST(LibraryLess, stable_folding) {
 
   ASSERT(first && second && child_result);
   EXPECT(&*first == &*second);
-  EXPECT(first->is<Constants::True>());
+  EXPECT(first->is_identity<Constants::True>());
   EXPECT(&first->get_type() == &resolve_library_flag(source));
 }

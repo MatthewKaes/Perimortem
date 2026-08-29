@@ -102,6 +102,13 @@ class Unit {
         c_header, cpp_header);
   }
 
+  constexpr auto with_types(
+      Perimortem::Core::View::Vector<TypeBinding> selected) const -> Unit {
+    return Unit(
+        package, member, artifact, external, selected, headers, local, c_header,
+        cpp_header);
+  }
+
   constexpr auto owns(const Ttx::Concept::Abstract& semantic) const -> Bool {
     return local && &local->get() == &semantic;
   }

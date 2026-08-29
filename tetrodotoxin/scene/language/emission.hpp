@@ -62,7 +62,7 @@ class Emission : public Ttx::Concept::Abstract {
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   TTX_NAME(signal_name);

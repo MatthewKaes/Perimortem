@@ -37,19 +37,14 @@ static auto reject_operand(Cursor& cursor, Span postfix_span, Span operand_span)
 }
 
 static auto parse_operand(const Abstract& context, Cursor& cursor)
-    -> Core::Option<Language::Expression&> {
-  auto pack = Interpreter::Expression::parse(context, cursor);
-  return pack.visit(
-      []() -> Core::Option<Language::Expression&> { return {}; },
-      [](Language::Model::Pack& selected) {
-        return selected.select<Language::Expression>();
-      });
+    -> Core::Option<Language::Model::Pack&> {
+  return Interpreter::Expression::parse(context, cursor);
 }
 
 auto Interpreter::Access::Slice::parse(
     const Abstract& context,
     Cursor& cursor,
-    Language::Expression& receiver) -> Core::Option<Language::Expression&> {
+    Language::Model::Pack& receiver) -> Core::Option<Language::Expression&> {
   Token opening = cursor.consume();
   Code first_code = cursor.get_code();
   if (first_code.is_one_of({{
@@ -73,7 +68,7 @@ auto Interpreter::Access::Slice::parse(
   }
 
   Bool range = cursor.matches(Code::Type::PackingOp);
-  Core::Option<Language::Expression&> second;
+  Core::Option<Language::Model::Pack&> second;
   if (range) {
     cursor.consume();
     Code second_code = cursor.get_code();

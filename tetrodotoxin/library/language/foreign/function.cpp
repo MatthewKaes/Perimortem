@@ -2,7 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/foreign.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -47,10 +47,10 @@ auto Language::Foreign::Function::link_restored_declaration_signature()
 }
 
 auto Language::Foreign::Function::resolve() const -> const Abstract& {
-  return linked ? static_cast<const Abstract&>(*this) : Invalid::get_invalid();
+  return linked ? static_cast<const Abstract&>(*this) : Unknown::get_unknown();
 }
 
-auto Language::Foreign::Function::resolve_context(View::Bytes) const
+auto Language::Foreign::Function::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  return Invalid::get_invalid();
+  return Abstract::resolve_concept(route);
 }

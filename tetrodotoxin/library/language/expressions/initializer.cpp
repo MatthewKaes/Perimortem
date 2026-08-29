@@ -4,7 +4,7 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -26,7 +26,8 @@ auto Language::Expressions::Initializer::create_authored(
 auto Language::Expressions::Initializer::create_synthetic(
     Memory::Allocator::Arena& domain,
     const Language::Model::Type& type,
-    Core::View::Vector<Reference<Model::Pack>> values) -> Initializer& {
+    Core::View::Vector<Ttx::Model::PackReference<Model::Pack>> values)
+    -> Initializer& {
   auto& arguments = Model::Pack::create_empty(domain);
   auto& completed = Model::Pack::create_group(domain, values);
   Initializer& initializer = Expression::create_synthetic<Initializer>(
@@ -34,7 +35,8 @@ auto Language::Expressions::Initializer::create_synthetic(
         return Initializer({}, arguments, source);
       });
   initializer.expected_type = Reference<const Language::Model::Type>(type);
-  initializer.completed_values = Reference<Model::Pack>(completed);
+  initializer.completed_values =
+      Ttx::Model::PackReference<Model::Pack>(completed);
   return initializer;
 }
 
@@ -61,7 +63,7 @@ Language::Expressions::Initializer::Initializer(
 
 auto Language::Expressions::Initializer::get_type() const -> const Abstract& {
   return expected_type.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Reference<const Language::Model::Type>& selected)
           -> const Abstract& { return selected.get(); });
 }
@@ -79,7 +81,9 @@ auto Language::Expressions::Initializer::finalize(Ttx::Lexical::Cursor& cursor)
   arguments.finalize(cursor);
   completed_values.visit(
       []() {},
-      [&](Reference<Model::Pack>& values) { values.get().finalize(cursor); });
+      [&](Ttx::Model::PackReference<Model::Pack>& values) {
+        values.get().finalize(cursor);
+      });
   Expression::finalize(cursor);
 }
 
@@ -87,7 +91,7 @@ auto Language::Expressions::Initializer::get_completed_values() const
     -> Core::Option<const Model::Pack&> {
   return completed_values.visit(
       []() -> Core::Option<const Model::Pack&> { return {}; },
-      [](const Reference<Model::Pack>& selected)
+      [](const Ttx::Model::PackReference<Model::Pack>& selected)
           -> Core::Option<const Model::Pack&> { return selected.get(); });
 }
 
@@ -97,20 +101,22 @@ auto Language::Expressions::Initializer::evaluate()
       []() -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
         return Core::Option<Model::Pack&>();
       },
-      [&](Reference<Model::Pack>& selected)
+      [&](Ttx::Model::PackReference<Model::Pack>& selected)
           -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
         Core::Option<Model::Pack&> representation(selected.get());
-        auto expression = selected.get().select<Expression>();
-        if (expression) {
-          expression->fold().visit(
-              [&](const Core::Option<Model::Pack&>& folded) {
-                if (folded) {
-                  representation = *folded;
-                }
-              },
-              [](const Expression::Error&) {});
+        if (!selected.get().select_identity<Constant>()) {
+          Expression::fold(selected.get())
+              .visit(
+                  [&](const Core::Option<Model::Pack&>& folded) {
+                    if (folded) {
+                      representation = *folded;
+                    }
+                  },
+                  [](const Expression::Error&) {});
         }
-        auto constant = representation->select<Constant>();
+        auto constant =
+            representation
+                ->select_identity<Tetrodotoxin::Library::Language::Constant>();
         return constant && expected_type &&
                        &constant->get_type().resolve() ==
                            &expected_type->get().resolve()
@@ -166,7 +172,7 @@ auto Language::Expressions::Initializer::link(
   BAIL_IF(!arguments.link(cursor, lexical_context, access_scope));
   // Object construction is the first semantic consumer of these arguments.
   // Keep Type results usable as receivers while refusing them as Field values.
-  if (&arguments.resolve() != &arguments) {
+  if (!arguments.is_complete()) {
     cursor.create_expression_error(
         get_anchor(), "Initializer arguments did not produce value flow."_view,
         "Supply instance values and keep Type results as access receivers."_view);
@@ -183,16 +189,16 @@ auto Language::Expressions::Initializer::link(
       return False;
     }
 
-    Reference<Model::Pack> completed(*value);
-    auto aggregate = value->select<Initializer>();
+    Ttx::Model::PackReference<Model::Pack> completed(*value);
+    auto aggregate = value->select_identity<Initializer>();
     if (aggregate && !aggregate->get_anchor()) {
       auto aggregate_values = aggregate->get_completed_values();
       if (aggregate_values) {
         // A local aggregate exposes the completed Field values owned by Type.
         // A restored aggregate instead remains the real provider Initializer
         // so lowering can invoke its provider without inventing those Fields.
-        completed =
-            Reference<Model::Pack>(const_cast<Model::Pack&>(*aggregate_values));
+        completed = Ttx::Model::PackReference<Model::Pack>(
+            const_cast<Model::Pack&>(*aggregate_values));
       }
     }
 
@@ -215,6 +221,6 @@ auto Language::Expressions::Initializer::link(
   }
 
   expected_type = Reference<const Language::Model::Type>(*target);
-  completed_values = Reference<Model::Pack>(*completed);
+  completed_values = Ttx::Model::PackReference<Model::Pack>(*completed);
   return True;
 }

@@ -5,7 +5,7 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/layouts/composite.hpp"
@@ -32,8 +32,8 @@ class LayoutType final : public Type {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto get_layout() const -> const Named& override { return layout; }
 
@@ -52,8 +52,8 @@ class LayoutField final : public Addressable {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto get_type() const -> const Type& override { return type; }
 
@@ -72,8 +72,8 @@ class ByteSequence final : public Type {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto get_layout() const -> const Ranged& override { return layout; }
 
@@ -91,18 +91,18 @@ class AtomicType : public Type {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 
 /// Layout fitting may compare a reserved Type before that Type's lifecycle
 /// owner completes it. Its exact identity remains meaningful even while
-/// resolve() reports Invalid.
+/// resolve() reports Unknown.
 class StagedType final : public AtomicType {
  public:
   auto resolve() const -> const Abstract& override {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 };
 

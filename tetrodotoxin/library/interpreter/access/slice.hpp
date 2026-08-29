@@ -21,7 +21,7 @@ class Slice {
   static auto parse(
       const Ttx::Concept::Abstract& context,
       Ttx::Lexical::Cursor& cursor,
-      Language::Expression& receiver)
+      Language::Model::Pack& receiver)
       -> Perimortem::Core::Option<Language::Expression&>;
 };
 

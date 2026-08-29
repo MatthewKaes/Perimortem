@@ -7,8 +7,8 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/termination.hpp"
@@ -20,7 +20,7 @@ using namespace Ttx::Model::Layouts;
 using namespace Validation;
 
 /// Registration may reserve a stable Type object before its facts are ready.
-/// Resolution remains total by returning Invalid until completion.
+/// Resolution remains total by returning Unknown until completion.
 class ResolvingType final : public Type {
  public:
   ResolvingType(View::Bytes name, Named layout = Named())
@@ -34,13 +34,13 @@ class ResolvingType final : public Type {
     if (complete_state) {
       return *this;
     }
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
     if (complete_state) {
       return *this;
     }
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
   auto get_layout() const -> const Named& override { return layout; }
 
@@ -61,8 +61,8 @@ class TypeField final : public Addressable {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto get_type() const -> const Type& override { return type; }
 
@@ -76,7 +76,6 @@ class AtomicType final : public Type {
   TTX_CONTRACT(AtomicType, Type);
   TTX_NAME("Atomic"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 };
 
 class RecursiveType final : public Type {
@@ -87,7 +86,6 @@ class RecursiveType final : public Type {
   TTX_CONTRACT(RecursiveType, Type);
   TTX_NAME("Recursive"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 
   auto get_layout() const -> const Named& override { return layout; }
 
@@ -105,7 +103,7 @@ PERIMORTEM_UNIT_TEST(TtxType, incomplete_type) {
   ResolvingType reserved("Reserved"_view);
   const Type& type = reserved;
 
-  EXPECT(&type.resolve() == &Invalid::get_invalid());
+  EXPECT(&type.resolve() == &Unknown::get_unknown());
 
   reserved.complete();
 
@@ -121,7 +119,7 @@ PERIMORTEM_UNIT_TEST(TtxType, type_fields) {
   const Static::Vector<Reference<const Abstract>, 2> fields = {{x, y}};
   ResolvingType point("Point"_view, Named(fields));
 
-  EXPECT(&point.resolve() == &Invalid::get_invalid());
+  EXPECT(&point.resolve() == &Unknown::get_unknown());
 
   point.complete();
 

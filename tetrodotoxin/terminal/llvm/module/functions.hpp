@@ -11,6 +11,7 @@
 
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/addressable.hpp"
@@ -64,7 +65,7 @@ class Functions {
    public:
     constexpr ConstructionField(
         const Ttx::Model::Addressable& field,
-        const Ttx::Model::Pack& fallback,
+        const Tetrodotoxin::Library::Language::Model::Pack& fallback,
         Bool parameter)
         : field(field), fallback(fallback), parameter(parameter) {}
 
@@ -72,7 +73,8 @@ class Functions {
       return field.get();
     }
 
-    constexpr auto get_fallback() const -> const Ttx::Model::Pack& {
+    constexpr auto get_fallback() const
+        -> const Tetrodotoxin::Library::Language::Model::Pack& {
       return fallback.get();
     }
 
@@ -80,7 +82,9 @@ class Functions {
 
    private:
     Ttx::Concept::Reference<const Ttx::Model::Addressable> field;
-    Ttx::Concept::Reference<const Ttx::Model::Pack> fallback;
+    Ttx::Model::PackReference<
+        const Tetrodotoxin::Library::Language::Model::Pack>
+        fallback;
     Bool parameter;
   };
 
@@ -115,9 +119,10 @@ class Functions {
 
   auto call_construction(
       Emission& body,
-      const Ttx::Model::Pack& result,
+      const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Ttx::Model::Type& owner,
-      const Ttx::Model::Pack& arguments) const -> Bool;
+      const Tetrodotoxin::Library::Language::Model::Pack& arguments) const
+      -> Bool;
 
   auto complete(Emission& program, const Ttx::Model::Callable& callable) const
       -> Bool;

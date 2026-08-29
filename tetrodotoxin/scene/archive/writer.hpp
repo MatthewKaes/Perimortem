@@ -5,7 +5,6 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 
 namespace Tetrodotoxin::Scene::Archive {
@@ -16,13 +15,11 @@ namespace Tetrodotoxin::Scene::Archive {
 // meaning.
 class Writer {
  public:
-  static auto encode(
-      const Tetrodotoxin::Scene::Language::Monograph& monograph,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto encode(const Tetrodotoxin::Scene::Language::Monograph& monograph)
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
 
  private:
-  Writer(Tetrodotoxin::Language::Persistence::Profile profile);
+  Writer();
 
   auto write(U8 value) -> void;
   auto write(U16 value) -> void;

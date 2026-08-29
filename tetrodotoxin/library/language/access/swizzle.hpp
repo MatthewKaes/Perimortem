@@ -46,8 +46,8 @@ class Swizzle : public Expression {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
   auto get_type() const -> const Ttx::Concept::Abstract& override;
-  auto get_produced(Count index) const
-      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
+  auto get_value_type(Count index) const
+      -> const Ttx::Concept::Abstract& override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
@@ -57,6 +57,8 @@ class Swizzle : public Expression {
   }
 
   constexpr auto get_projections() const { return projections.get_view(); }
+
+  constexpr auto get_selections() const { return selections.get_view(); }
 
  private:
   Swizzle(

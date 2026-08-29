@@ -11,16 +11,16 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/alias.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Import is a contextual Type whose external source or Package root is
-// acquired by Environment. Its optional Type route is an ordinary chain of
-// contextual queries over that root. The authored local name and Visibility
-// place the resulting Type interface in its Monograph without introducing a
-// separate dependency table.
-class Import : public Ttx::Model::Type {
+// Import is one authored Alias whose external source or Package root is
+// acquired by Environment. Its optional Type route resolves over that root,
+// then the Alias represents the exact selected identity without forwarding a
+// second lookup or Type surface.
+class Import : public Ttx::Model::Alias {
  public:
   enum class Kind : U8 {
     Source,
@@ -95,9 +95,11 @@ class Import : public Ttx::Model::Type {
   constexpr Import(
       Perimortem::Memory::Allocator::Arena& domain,
       const Description& description)
-      : domain(domain),
+      : Ttx::Model::Alias(
+            description.get_name(),
+            description.get_documentation()),
+        domain(domain),
         local_documentation(description.get_documentation()),
-        name(description.get_name()),
         visibility(description.get_visibility()),
         kind(description.get_kind()),
         locator(description.get_locator()),
@@ -107,8 +109,7 @@ class Import : public Ttx::Model::Type {
         expression_anchor(description.get_expression_anchor()),
         route_anchor(description.get_route_anchor()) {}
 
-  TTX_CONTRACT(Import, Ttx::Model::Type);
-  TTX_NAME(name);
+  TTX_CONTRACT(Import, Ttx::Model::Alias);
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
   constexpr auto get_kind() const -> Kind { return kind; }
@@ -138,32 +139,16 @@ class Import : public Ttx::Model::Type {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes selected) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes selected) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes selected) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto get_layout() const -> const Ttx::Concept::Layout& override;
-
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  private:
-  auto select(Perimortem::Core::Option<Ttx::Lexical::Cursor&> cursor) const
-      -> const Ttx::Concept::Abstract&;
+  auto select_target(Perimortem::Core::Option<Ttx::Lexical::Cursor&> cursor)
+      const -> const Ttx::Concept::Abstract&;
 
   Perimortem::Memory::Allocator::Arena& domain;
   const Ttx::Concept::Documentation& local_documentation;
   Perimortem::Core::Option<const Ttx::Concept::Documentation&>
       visible_documentation;
-  Perimortem::Core::View::Bytes name;
   Visibility visibility;
   Kind kind;
   Perimortem::Core::View::Bytes locator;

@@ -4,6 +4,7 @@
 // Publishes the value, resource, and hosted Object Types used by graphics.
 //
 dialect : Package;
+package(.name = "Perimortem.Graphics", .version = "1.0");
 
 public Pixel : alias = source("pixel.ttx")::Pixel;
 public Point2D : alias = source("point2d.ttx")::Point2D;

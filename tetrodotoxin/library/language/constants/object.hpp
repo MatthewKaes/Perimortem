@@ -9,14 +9,14 @@ namespace Tetrodotoxin::Library::Language::Constants {
 
 // Object is the immutable empty value of one generated Object[T] storage Type.
 // It carries no allocation while preserving the exact materialized Type.
-class Object : public Constant {
+class Object : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Object, Constant);
+  TTX_CONTRACT(Object, Tetrodotoxin::Library::Language::Constant);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
       const Model::Type& type) -> Object& {
-    return Expression::create_synthetic<Object>(
+    return Constant::create_synthetic<Object>(
         domain, [&](auto anchor) -> Object { return Object(type, anchor); });
   }
 
@@ -24,7 +24,10 @@ class Object : public Constant {
     return type;
   }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool override {
+  TTX_NAME("[]"_view);
+
+  constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
+      const -> Bool override {
     return has_same_type(rhs) && rhs.is<Object>();
   }
 
@@ -32,7 +35,7 @@ class Object : public Constant {
   constexpr Object(
       const Model::Type& type,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor), type(type) {}
 
   const Model::Type& type;
 };

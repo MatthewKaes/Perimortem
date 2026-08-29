@@ -14,7 +14,7 @@
 #include "tetrodotoxin/app/language/scene.hpp"
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;
@@ -22,30 +22,25 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using BinaryReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
-
 auto App::Archive::Reader::read(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& dialect,
     const Documentation& documentation,
     Abstract& context) const -> Option<App::Language::Monograph&> {
-  BinaryReader reader(payload);
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(payload);
   View::Bytes magic = reader.read_bytes(4);
   U16 format = reader.read_u16();
-  U8 encoded_profile = reader.read_u8();
   U8 runtime_value = reader.read_u8();
   U8 settings = reader.read_u8();
   auto valid_reader = [&]() {
     return reader.get_location() <= payload.get_size();
   };
-  if (!valid_reader() || magic != "TTAP"_view || format != 4 ||
-      encoded_profile != U8(profile) ||
+  if (!valid_reader() || magic != "TTAP"_view || format != 5 ||
       runtime_value > U8(App::Language::Runtime::Profile::Windowed) ||
       runtime_value == 0 || (settings & U8(~0x1F)) != 0) {
     Diagnostics::Log::error(
-        "App Archive payload failed Format 4 validation."_view);
+        "App Archive payload failed Format 5 validation."_view);
     return {};
   }
 
@@ -72,9 +67,9 @@ auto App::Archive::Reader::read(
     icon_route = read_bytes();
     BAIL_IF(!icon_route);
     icon_route = arena.proxy(*icon_route);
-    const Abstract& selected = context.resolve_context(*icon_route).resolve();
+    const Abstract& selected = context.resolve_concept(*icon_route).resolve();
     icon = selected.select<Tetrodotoxin::Language::Resource>();
-    BAIL_IF(!icon || selected.is<Invalid>());
+    BAIL_IF(!icon || selected.is<Unknown>());
   }
   if ((settings & (1 << 2)) != 0) {
     width = reader.read_u32();

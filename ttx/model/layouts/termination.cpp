@@ -37,7 +37,8 @@ static auto is_terminating(
     if (!child) {
       auto addressable = resolved.select<Model::Addressable>();
       BAIL_IF(!addressable);
-      child = addressable->get_type();
+      child = addressable->get_type().select<Model::Type>();
+      BAIL_IF(!child);
     }
 
     if (!is_terminating(*child, active)) {

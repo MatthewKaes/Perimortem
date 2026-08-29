@@ -104,7 +104,7 @@ static auto parse_icon(
   BAIL_IF(!token);
   View::Bytes route = token.caculate_text(cursor.get_source_text());
   auto resource =
-      context.resolve_context(route).resolve().select<Language::Resource>();
+      context.resolve_concept(route).resolve().select<Language::Resource>();
   if (!resource) {
     cursor.create_expression_error(
         Span(token), "App icon did not resolve to a Package Resource."_view,

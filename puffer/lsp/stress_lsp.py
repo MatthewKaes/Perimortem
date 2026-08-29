@@ -80,7 +80,7 @@ def launch_server(socket_path):
     server_socket.settimeout(5)
 
     proc = subprocess.Popen(
-        [BINARY, f"--pipe={socket_path}"],
+        [BINARY, f"-lsp={socket_path}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True)

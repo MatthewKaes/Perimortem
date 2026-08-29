@@ -99,8 +99,6 @@ class Documents {
     Perimortem::Core::Option<Perimortem::Memory::Dynamic::Record<
         Tetrodotoxin::Environment::Workspace>>
         workspace;
-    Perimortem::Memory::Dynamic::Vector<Perimortem::Memory::Dynamic::Bytes>
-        dependencies;
   };
 
   auto find(Perimortem::Core::View::Bytes uri) const -> Count;

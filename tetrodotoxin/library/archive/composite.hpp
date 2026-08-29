@@ -7,7 +7,6 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
@@ -23,22 +22,19 @@ namespace Tetrodotoxin::Library::Archive {
 
 auto write_declarations(
     Writer& writer,
-    const Language::Types::Composite& composite,
-    Bool public_only) -> Bool;
+    const Language::Types::Composite& composite) -> Bool;
 
 auto read_declarations(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Language::Types::Composite& composite,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
+    Language::Types::Composite& composite) -> Bool;
 
 auto write(Writer& writer, const Language::Types::Structure& structure) -> Bool;
 
 auto read_structure(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Ttx::Concept::Abstract& host)
     -> Perimortem::Core::Option<Language::Types::Structure&>;
 
 auto write(Writer& writer, const Language::Types::Interface& interface) -> Bool;
@@ -46,8 +42,7 @@ auto write(Writer& writer, const Language::Types::Interface& interface) -> Bool;
 auto read_interface(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Ttx::Concept::Abstract& host)
     -> Perimortem::Core::Option<Language::Types::Interface&>;
 
 auto write(Writer& writer, const Language::Types::Namespace& selected) -> Bool;
@@ -55,8 +50,7 @@ auto write(Writer& writer, const Language::Types::Namespace& selected) -> Bool;
 auto read_namespace(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Ttx::Concept::Abstract& host)
     -> Perimortem::Core::Option<Language::Types::Namespace&>;
 
 auto write(Writer& writer, const Language::Types::Object& object) -> Bool;
@@ -64,8 +58,7 @@ auto write(Writer& writer, const Language::Types::Object& object) -> Bool;
 auto read_object(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Ttx::Concept::Abstract& host)
     -> Perimortem::Core::Option<Language::Types::Object&>;
 
 auto write(Writer& writer, const Language::Types::Implemented& implemented)
@@ -74,8 +67,7 @@ auto write(Writer& writer, const Language::Types::Implemented& implemented)
 auto read_implemented(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Ttx::Concept::Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
+    Ttx::Concept::Abstract& host)
     -> Perimortem::Core::Option<Language::Types::Implemented&>;
 
 auto write(Writer& writer, const Language::Types::Enumeration& enumeration)

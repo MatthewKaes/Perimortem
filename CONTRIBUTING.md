@@ -68,10 +68,9 @@ invariant it protects, and why an existing graph query cannot do the job.
 
 An unknown answer is still an answer. If we know that a declaration exists, we
 should keep its name, location, documentation, and established relationships
-even when its Type or initializer cannot be resolved yet. An explicit
-`Invalid` or unknown result tells a caller that the question was recognized and
-which part remains unsettled. That is different from finding no object or no
-capability at all.
+even when its Type or initializer cannot be resolved yet. `Unknown` tells a
+caller that the question was recognized and remains unsettled. The `None`
+Constant instead proves completed absence.
 
 This matters most while someone is editing. Completion, hover, navigation,
 diagnostics, and semantic highlighting should ask the actual graph and its

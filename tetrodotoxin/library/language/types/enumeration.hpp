@@ -96,13 +96,7 @@ class Enumeration : public Model::Type {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_type_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route,
-      Model::Type::Access access) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto create_default(Perimortem::Memory::Allocator::Arena& arena) const

@@ -37,7 +37,7 @@ using Llvm::Emission::Storage;
 static auto lower_inputs(
     const Llvm::Lowering::Execution& execution,
     const Operation& operation) -> Bool {
-  for (const Ttx::Concept::Reference<Expression>& input :
+  for (const Ttx::Model::PackReference<Model::Pack>& input :
        operation.get_inputs()) {
     if (!execution.lower(input.get())) {
       return False;
@@ -67,7 +67,7 @@ static auto lower_comparison(
     Bool admits_bytes) -> Bool {
   auto inputs = operation.get_inputs();
   BAIL_IF(inputs.get_size() != 2);
-  const Expression& left = inputs.get_data()[0].get();
+  const Model::Pack& left = inputs.get_data()[0].get();
   auto carrier = left.get_type().resolve().select<Ttx::Model::Type>();
   BAIL_IF(!carrier || !lower_inputs(execution, operation));
   if (admits_bytes && carrier->is<Types::View>()) {
@@ -85,11 +85,11 @@ auto Llvm::Lowering::Operations::lower(
       expression
           .select<Tetrodotoxin::Library::Language::Expressions::Conversion>();
   if (conversion) {
-    auto source_type = conversion->get_source()
-                           .get_value_type(0)
-                           .resolve()
-                           .select<
-                               Tetrodotoxin::Library::Language::Model::Type>();
+    auto source_type =
+        conversion->get_source()
+            .get_value_type(0)
+            .resolve()
+            .select<Tetrodotoxin::Library::Language::Model::Type>();
     return source_type &&
            Types::prepare(execution.get_program(), *source_type) &&
            Types::prepare(execution.get_program(), conversion->get_type()) &&

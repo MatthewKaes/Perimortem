@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -121,13 +121,13 @@ PERIMORTEM_UNIT_TEST(BranchTests, branch_shape) {
       "  }"_view);
 
   const Abstract& outer = statements.get_data()[0].get_root();
-  EXPECT(&conditional.get_body().resolve_context("outer"_view) == &outer);
-  const Abstract& inner = conditional.get_body().resolve_context("inner"_view);
+  EXPECT(&conditional.get_body().resolve_concept("outer"_view) == &outer);
+  const Abstract& inner = conditional.get_body().resolve_concept("inner"_view);
   EXPECT(inner.is<Language::Flow::Local>());
   auto alternate =
       conditional.get_alternate()->get_root().select<Language::Flow::Block>();
   ASSERT(alternate);
-  EXPECT(&alternate->resolve_context("outer"_view) == &outer);
+  EXPECT(&alternate->resolve_concept("outer"_view) == &outer);
 
   const Abstract& retained = statements.get_data()[1].get_root();
   Perimortem::Memory::Allocator::Arena transaction;

@@ -6,8 +6,9 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
+#include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -27,7 +28,7 @@ static auto select_type(const Abstract& candidate)
 
 auto Language::Access::Call::create_synthetic(
     Memory::Allocator::Arena& arena,
-    Expression& receiver,
+    Model::Pack& receiver,
     Core::View::Bytes name,
     Language::Model::Pack& arguments) -> Call& {
   return Expression::create_synthetic<Call>(arena, [&](auto source) -> Call {
@@ -37,21 +38,20 @@ auto Language::Access::Call::create_synthetic(
 
 auto Language::Access::Call::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
+    Model::Pack& receiver,
     Token name_token,
     Core::View::Bytes name,
     Language::Model::Pack& arguments,
     Anchor anchor) -> Call& {
   return Expression::create_authored<Call>(
       domain, anchor, [&](Core::Option<Anchor> source) -> Call {
-        return Call(
-            domain, receiver, name_token, name, arguments, source);
+        return Call(domain, receiver, name_token, name, arguments, source);
       });
 }
 
 static auto select_result_type(const Abstract& result)
     -> Core::Option<const Language::Model::Type&> {
-  auto addressable = result.select<Language::Model::Addressable>();
+  auto addressable = result.select<Ttx::Model::Addressable>();
   if (addressable) {
     return select_type(addressable->get_type());
   }
@@ -62,7 +62,7 @@ static auto select_result_type(const Abstract& result)
   }
 
   const Abstract& resolved = result.resolve();
-  addressable = resolved.select<Language::Model::Addressable>();
+  addressable = resolved.select<Ttx::Model::Addressable>();
   return addressable ? select_type(addressable->get_type())
                      : select_type(resolved);
 }
@@ -142,12 +142,12 @@ static auto create_layout(
 // context, so its runtime input is already the argument Pack itself.
 static auto create_inputs(
     Memory::Allocator::Arena& domain,
-    const Language::Expression& receiver,
+    const Language::Model::Pack& receiver,
     const Language::Model::Pack& arguments) -> const Ttx::Concept::Layout& {
   class Inputs final : public Ttx::Concept::Layout {
    public:
     constexpr Inputs(
-        const Language::Expression& receiver,
+        const Language::Model::Pack& receiver,
         const Language::Model::Pack& arguments)
         : receiver(receiver), arguments(arguments) {}
 
@@ -158,7 +158,7 @@ static auto create_inputs(
     auto get_abstract(Count index) const
         -> Core::Option<const Abstract&> override {
       if (index == 0) {
-        return receiver;
+        return receiver.get_layout().get_abstract(0);
       }
       return arguments.get_layout().get_abstract(index - 1);
     }
@@ -214,14 +214,18 @@ static auto create_inputs(
       if (!fits_at(target, target_offset)) {
         return Errors::IncompatibleFit;
       }
-      return target_index == 0
-                 ? Utility::Result<const Abstract&, Errors>(receiver)
-                 : arguments.get_fitted_at(
-                       target, target_offset + 1, target_index - 1);
+      if (target_index == 0) {
+        auto identity = receiver.get_layout().get_abstract(0);
+        return identity ? Utility::Result<const Abstract&, Errors>(*identity)
+                        : Utility::Result<const Abstract&, Errors>(
+                              Errors::IncompatibleFit);
+      }
+      return arguments.get_fitted_at(
+          target, target_offset + 1, target_index - 1);
     }
 
    private:
-    const Language::Expression& receiver;
+    const Language::Model::Pack& receiver;
     const Language::Model::Pack& arguments;
   };
 
@@ -244,7 +248,7 @@ auto Language::Access::Call::link(
   // Static lookup uses the Type as context, while argument positions still
   // describe value flow. Keeping that split here gives fitting the exact Pack
   // Layout it expects.
-  if (&arguments.resolve() != &arguments) {
+  if (!arguments.is_complete()) {
     cursor.create_expression_error(
         get_anchor(),
         "Library invocation arguments did not produce value flow."_view,
@@ -258,11 +262,22 @@ auto Language::Access::Call::link(
       [](const Abstract& selected) -> const Abstract& { return selected; });
   const Abstract& candidate = receiver_result.visit<Language::Model::Type>(
       [&](const Language::Model::Type& type) -> const Abstract& {
-        return type.resolve_type_call(
-            host, name, Language::Model::Type::Access::Static);
+        return type.resolve_concept("static"_view).resolve_concept(name);
       },
       [&](const Abstract& receiver) -> const Abstract& {
-        return receiver.resolve_call(host, name);
+        auto addressable = receiver.resolve().select<Ttx::Model::Addressable>();
+        if (addressable) {
+          return addressable->get_type()
+              .resolve()
+              .resolve_concept("instance"_view)
+              .resolve_concept(name);
+        }
+        auto value_type =
+            this->receiver.get_type().resolve().select<Language::Model::Type>();
+        return value_type ? value_type->resolve_concept("instance"_view)
+                                .resolve_concept(name)
+                          : receiver.resolve_concept("static"_view)
+                                .resolve_concept(name);
       });
   auto selected = candidate.resolve().select<Language::Model::Callable>();
   if (!selected) {
@@ -276,6 +291,19 @@ auto Language::Access::Call::link(
         << "Correct the Callable spelling or invoke it through the required "
            "Static or Self receiver."_view;
     return False;
+  }
+
+  auto function = selected->select<Language::Function>();
+  if (function && function->get_definition().get_visibility() ==
+                      Tetrodotoxin::Language::Visibility::Private) {
+    auto caller_type = host.select<Language::Model::Type>();
+    if (!caller_type ||
+        !caller_type->has_private_access_to(function->get_host())) {
+      cursor.create_expression_error(
+          get_anchor(), "Callable is private to its declaring Type."_view,
+          "Invoke it only from code hosted by that Type."_view);
+      return False;
+    }
   }
 
   if (!selected->accepts_receiver(receiver_result, host)) {
@@ -346,6 +374,10 @@ auto Language::Access::Call::link(
       create_layout(domain, *this, *selected);
   callable = Reference<const Language::Model::Callable>(*selected);
   output = retained_output;
+  auto source_anchor = get_anchor();
+  if (source_anchor) {
+    cursor.get_associations().create(*source_anchor, *selected);
+  }
 
   // Invocation completion follows the complete result Layout rather than the
   // scalar Type shortcut in Expression. Empty and multiple results can then
@@ -359,7 +391,7 @@ auto Language::Access::Call::link_restored(
   BAIL_IF(
       !receiver.link_restored(lexical_context, access_scope) ||
       !arguments.link_restored(lexical_context, access_scope) ||
-      &arguments.resolve() != &arguments);
+      !arguments.is_complete());
 
   const Abstract& receiver_result = receiver.get_result();
   const Abstract& host = access_scope.visit(
@@ -367,14 +399,33 @@ auto Language::Access::Call::link_restored(
       [](const Abstract& selected) -> const Abstract& { return selected; });
   const Abstract& candidate = receiver_result.visit<Language::Model::Type>(
       [&](const Language::Model::Type& type) -> const Abstract& {
-        return type.resolve_type_call(
-            host, name, Language::Model::Type::Access::Static);
+        return type.resolve_concept("static"_view).resolve_concept(name);
       },
       [&](const Abstract& selected) -> const Abstract& {
-        return selected.resolve_call(host, name);
+        auto addressable = selected.resolve().select<Ttx::Model::Addressable>();
+        if (addressable) {
+          return addressable->get_type()
+              .resolve()
+              .resolve_concept("instance"_view)
+              .resolve_concept(name);
+        }
+        auto value_type =
+            this->receiver.get_type().resolve().select<Language::Model::Type>();
+        return value_type ? value_type->resolve_concept("instance"_view)
+                                .resolve_concept(name)
+                          : selected.resolve_concept("static"_view)
+                                .resolve_concept(name);
       });
   auto selected = candidate.resolve().select<Language::Model::Callable>();
   BAIL_IF(!selected || !selected->accepts_receiver(receiver_result, host));
+  auto function = selected->select<Language::Function>();
+  if (function && function->get_definition().get_visibility() ==
+                      Tetrodotoxin::Language::Visibility::Private) {
+    auto caller_type = host.select<Language::Model::Type>();
+    BAIL_IF(
+        !caller_type ||
+        !caller_type->has_private_access_to(function->get_host()));
+  }
 
   const Layout& parameters = selected->get_parameters();
   Bool fits = arguments.fits(parameters);
@@ -411,18 +462,18 @@ auto Language::Access::Call::get_result() const -> const Abstract& {
 
 auto Language::Access::Call::get_type() const -> const Abstract& {
   if (!callable) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
   const Ttx::Concept::Layout& results = callable->get().get_results();
   if (results.get_size() != 1) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return results.get_abstract(0).visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Abstract& result) -> const Abstract& {
         return select_result_type(result).visit(
-            []() -> const Abstract& { return Invalid::get_invalid(); },
+            []() -> const Abstract& { return Unknown::get_unknown(); },
             [](const Language::Model::Type& type) -> const Abstract& {
               return type;
             });
@@ -432,29 +483,18 @@ auto Language::Access::Call::get_type() const -> const Abstract& {
 auto Language::Access::Call::get_value_type(Count index) const
     -> const Abstract& {
   if (!callable) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
   const Ttx::Concept::Layout& results = callable->get().get_results();
   auto result = results.get_abstract(index);
   if (!result) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
   return select_result_type(*result).visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Language::Model::Type& type) -> const Abstract& {
         return type;
       });
-}
-
-auto Language::Access::Call::get_produced(Count index) const
-    -> Core::Option<Ttx::Model::Pack::Produced> {
-  if (!output || index >= output->get_size() || &resolve() != this) {
-    return {};
-  }
-
-  // The immutable signature supplies each descriptor, while the Call remains
-  // the producer that owns this invocation's results.
-  return Ttx::Model::Pack::Produced{*this, index};
 }
 
 auto Language::Access::Call::get_layout() const -> const Ttx::Concept::Layout& {
@@ -463,10 +503,10 @@ auto Language::Access::Call::get_layout() const -> const Ttx::Concept::Layout& {
 
 auto Language::Access::Call::resolve() const -> const Abstract& {
   if (!callable || !output) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
-  return static_cast<const Language::Model::Pack&>(*this);
+  return *this;
 }
 
 auto Language::Access::Call::finalize(Cursor& cursor) -> void {
@@ -515,12 +555,10 @@ auto Language::Access::Call::fit_inputs(
 
       auto parameter = select_parameter(callable, target_index);
       BAIL_IF(matches != 1 || !parameter);
-      auto produced = selected < receiver_offset
-                          ? receiver.get_produced(0)
-                          : arguments.get_produced(selected - receiver_offset);
-      BAIL_IF(!produced);
       fitted_inputs.insert(
-          Input(*parameter, produced->producer, produced->local_index, 1));
+          selected < receiver_offset
+              ? Input(*parameter, receiver, 0, 1)
+              : Input(*parameter, arguments, selected - receiver_offset, 1));
     }
 
     return True;
@@ -529,10 +567,8 @@ auto Language::Access::Call::fit_inputs(
   BAIL_IF(parameters.get_size() != receiver_offset + 1);
   if (receiver_offset != 0) {
     auto parameter = select_parameter(callable, 0);
-    auto produced = receiver.get_produced(0);
-    BAIL_IF(!parameter || !produced);
-    fitted_inputs.insert(
-        Input(*parameter, produced->producer, produced->local_index, 1));
+    BAIL_IF(!parameter);
+    fitted_inputs.insert(Input(*parameter, receiver, 0, 1));
   }
 
   auto parameter = select_parameter(callable, receiver_offset);
@@ -554,7 +590,7 @@ auto Language::Access::Call::evaluate()
     return selected->fold_call(domain, folded_receiver, arguments);
   }
 
-  return receiver.fold().visit(
+  return Expression::fold(receiver).visit(
       [&](const Core::Option<Language::Model::Pack&>& value)
           -> Utility::Result<Core::Option<Language::Model::Pack&>, Error> {
         if (!value) {
@@ -584,27 +620,15 @@ auto Language::Access::Call::get_argument_parameter(Count index) const
     -> Core::Option<const Ttx::Model::Addressable&> {
   const Ttx::Concept::Layout& layout = arguments.get_layout();
   BAIL_IF(index >= layout.get_size() || layout.get_name(index));
-  auto produced = arguments.get_produced(index);
-  BAIL_IF(!produced);
-
   for (const Input& input : fitted_inputs.get_view()) {
-    if (&input.get_source() == &arguments) {
-      if (index >= input.get_offset() &&
-          index < input.get_offset() + input.get_size()) {
-        return index == input.get_offset()
-                   ? Core::Option<const Ttx::Model::Addressable&>(
-                         input.get_parameter())
-                   : Core::Option<const Ttx::Model::Addressable&>();
-      }
+    if (&input.get_source() != &arguments || index < input.get_offset() ||
+        index >= input.get_offset() + input.get_size()) {
       continue;
     }
-
-    if (&input.get_source() != &produced->producer ||
-        produced->producer.get_layout().get_size() != 1 ||
-        produced->local_index != input.get_offset() || input.get_size() != 1) {
-      continue;
-    }
-    return input.get_parameter();
+    return index == input.get_offset()
+               ? Core::Option<const Ttx::Model::Addressable&>(
+                     input.get_parameter())
+               : Core::Option<const Ttx::Model::Addressable&>();
   }
   return {};
 }

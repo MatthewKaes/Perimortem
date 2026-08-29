@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/declarations.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -125,7 +125,7 @@ auto Language::Layout::resolve_named(View::Bytes name) const
       return *edge;
     }
   }
-  return Invalid::get_invalid();
+  return Unknown::get_unknown();
 }
 
 auto Language::Layout::is_linked() const -> Bool {

@@ -3,7 +3,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/interfaces/callable.hpp"
 #include "ttx/model/layouts/fluid.hpp"
@@ -23,7 +23,6 @@ class InterfaceType final : public Type {
  public:
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr InterfaceType(View::Bytes name) : name(name) {}
 
@@ -41,7 +40,6 @@ class InterfaceCallable final : public Callable {
 
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_parameters() const -> const Layout& override {
     return parameters;

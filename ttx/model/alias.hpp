@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Ttx::Model {
 
@@ -46,7 +47,7 @@ class Alias : public Concept::Abstract {
 
   constexpr auto resolve() const -> const Abstract& override {
     if (!target) {
-      return Concept::Invalid::get_invalid();
+      return Concept::Unknown::get_unknown();
     }
 
     return target->get().visit<Alias>(
@@ -60,9 +61,11 @@ class Alias : public Concept::Abstract {
 
   // Context belongs to the selected target rather than its local name.
   // Resolving the Alias first makes that ownership visible to the consumer.
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
+  constexpr auto resolve_concept(Perimortem::Core::View::Bytes) const
       -> const Abstract& override {
-    return Concept::Invalid::get_invalid();
+    return target
+               ? static_cast<const Abstract&>(Concept::None::get_none())
+               : static_cast<const Abstract&>(Concept::Unknown::get_unknown());
   }
 
  protected:

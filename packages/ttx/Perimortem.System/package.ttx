@@ -3,6 +3,7 @@
 //
 // Perimortem System Package.
 dialect : Package;
+package(.name = "Perimortem.System", .version = "1.0");
 
 public Terminal : alias = source("terminal.ttx")::Terminal;
 public Key : alias = source("key.ttx")::Key;

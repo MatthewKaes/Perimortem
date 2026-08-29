@@ -73,10 +73,13 @@ class Evaluation {
   View::Bytes failure;
 
   static auto compatible_binding_type(
-      const Ttx::Model::Type& requirement,
-      const Ttx::Model::Type& candidate) -> Bool {
-    const Abstract& required = requirement.resolve();
-    const Abstract& supplied = candidate.resolve();
+      const Abstract& requirement,
+      const Abstract& candidate) -> Bool {
+    auto requirement_type = requirement.select<Ttx::Model::Type>();
+    auto candidate_type = candidate.select<Ttx::Model::Type>();
+    BAIL_IF(!requirement_type || !candidate_type);
+    const Abstract& required = requirement_type->resolve();
+    const Abstract& supplied = candidate_type->resolve();
     if (&required == &supplied) {
       return True;
     }

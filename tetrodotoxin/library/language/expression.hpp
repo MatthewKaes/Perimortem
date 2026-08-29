@@ -13,8 +13,8 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/ranged.hpp"
@@ -34,12 +34,12 @@ namespace Tetrodotoxin::Library::Language {
 // Expressions retain no Anchor because there is no source fact to invent.
 // This distinction remains independent from folding and lowering.
 //
-// get_type() returns the one scalar Type produced by the expression or Invalid
+// get_type() returns the one scalar Type produced by the expression or Unknown
 // when the source owner cannot establish exactly one. Concrete owners retain
 // their real evaluation edges. Expression does not reconstruct those edges as
 // a second generic input Layout. Library owns parsing, operator legality,
 // executable bodies, and value fitting.
-class Expression : public Model::Pack {
+class Expression : public Ttx::Concept::Abstract, public Model::Pack {
  public:
   class Error {
    public:
@@ -53,40 +53,44 @@ class Expression : public Model::Pack {
       DivisionByZero,
     };
 
-    constexpr Error(Type type, const Expression& expression)
-        : type(type), expression(expression) {}
+    constexpr Error(Type type, const Ttx::Concept::Abstract& subject)
+        : type(type), subject(subject) {}
+    static auto from_pack(Type type, const Model::Pack& subject) -> Error;
 
     constexpr auto get_type() const -> Type { return type; }
-    constexpr auto get_expression() const -> const Expression& {
-      return expression;
+    constexpr auto get_subject() const -> const Ttx::Concept::Abstract& {
+      return subject;
     }
     auto get_name() const -> Perimortem::Core::View::Bytes;
 
    private:
     Type type;
-    const Expression& expression;
+    const Ttx::Concept::Abstract& subject;
   };
 
-  TTX_CONTRACT(Expression, Model::Pack);
+  TTX_CONTRACT(Expression, Ttx::Concept::Abstract);
 
-  // Access operators own receiver traversal. An Expression never lends its
-  // result or output Type as an implicit contextual lookup path.
-  constexpr auto resolve_context(Perimortem::Core::View::Bytes) const
-      -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
-  }
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
+  // Authored meaning and immutable evaluation are separate concepts. Access
+  // operators still own receiver traversal and never use this as an implicit
+  // member lookup path.
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack& override;
 
   // The result is the exact semantic object produced by this node. Ordinary
   // value Expressions produce themselves. Access nodes override this only
   // when evaluation selects an existing Type or Addressable identity. Keeping
   // result identity separate from get_type() lets Type valued expressions
   // remain available to later access without inventing a value output.
-  virtual constexpr auto get_result() const -> const Ttx::Concept::Abstract& {
+  virtual constexpr auto get_result() const
+      -> const Ttx::Concept::Abstract& override {
+    return *this;
+  }
+
+  auto get_identity() const
+      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override {
     return *this;
   }
 
@@ -103,12 +107,9 @@ class Expression : public Model::Pack {
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_produced(Count index) const
-      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
-
   // Layout inspection is total. An ordinary value Expression exposes one
   // entry while a Type valued or incomplete Expression exposes an empty shape
-  // and still resolves Invalid. Owners such as Call, Swizzle, and Slice
+  // and still resolves Unknown. Owners such as Call, Swizzle, and Slice
   // override this query when they produce complete empty or multiple value
   // flow without inventing an aggregate Type.
   auto get_layout() const -> const Ttx::Concept::Layout& override;
@@ -116,6 +117,8 @@ class Expression : public Model::Pack {
   // A linked Expression is a completed Pack. Multiple result owners override
   // this when their completion is not represented by one scalar Type edge.
   auto resolve() const -> const Ttx::Concept::Abstract& override;
+
+  auto is_complete() const -> Bool override { return &resolve() == this; }
 
   // Expression finalization preserves this exact node and only computes its
   // optional Constant representation. Grouped Packs override the same Library
@@ -146,11 +149,14 @@ class Expression : public Model::Pack {
   auto fold() -> Perimortem::Utility::
       Result<Perimortem::Core::Option<Model::Pack&>, Error>;
 
+  static auto fold(Model::Pack& pack) -> Perimortem::Utility::
+      Result<Perimortem::Core::Option<Model::Pack&>, Error>;
+
   auto get_folded() -> Perimortem::Core::Option<Model::Pack&>;
   auto get_folded() const -> Perimortem::Core::Option<const Model::Pack&>;
 
   constexpr auto get_anchor() const
-      -> const Perimortem::Core::Option<Ttx::Lexical::Anchor>& {
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> override {
     return anchor;
   }
 

@@ -4,7 +4,8 @@
 #include "tetrodotoxin/library/language/field.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "tetrodotoxin/library/language/expression.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -82,6 +83,24 @@ auto Language::Field::retain_generated_initializer(const Field& requirement)
   return True;
 }
 
+auto Language::Field::get_type() const -> const Abstract& {
+  if (type) {
+    return type->get();
+  }
+  if (!type_reference) {
+    return Unknown::get_unknown();
+  }
+
+  Option<const Abstract&> selected;
+  type_reference->resolve_lexical(*this).visit(
+      [&](const Abstract& answer) { selected = answer; },
+      [](const TypeReference::Failure&) {});
+  auto selected_type = selected ? selected->select<Language::Model::Type>()
+                                : Option<const Language::Model::Type&>();
+  return selected_type ? static_cast<const Abstract&>(*selected_type)
+                       : static_cast<const Abstract&>(Unknown::get_unknown());
+}
+
 auto Language::Field::link_declaration_type(Cursor& cursor) -> Bool {
   if (!type_reference) {
     return True;
@@ -148,7 +167,7 @@ auto Language::Field::link_restored_declaration_initializer() -> Bool {
       [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
   BAIL_IF(!selected_initializer);
   BAIL_IF(!selected_initializer->link_restored(*this, get_host()));
-  BAIL_IF(&selected_initializer->resolve() != &*selected_initializer);
+  BAIL_IF(!selected_initializer->is_complete());
 
   if (!type) {
     BAIL_IF(selected_initializer->get_layout().get_size() != 1);
@@ -198,7 +217,7 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
   BAIL_IF(!selected_initializer->link(cursor, *this, get_host()));
   // Linking a Type name is valid when a later access consumes its identity.
   // Field is a value owner, so it proves real Pack flow before reading Layout.
-  if (&selected_initializer->resolve() != &*selected_initializer) {
+  if (!selected_initializer->is_complete()) {
     cursor.create_expression_error(
         get_anchor(), "Field initializer did not produce value flow."_view,
         "Use a Type result only as an access receiver."_view);
@@ -264,7 +283,7 @@ auto Language::Field::link_declaration_initializer(Cursor& cursor) -> Bool {
   return True;
 }
 
-auto Language::Field::resolve_context(View::Bytes route) const
+auto Language::Field::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   return get_host().resolve_lexical_context(route);
 }
@@ -287,12 +306,14 @@ auto Language::Field::validate_publication(Cursor& cursor) const -> Bool {
   }
 
   const Model::Type& host = get_host();
+  auto field_type = get_type().select<Model::Type>();
+  BAIL_IF(!field_type);
   Bool reachable = type_reference.visit(
       [&]() {
         // An embedding Dialect has already selected this exact generated Type
         // edge from its public contract. Inferred Library Fields still prove
         // ordinary reachability through their real host.
-        return Bool(generated || host.is_externally_reachable(get_type()));
+        return Bool(generated || host.is_externally_reachable(*field_type));
       },
       [&](const TypeReference& reference) {
         Option<const Abstract&> selected;
@@ -322,7 +343,7 @@ auto Language::Field::finalize_declaration(Cursor& cursor) -> Bool {
 
 auto Language::Field::resolve() const -> const Abstract& {
   if (!type) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return *this;
@@ -343,9 +364,8 @@ auto Language::Field::get_constant() const -> Option<Model::Pack&> {
 
   return constant.visit(
       []() -> Option<Model::Pack&> { return {}; },
-      [](const Reference<Model::Pack>& selected) -> Option<Model::Pack&> {
-        return selected.get();
-      });
+      [](const Ttx::Model::PackReference<Model::Pack>& selected)
+          -> Option<Model::Pack&> { return selected.get(); });
 }
 
 auto Language::Field::cache_constant() const -> Bool {
@@ -361,29 +381,31 @@ auto Language::Field::cache_constant() const -> Bool {
   }
 
   constant_state = ConstantState::Folding;
+  auto field_type = get_type().select<Model::Type>();
+  BAIL_IF(!field_type);
   // The receiving Type gets first refusal because fitting may construct a new
   // semantic value such as an absent or present Option. Ordinary Types decline
   // that path and leave constant evaluation to the real source Expression.
   auto fitted = initializer.visit(
       []() -> Option<Model::Pack&> { return {}; },
       [&](Model::Pack& source) {
-        return get_type().create_fitted(domain, source);
+        return field_type->create_fitted(domain, source);
       });
   if (fitted) {
-    constant = Reference<Model::Pack>(*fitted);
+    constant = Ttx::Model::PackReference<Model::Pack>(*fitted);
     constant_state = ConstantState::Folded;
     return True;
   }
 
-  auto expression = initializer.visit(
-      []() -> Option<Expression&> { return {}; },
-      [](Model::Pack& selected) { return selected.select<Expression>(); });
-  if (!expression) {
+  auto source = initializer.visit(
+      []() -> Option<Model::Pack&> { return {}; },
+      [](Model::Pack& selected) -> Option<Model::Pack&> { return selected; });
+  if (!source) {
     constant_state = ConstantState::Failed;
     return False;
   }
 
-  expression->fold().visit(
+  Expression::fold(*source).visit(
       [&](const Option<Model::Pack&>& folded) {
         // Absence is not permanent failure. Another const dependency can finish
         // during this closure, after which the same Field may be attempted
@@ -392,7 +414,7 @@ auto Language::Field::cache_constant() const -> Bool {
           constant_state = ConstantState::Unresolved;
           return;
         }
-        constant = Reference<Model::Pack>(*folded);
+        constant = Ttx::Model::PackReference<Model::Pack>(*folded);
         constant_state = ConstantState::Folded;
       },
       [&](const Expression::Error&) {

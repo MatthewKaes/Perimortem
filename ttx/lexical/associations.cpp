@@ -23,6 +23,28 @@ auto Lexical::Associations::create(
     return;
   }
 
+  for (Count index = 0; index < associations.get_size(); index++) {
+    Anchor retained = associations[index].get_anchor();
+    Token retained_token = retained.get_token();
+    Token selected_token = anchor.get_token();
+    Span retained_span = retained.get_span();
+    Span selected_span = anchor.get_span();
+    Bool same_token =
+        Bool(retained_token) == Bool(selected_token) &&
+        (!retained_token ||
+         (retained_token.get_offset() == selected_token.get_offset() &&
+          retained_token.get_size() == selected_token.get_size()));
+    Bool same_span =
+        Bool(retained_span) == Bool(selected_span) &&
+        (!retained_span ||
+         (retained_span.get_offset() == selected_span.get_offset() &&
+          retained_span.get_size() == selected_span.get_size()));
+    if (same_token && same_span) {
+      associations[index] = Entry(anchor, semantic);
+      return;
+    }
+  }
+
   associations.insert({
     anchor,
     semantic,

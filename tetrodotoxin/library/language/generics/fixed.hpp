@@ -6,7 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Generics {

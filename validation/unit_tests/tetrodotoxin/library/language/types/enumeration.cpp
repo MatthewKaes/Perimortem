@@ -24,7 +24,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/alias.hpp"
@@ -110,8 +110,8 @@ static auto rejects_link(View::Bytes source) -> Bool {
   Cursor cursor(tokenizer, errors, associations);
   Bool linked = monograph->link(cursor);
   return !linked && !errors.is_empty() &&
-         &workspace.resolve_context("EnumerationTest"_view) ==
-             &Invalid::get_invalid();
+         &workspace.resolve_concept("EnumerationTest"_view) ==
+             &Unknown::get_unknown();
 }
 
 static auto rejects_completion_without_cases(View::Bytes source) -> Bool {
@@ -131,7 +131,7 @@ static auto rejects_completion_without_cases(View::Bytes source) -> Bool {
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Cursor cursor(tokenizer, errors, associations);
   Bool linked = monograph.link(cursor);
-  const Abstract& selected = monograph.resolve_context("Bad"_view);
+  const Abstract& selected = monograph.resolve_concept("Bad"_view);
   auto enumeration = selected.select<Language::Types::Enumeration>();
   if (!enumeration) {
     return False;
@@ -140,8 +140,8 @@ static auto rejects_completion_without_cases(View::Bytes source) -> Bool {
   Bool finalized = linked ? monograph.finalize(cursor) : False;
   return !finalized && enumeration->get_cases().is_empty() &&
          !errors.is_empty() &&
-         &workspace.resolve_context("EnumerationTest"_view) ==
-             &Invalid::get_invalid();
+         &workspace.resolve_concept("EnumerationTest"_view) ==
+             &Unknown::get_unknown();
 }
 
 static Harness EnumerationTests = {
@@ -165,7 +165,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& selected = monograph->resolve_context("Offset"_view);
+  const Abstract& selected = monograph->resolve_concept("Offset"_view);
   ASSERT(selected.is<Language::Types::Enumeration>());
   const auto& offset =
       static_cast<const Language::Types::Enumeration&>(selected);
@@ -200,13 +200,15 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   }
   EXPECT_EQ(generated, Count(1));
 
-  const Abstract& size = offset.resolve_type_access(
-      offset, "size"_view, Language::Model::Type::Access::Static);
+  const Abstract& size =
+      offset.resolve_concept("static"_view).resolve_concept("size"_view);
   ASSERT(size.is<Builtin::Enum::Size>());
   auto size_addressable = size.select<Language::Model::Addressable>();
   ASSERT(size_addressable);
   auto size_constant = size_addressable->get_constant();
-  ASSERT(size_constant && size_constant->is<Language::Constants::Unsigned>());
+  ASSERT(
+      size_constant &&
+      size_constant->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*size_constant)
           .get_value(),
@@ -220,7 +222,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
   Language::Model::Pack& empty =
       Language::Model::Pack::create_empty(folded_domain);
   auto folded = name_callable->fold_call(folded_domain, duplicate, empty);
-  ASSERT(folded && folded->is<Language::Constants::Bytes>());
+  ASSERT(folded && folded->is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(*folded).get_value(),
       "high"_view);
@@ -246,9 +248,9 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, binary_boundaries) {
   ASSERT(monograph);
 
   const Abstract& unsigned_identity =
-      monograph->resolve_context("UnsignedEdge"_view);
+      monograph->resolve_concept("UnsignedEdge"_view);
   const Abstract& signed_identity =
-      monograph->resolve_context("SignedEdge"_view);
+      monograph->resolve_concept("SignedEdge"_view);
   ASSERT(unsigned_identity.is<Language::Types::Enumeration>());
   ASSERT(signed_identity.is<Language::Types::Enumeration>());
   const auto& unsigned_edge =
@@ -334,8 +336,8 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, declaration_order) {
   ASSERT(monograph);
 
   const auto& source_type = monograph->get_source();
-  const Abstract& first = monograph->resolve_context("First"_view);
-  const Abstract& second = monograph->resolve_context("Second"_view);
+  const Abstract& first = monograph->resolve_concept("First"_view);
+  const Abstract& second = monograph->resolve_concept("Second"_view);
   ASSERT(first.is<Language::Types::Enumeration>());
   ASSERT(second.is<Language::Types::Enumeration>());
   auto types = source_type.get_types();
@@ -347,7 +349,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, declaration_order) {
   ++types;
   ASSERT(types != types.end());
   EXPECT(&(*types).get() == &second);
-  EXPECT(&monograph->resolve_context("Hidden"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph->resolve_concept("Hidden"_view) == &Unknown::get_unknown());
   EXPECT(errors.is_empty());
 }
 

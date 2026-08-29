@@ -8,8 +8,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/pack.hpp"
@@ -17,19 +17,22 @@
 
 namespace Tetrodotoxin::Library::Language::Model {
 
-// Pack is the Library lifecycle shared by every produced value flow. A scalar
-// Expression and an authored parenthesized group expose the same link, fitting,
-// and finalization surface, so consumers never branch on their concrete carrier
-// merely to obtain the complete TTX Layout.
+// Pack is the identity-free Library lifecycle shared by every produced value
+// flow. A scalar Expression and an authored parenthesized group expose the same
+// link, fitting, and finalization surface while their Layout entries retain the
+// real semantic identities.
 //
-// The TTX Pack remains the host neutral semantic contract. This derived owner
+// The TTX Pack remains the host neutral support contract. This derived owner
 // adds only the Library stages needed to bind authored Expressions. Layout
 // observation is total even while a Pack is incomplete. Only resolving itself
 // admits that Layout as produced flow, where empty output means zero values
 // rather than an incomplete sentinel.
 class Pack : public Ttx::Model::Pack {
  public:
-  TTX_CONTRACT(Pack, Ttx::Model::Pack);
+  static auto from(Ttx::Concept::Abstract& identity)
+      -> Perimortem::Core::Option<Pack&>;
+  static auto from(const Ttx::Concept::Abstract& identity)
+      -> Perimortem::Core::Option<const Pack&>;
 
   virtual auto link(
       Ttx::Lexical::Cursor& cursor,
@@ -43,9 +46,47 @@ class Pack : public Ttx::Model::Pack {
       -> Bool;
 
   // The scalar output query is a convenience over the Pack's completed Layout.
-  // It is Invalid for empty or multiple value flow and never materializes an
+  // It is Unknown for empty or multiple value flow and never materializes an
   // aggregate Type merely to make the query succeed.
   virtual auto get_type() const -> const Ttx::Concept::Abstract&;
+
+  virtual auto get_result() const -> const Ttx::Concept::Abstract&;
+
+  // Completion belongs to the concrete semantic identities referenced by the
+  // Layout. It is not represented by resolving the Pack itself.
+  virtual auto is_complete() const -> Bool = 0;
+
+  virtual auto get_anchor() const
+      -> Perimortem::Core::Option<Ttx::Lexical::Anchor> {
+    return {};
+  }
+
+  // A scalar Pack may expose the one real Abstract supplying its flow. Empty
+  // and multi-value Packs have no aggregate identity.
+  virtual auto get_identity() const
+      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
+
+  template <typename Requested>
+  auto select_identity() const -> Perimortem::Core::Option<const Requested&> {
+    auto identity = get_identity();
+    return identity ? identity->select<Requested>()
+                    : Perimortem::Core::Option<const Requested&>();
+  }
+
+  template <typename Requested>
+  auto select_identity() -> Perimortem::Core::Option<Requested&> {
+    auto identity = get_identity();
+    auto selected = identity ? identity->select<Requested>()
+                             : Perimortem::Core::Option<const Requested&>();
+    return selected ? Perimortem::Core::Option<Requested&>(
+                          const_cast<Requested&>(*selected))
+                    : Perimortem::Core::Option<Requested&>();
+  }
+
+  template <typename Requested>
+  auto is_identity() const -> Bool {
+    return bool(select_identity<Requested>());
+  }
 
   // Value Type selection follows the real producer that owns each output
   // position. A raw Type identity in a Layout is not evidence that a value was
@@ -57,7 +98,7 @@ class Pack : public Ttx::Model::Pack {
   // back to its identity free output Layout. This is what lets a Constant own
   // contextual scalar conversion while grouped and named flows retain their
   // concrete Layout ordering and names.
-  auto fits(const Ttx::Concept::Layout& target) const -> Bool override;
+  virtual auto fits(const Ttx::Concept::Layout& target) const -> Bool;
   auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
       -> Bool;
   auto fits_entry(
@@ -90,7 +131,7 @@ class Pack : public Ttx::Model::Pack {
   // describe evaluation. Terminal producers use this query only after proving
   // that the Pack is not an Expression.
   virtual constexpr auto get_entries() const
-      -> Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> {
+      -> Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> {
     return {};
   }
 
@@ -104,7 +145,7 @@ class Pack : public Ttx::Model::Pack {
   // children remain the only value identities and evaluation edges.
   static auto create_group(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries,
+      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {},
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor = {}) -> Pack&;
 
@@ -113,7 +154,7 @@ class Pack : public Ttx::Model::Pack {
   // immediately observable through the ordinary Pack contract.
   static auto create_folded(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries)
+      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries)
       -> Pack&;
 
   // Generated execution owners may compose an already linked named Pack.
@@ -121,7 +162,7 @@ class Pack : public Ttx::Model::Pack {
   // edge and no lexical pass may replace it.
   static auto create_completed(
       Perimortem::Memory::Allocator::Arena& domain,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Pack>> entries,
+      Perimortem::Core::View::Vector<Ttx::Model::PackReference<Pack>> entries,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names = {})
       -> Pack&;
 

@@ -261,18 +261,17 @@ TTX queries normally use a live graph, but builds and distributed Packages need
 a durable form. Package Archive records enough information to build a fresh
 Workspace without reading the original source again.
 
-The Complete profile keeps the public and private semantic contract. The
-Contract profile keeps only the public contract required by dependent
-consumers. Neither stores executable bodies. Compiled artifacts carry
-execution, while source or a live Workspace remains the input for another
-lowering. The same profile applies to child layers such as the Library layer
-inside a Scene.
+The Package product keeps one complete semantic graph. It stores every fact
+needed to restore its public and private owners but no executable bodies.
+Compiled artifacts carry execution, while source or a live Workspace remains
+the input for another lowering. Fixed child layers such as the Library layer
+inside a Scene are retained in that same complete graph.
 
 Restoration creates new objects rather than copying process memory. The new
 graph must expose the same names, Types, relationships, Layouts, ordering, and
 language behavior promised by the Archive. It does not need to use the same
 addresses or internal data structures. Live runtime state and source to debug
-mapping are not stored in either profile.
+mapping are not stored in the Package product.
 
 The [Tetrodotoxin design](tetrodotoxin_design.md) explains the Terminal and
 reconstruction contract in detail.

@@ -2,7 +2,7 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/foreign.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -76,6 +76,22 @@ auto Language::Foreign::State::link_restored_declaration_type() -> Bool {
   return True;
 }
 
+auto Language::Foreign::State::get_type() const -> const Abstract& {
+  if (type) {
+    return type->get();
+  }
+
+  Option<const Abstract&> selected;
+  type_reference.resolve_lexical(definition.get_host())
+      .visit(
+          [&](const Abstract& answer) { selected = answer; },
+          [](const TypeReference::Failure&) {});
+  auto selected_type = selected ? selected->select<Language::Model::Type>()
+                                : Option<const Language::Model::Type&>();
+  return selected_type ? static_cast<const Abstract&>(*selected_type)
+                       : static_cast<const Abstract&>(Unknown::get_unknown());
+}
+
 auto Language::Foreign::State::resolve() const -> const Abstract& {
-  return type ? static_cast<const Abstract&>(*this) : Invalid::get_invalid();
+  return type ? static_cast<const Abstract&>(*this) : Unknown::get_unknown();
 }

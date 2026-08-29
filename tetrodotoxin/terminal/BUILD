@@ -8,6 +8,18 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "graph_text",
+    srcs = ["graph_text.cpp"],
+    hdrs = ["graph_text.hpp"],
+    deps = [
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
+        "//ttx:concept",
+        "//ttx:model",
+    ],
+)
+
+cc_library(
     name = "application",
     srcs = glob(["application/**/*.cpp"]),
     hdrs = glob(["application/**/*.hpp"]),

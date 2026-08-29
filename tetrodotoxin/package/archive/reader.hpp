@@ -11,11 +11,8 @@
 
 namespace Tetrodotoxin::Package::Archive {
 
-// Validates and materializes one Package Archive envelope. Format 2 preserves
-// the resource free contract, while later formats restore Package Resources
-// and the external Type graph before member Dialects consume their routes.
-// Reader owns framing, relationships, retained record storage, and low level
-// validation logs.
+// Validates and materializes the one complete Package graph envelope. Reader
+// owns framing, relationships, retained record storage, and low level logs.
 class Reader {
  public:
   Reader() = delete;

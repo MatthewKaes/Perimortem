@@ -38,9 +38,9 @@ static auto materialize_bytes_type(
     Span span,
     Count size) -> Option<const Library::Language::Model::Type&> {
   if (size == 0) {
-    auto byte = context.resolve_context("U8"_view)
+    auto byte = context.resolve_concept("U8"_view)
                     .select<Library::Language::Model::Type>();
-    auto generic = context.resolve_context("View"_view)
+    auto generic = context.resolve_concept("View"_view)
                        .select<Library::Language::Generic>();
     BAIL_IF(!byte || !generic);
     Static::Vector<Library::Language::Generic::Argument, 1> arguments = {{
@@ -72,9 +72,9 @@ static auto materialize_bytes_type(
     return {};
   }
 
-  auto byte = context.resolve_context("U8"_view)
+  auto byte = context.resolve_concept("U8"_view)
                   .select<Library::Language::Model::Type>();
-  auto generic = context.resolve_context("Fixed"_view)
+  auto generic = context.resolve_concept("Fixed"_view)
                      .select<Library::Language::Generic>();
   BAIL_IF(!byte || !generic);
   Static::Vector<Library::Language::Generic::Argument, 2> arguments = {{
@@ -230,7 +230,7 @@ static auto parse_embedded(
   canonical_route.append(']');
 
   const Abstract& selected =
-      source_context.resolve_context(canonical_route.get_view()).resolve();
+      source_context.resolve_concept(canonical_route.get_view()).resolve();
   auto error = selected.select<Tetrodotoxin::Language::Error>();
   if (error) {
     auto report = cursor.create_report(literal_span);
@@ -265,7 +265,7 @@ static auto parse_flag(
   Anchor anchor = Anchor::create(token, Span(token));
 
   auto type =
-      context.resolve_context("Bool"_view)
+      context.resolve_concept("Bool"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Flag>();
   BAIL_IF(!type);
   if (token.get_code() == Code::Type::True) {
@@ -301,7 +301,7 @@ static auto parse_unsigned(
 
   cursor.consume();
   auto type =
-      context.resolve_context("U64"_view)
+      context.resolve_concept("U64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
   BAIL_IF(!type);
   return Library::Language::Constants::Unsigned::create_authored(
@@ -330,7 +330,7 @@ static auto parse_signed(
   cursor.consume();
   cursor.consume();
   auto type =
-      context.resolve_context("S64"_view)
+      context.resolve_concept("S64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Signed>();
   BAIL_IF(!type);
   return Library::Language::Constants::Signed::create_authored(
@@ -363,7 +363,7 @@ static auto parse_real(
   }
 
   auto type =
-      context.resolve_context("R64"_view)
+      context.resolve_concept("R64"_view)
           .select<Tetrodotoxin::Library::Language::Model::Types::Real>();
   BAIL_IF(!type);
   return Library::Language::Constants::Real::create_authored(

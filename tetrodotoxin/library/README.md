@@ -984,9 +984,9 @@ Library expressions retain authored value dependencies and expose both their
 exact semantic result and output Type. The result preserves the identity
 selected by an access. The output Type states which value operations apply, and
 a selected Type has no value output. Every Expression implements the Pack
-contract, so its Layout remains safe to inspect. A Type result exposes an empty
-inspection shape but resolves Invalid as value flow. Only a Pack that resolves
-to itself supplies an empty Layout as completed zero value flow. Scalar
+support contract, so its Layout remains safe to inspect. Pack has no identity
+or resolution behavior; its Layout points directly at the real semantic
+producers, and an empty Layout is completed zero value flow. Scalar
 expression consumers require one exact produced value and output Type, while
 calls, swizzles, and slices may preserve empty output or output with several
 values without inventing a group Type.
@@ -1103,8 +1103,8 @@ control flow owner.
 Diagnostic recovery does not change that transaction boundary. When an
 explicit Local Type has settled but its initializer fails, later Statements in
 the same rejected transaction may still query that Local's name, Type, and
-member surface. Its value remains incomplete, the Local continues to resolve
-Invalid, and the failed Monograph is never published. An inferred Local has no
+member surface. Its value remains incomplete, the Local continues to answer
+Unknown, and the failed Monograph is never published. An inferred Local has no
 such recovery binding until its initializer establishes one exact Type.
 
 `=`, `+=`, and `-=` are distinct lowest precedence Library Expression
@@ -1183,16 +1183,16 @@ using Core;
 using Graphics::Utilities;
 ```
 
-The route follows ordinary `::` contextual access one name at a time. Alias
+The route follows ordinary `::` concept access one name at a time. Alias
 selection resolves to its target before the next query. Once the route is
-complete, unresolved `resolve_context`, `resolve_access`, and `resolve_call`
-queries fall through to that exact borrowed context. Library never enumerates
-or copies its declarations, constructs forwarding Aliases, or requires the
-selected object to be a Package or Library Monograph.
+complete, unanswered `resolve_concept` queries fall through to that exact
+borrowed context. Library never enumerates or copies its declarations,
+constructs forwarding Aliases, or requires the selected object to be a Package
+or Library Monograph.
 
 Linking asks every admitted fallback about each locally declared name and
 rejects a second answer. If multiple fallback contexts answer some other later
-query with different identities, that query resolves to Invalid. Language
+query with different identities, that query resolves to Unknown. Language
 extensions therefore compose as localized query contexts without a shared
 registry or imported declaration table.
 
@@ -1260,24 +1260,22 @@ bytes.
 
 ## Persistence
 
-Library can be stored in a Package Archive and reconstructed without its source
-file. A Complete payload keeps its public and private Types, Fields, Function
-signatures, folded constants, Foreign declarations, Attributes, and native
-artifact locations. A Contract payload keeps the public closure of those
-facts. Neither retains Function bodies, expressions, control flow, or access
-operations.
+Library can be stored in a Package product and reconstructed without its source
+file. The complete payload keeps its public and private Types, Fields, Function
+signatures, folded constants, Foreign declarations, and Attributes. It retains
+foreign symbol requirements but no native provider or artifact locations,
+Function bodies, expressions, control flow, or access operations.
 
-The restored Library is a TTX wrapper over its compiled artifacts, analogous to
-a Foreign block whose ABI is TTX. It answers the Type, Addressable, Callable,
-and constant queries required for composition while stable native symbols reach
-the provider implementation. A source build or live Workspace performs another
-lowering.
+The restored Library answers the Type, Addressable, Callable, and Constant
+queries required for composition. A later build tool links ordinary native
+libraries for the retained foreign symbols. A source build or live Workspace
+performs another lowering.
 
-Neither profile stores parser state, process addresses, compiler caches, LLVM
+The payload stores no parser state, process addresses, compiler caches, LLVM
 IR, native bytes, live Object references, or source level debugging data.
 
 Archive is a Terminal producer rather than a capability injected into Library
-objects. Its writer walks completed semantic identities and owns Format 1 tag
+objects. Its writer walks completed semantic identities and owns Format 2 tag
 selection. Its reader validates bounded records, then calls the same
 Cursor independent Language factories available to any trusted producer. The
 Language model contains no Archive reader, writer, tag, or persistence callback.
@@ -1285,9 +1283,9 @@ Language model contains no Archive reader, writer, tag, or persistence callback.
 Restoring an Archive creates new Library objects and completes them through the
 same rules used for source. The result preserves all names, categories,
 relationships, ordering, Layout behavior, and other visible facts promised by
-the selected profile. Its in memory arrangement does not need to match the old
-process. A Library child inside Scene or Shader uses the same Complete or
-Contract profile as its parent.
+the product. Its in memory arrangement does not need to match the old process.
+A Library child inside Scene or Shader belongs to the same complete graph as
+its parent.
 
 ## Compilation boundary
 

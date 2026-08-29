@@ -76,29 +76,22 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
   EXPECT(program.get_contract());
   Shader::Language::Contract negotiator;
   EXPECT(negotiator.accepts(*program.get_contract(), program));
-  EXPECT(program
-             .resolve_type_call(
-                 program, "fragment"_view,
-                 Library::Language::Model::Type::Access::Static)
+  EXPECT(program.resolve_concept("static"_view)
+             .resolve_concept("fragment"_view)
              .resolve()
              .is<Library::Language::Function>());
-  EXPECT(program
-             .resolve_type_access(
-                 program, "texture"_view,
-                 Library::Language::Model::Type::Access::Static)
+  EXPECT(program.resolve_concept("static"_view)
+             .resolve_concept("texture"_view)
              .resolve()
              .is<Library::Language::Field>());
   EXPECT_EQ(program.get_bindings().get_size(), Count(3));
-  auto gpu_noise = program
-                       .resolve_type_access(
-                           program, "noise"_view,
-                           Library::Language::Model::Type::Access::Static)
+  auto gpu_noise = program.resolve_concept("static"_view)
+                       .resolve_concept("noise"_view)
                        .resolve()
                        .select<Library::Language::Field>();
   auto runtime_noise = program.get_instance()
-                           .resolve_type_access(
-                               program, "noise"_view,
-                               Library::Language::Model::Type::Access::Self)
+                           .resolve_concept("instance"_view)
+                           .resolve_concept("noise"_view)
                            .resolve()
                            .select<Library::Language::Field>();
   ASSERT(gpu_noise && runtime_noise);

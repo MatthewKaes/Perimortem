@@ -17,7 +17,7 @@ class True : public Flag {
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Flag& type,
       Ttx::Lexical::Anchor anchor) -> True& {
-    return Expression::create_authored<True>(
+    return Constant::create_authored<True>(
         domain, anchor,
         [&](auto source) -> True { return True(type, source); });
   }
@@ -26,7 +26,7 @@ class True : public Flag {
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Flag& type)
       -> True& {
-    return Expression::create_synthetic<True>(
+    return Constant::create_synthetic<True>(
         domain, [&](auto source) -> True { return True(type, source); });
   }
 

@@ -5,10 +5,7 @@
 
 #include "perimortem/core/reader/binary.hpp"
 
-#include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
-
-#include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/render/language/alias.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
@@ -22,8 +19,6 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
-
-using BinaryReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
 
 enum class RenderReaderAttributeValue : U8 {
   Empty,
@@ -41,38 +36,33 @@ auto Render::Archive::Reader::Definition::create(
       arena, documentation, host, attributes, name, visibility);
 }
 
-auto Render::Archive::Reader::open(
-    View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
+auto Render::Archive::Reader::open(View::Bytes payload) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
-  BinaryReader reader(payload.slice(0, 8));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
+      payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
   U16 version = reader.read_u16();
-  U8 encoded_profile = reader.read_u8();
-  U8 flags = reader.read_u8();
-  BAIL_IF(
-      magic != "TTXR"_view || version != 1 || encoded_profile != U8(profile) ||
-      flags != 0);
-  return Reader(payload.slice(8), profile);
+  U16 flags = reader.read_u16();
+  BAIL_IF(magic != "TTXR"_view || version != 2 || flags != 0);
+  return Reader(payload.slice(8));
 }
 
 auto Render::Archive::Reader::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& language,
     Abstract& context) -> Option<Render::Language::Monograph&> {
   // The outer record bounds every declaration before any graph identity is
   // created. A malformed sibling is therefore confined to its own payload and
   // cannot consume the valid bytes that follow it.
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
   auto record = opened->read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Monograph) ||
       !opened->is_complete());
 
-  Reader contents(record->get_payload(), profile);
+  Reader contents(record->get_payload());
   auto documentation = contents.read_documentation(arena);
   BAIL_IF(!documentation);
   auto& monograph = Render::Language::Monograph::create(
@@ -92,7 +82,7 @@ auto Render::Archive::Reader::take(Count size) -> Option<View::Bytes> {
 auto Render::Archive::Reader::read_record() -> Option<Record> {
   auto header = take(8);
   BAIL_IF(!header);
-  BinaryReader reader(*header);
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(*header);
   U16 tag = reader.read_u16();
   U16 flags = reader.read_u16();
   U32 size = reader.read_u32();
@@ -104,32 +94,52 @@ auto Render::Archive::Reader::read_record() -> Option<Record> {
 
 auto Render::Archive::Reader::read_u8() -> Option<U8> {
   auto selected = take(sizeof(U8));
-  return selected ? Option<U8>(BinaryReader(*selected).read_u8())
-                  : Option<U8>();
+  return selected
+             ? Option<U8>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u8())
+             : Option<U8>();
 }
 
 auto Render::Archive::Reader::read_u32() -> Option<U32> {
   auto selected = take(sizeof(U32));
-  return selected ? Option<U32>(BinaryReader(*selected).read_u32())
-                  : Option<U32>();
+  return selected
+             ? Option<U32>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u32())
+             : Option<U32>();
 }
 
 auto Render::Archive::Reader::read_u64() -> Option<U64> {
   auto selected = take(sizeof(U64));
-  return selected ? Option<U64>(BinaryReader(*selected).read_u64())
-                  : Option<U64>();
+  return selected
+             ? Option<U64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u64())
+             : Option<U64>();
 }
 
 auto Render::Archive::Reader::read_s64() -> Option<S64> {
   auto selected = take(sizeof(S64));
-  return selected ? Option<S64>(BinaryReader(*selected).read_s64())
-                  : Option<S64>();
+  return selected
+             ? Option<S64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_s64())
+             : Option<S64>();
 }
 
 auto Render::Archive::Reader::read_r64() -> Option<R64> {
   auto selected = take(sizeof(R64));
-  return selected ? Option<R64>(BinaryReader(*selected).read_r64())
-                  : Option<R64>();
+  return selected
+             ? Option<R64>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_r64())
+             : Option<R64>();
 }
 
 auto Render::Archive::Reader::read_bytes() -> Option<View::Bytes> {
@@ -217,9 +227,6 @@ auto Render::Archive::Reader::read_definition(Allocator::Arena& arena)
       !visibility ||
       *visibility > U8(Tetrodotoxin::Language::Visibility::Exposed));
   auto selected_visibility = Tetrodotoxin::Language::Visibility(*visibility);
-  BAIL_IF(
-      profile == Tetrodotoxin::Language::Persistence::Profile::Contract &&
-      selected_visibility == Tetrodotoxin::Language::Visibility::Private);
   return Definition(
       *documentation, *attributes, arena.proxy(*name), selected_visibility);
 }
@@ -236,7 +243,7 @@ auto Render::Archive::Reader::read_layout(Allocator::Arena& arena)
     -> Option<Render::Language::Layout&> {
   auto record = read_record();
   BAIL_IF(!record || record->get_tag() != U16(Tag::Layout));
-  Reader contents(record->get_payload(), profile);
+  Reader contents(record->get_payload());
   auto parameters = contents.read_u8();
   auto count = contents.read_u32();
   BAIL_IF(!parameters || *parameters > 1 || !count);
@@ -244,7 +251,7 @@ auto Render::Archive::Reader::read_layout(Allocator::Arena& arena)
   for (Count index = 0; index < *count; index++) {
     auto slot_record = contents.read_record();
     BAIL_IF(!slot_record || slot_record->get_tag() != U16(Tag::Slot));
-    Reader slot(slot_record->get_payload(), profile);
+    Reader slot(slot_record->get_payload());
     auto name = slot.read_bytes();
     auto attributes = slot.read_attributes(arena);
     auto reference = slot.read_type_reference(arena);
@@ -265,35 +272,15 @@ auto Render::Archive::Reader::read_layout(Allocator::Arena& arena)
 
 auto Render::Archive::Reader::read_entry(
     Allocator::Arena& arena,
-    Abstract& host,
-    Count hidden_slot) -> Option<Entry> {
+    Abstract& host) -> Option<Entry> {
   Reader probe = *this;
   auto record = probe.read_record();
   BAIL_IF(!record);
   Tag tag = Tag(record->get_tag());
 
-  if (tag == Tag::HiddenSlot) {
-    // Contract keeps the private value shape without retaining its authored
-    // name or making that Binding visible through public lookup.
-    BAIL_IF(profile != Tetrodotoxin::Language::Persistence::Profile::Contract);
-    auto selected = read_record();
-    BAIL_IF(!selected);
-    Reader contents(selected->get_payload(), profile);
-    auto reference = contents.read_type_reference(arena);
-    BAIL_IF(!reference || !contents.is_complete());
-    Managed::Bytes name(arena, "$slot"_view);
-    Perimortem::Serialization::Stream::Textual<Managed::Bytes> output(name);
-    output << hidden_slot;
-    auto& binding = Render::Language::Binding::create_restored_slot(
-        arena, name.get_view(), *reference);
-    return Entry(
-        binding, Category::Addressable,
-        Tetrodotoxin::Language::Visibility::Private, True);
-  }
-
   auto selected = read_record();
   BAIL_IF(!selected);
-  Reader contents(selected->get_payload(), profile);
+  Reader contents(selected->get_payload());
   auto definition = contents.read_definition(arena);
   BAIL_IF(!definition);
   auto& restored_definition = definition->create(arena, host);
@@ -366,7 +353,7 @@ auto Render::Archive::Reader::read_entries(
     Allocator::Arena& arena,
     Render::Language::Monograph& monograph) -> Bool {
   while (!is_complete()) {
-    auto entry = read_entry(arena, monograph, 0);
+    auto entry = read_entry(arena, monograph);
     BAIL_IF(!entry || entry->instance);
     Bool retained = False;
     switch (entry->category) {
@@ -389,11 +376,8 @@ auto Render::Archive::Reader::read_entries(
 auto Render::Archive::Reader::read_entries(
     Allocator::Arena& arena,
     Render::Language::Structure& structure) -> Bool {
-  // Record order is also instance Layout order. Hidden Contract slots take the
-  // same position as the private Binding they replace.
-  Count hidden_slot = 0;
   while (!is_complete()) {
-    auto entry = read_entry(arena, structure, hidden_slot);
+    auto entry = read_entry(arena, structure);
     BAIL_IF(!entry);
     Bool retained = False;
     switch (entry->category) {
@@ -413,9 +397,6 @@ auto Render::Archive::Reader::read_entries(
       auto addressable = entry->semantic.select<Ttx::Model::Addressable>();
       BAIL_IF(!addressable);
       structure.retain_instance(*addressable);
-      if (entry->visibility == Tetrodotoxin::Language::Visibility::Private) {
-        hidden_slot++;
-      }
     }
   }
   return True;

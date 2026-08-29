@@ -5,7 +5,7 @@
 
 namespace Tetrodotoxin::Library::Archive {
 
-// Tag is the frozen Library Archive Format 1 vocabulary. Records retain their
+// Tag is the complete Library Archive Format 2 vocabulary. Records retain their
 // own byte extent, allowing a future reader to skip an unknown optional record
 // without interpreting any of its contents.
 enum class Tag : U16 {
@@ -35,12 +35,11 @@ enum class Tag : U16 {
   ConstantOption = 24,
   ConstantResult = 25,
   Layout = 26,
-  FieldSlot = 27,
-  ConstantObject = 28,
-  ConstantResourceBytes = 29,
-  Namespace = 30,
-  Interface = 31,
-  Implemented = 32,
+  ConstantObject = 27,
+  ConstantResourceBytes = 28,
+  Namespace = 29,
+  Interface = 30,
+  Implemented = 31,
 };
 
 }  // namespace Tetrodotoxin::Library::Archive

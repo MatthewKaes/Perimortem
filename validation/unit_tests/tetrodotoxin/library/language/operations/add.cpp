@@ -20,7 +20,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -63,33 +63,40 @@ static auto link_operation(Operation& operation, const Abstract& context)
 
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
-    -> Option<Expression&> {
+    -> Option<Tetrodotoxin::Library::Language::Constant&> {
   return result.visit(
-      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return folded.visit(
-            []() -> Option<Expression&> { return {}; },
-            [](Model::Pack& selected) -> Option<Expression&> {
-              return selected.select<Expression>();
+            []() -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return {};
+            },
+            [](Model::Pack& selected)
+                -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return selected
+                  .select_identity<Tetrodotoxin::Library::Language::Constant>();
             });
       },
-      [](const Expression::Error&) -> Option<Expression&> { return {}; });
+      [](const Expression::Error&)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
 static auto reports(
     const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
-    const Expression& origin) -> Bool {
+    const Abstract& origin) -> Bool {
   return result.visit(
       [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
-        return error.get_type() == expected &&
-                       &error.get_expression() == &origin
+        return error.get_type() == expected && &error.get_subject() == &origin
                    ? True
                    : False;
       });
 }
 
-static auto get_unsigned(const Expression& expression) -> Option<U64> {
+static auto get_unsigned(
+    const Tetrodotoxin::Library::Language::Constant& expression)
+    -> Option<U64> {
   return expression.visit<Constants::Unsigned>(
       [](const Constants::Unsigned& value) -> Option<U64> {
         return value.get_value();
@@ -97,7 +104,9 @@ static auto get_unsigned(const Expression& expression) -> Option<U64> {
       [](const Abstract&) -> Option<U64> { return {}; });
 }
 
-static auto get_signed(const Expression& expression) -> Option<S64> {
+static auto get_signed(
+    const Tetrodotoxin::Library::Language::Constant& expression)
+    -> Option<S64> {
   return expression.visit<Constants::Signed>(
       [](const Constants::Signed& value) -> Option<S64> {
         return value.get_value();
@@ -105,7 +114,9 @@ static auto get_signed(const Expression& expression) -> Option<S64> {
       [](const Abstract&) -> Option<S64> { return {}; });
 }
 
-static auto get_real(const Expression& expression) -> Option<R64> {
+static auto get_real(
+    const Tetrodotoxin::Library::Language::Constant& expression)
+    -> Option<R64> {
   return expression.visit<Constants::Real>(
       [](const Constants::Real& value) -> Option<R64> {
         return value.get_value();

@@ -39,8 +39,7 @@ static auto parse_scalar_binary(
   Token opening = cursor.consume();
   Token right_start = cursor.current();
   Count error_count = cursor.get_error_count();
-  auto right = Interpreter::Expression::parse_operand(
-      context, cursor, code);
+  auto right = Interpreter::Expression::parse_operand(context, cursor, code);
   if (!right) {
     if (cursor.get_error_count() == error_count) {
       cursor.create_expression_error(
@@ -52,12 +51,10 @@ static auto parse_scalar_binary(
   }
 
   Span right_span(right_start, cursor.peek(-1));
-  auto left_expression = left.select<Language::Expression>();
-  auto right_expression = right->select<Language::Expression>();
-  if (!left_expression || !right_expression) {
+  if (!left.get_identity() || !right->get_identity()) {
     cursor.create_expression_error(
         Anchor::create(opening, left_span, right_span),
-        "Library scalar operation requires one Expression from each operand "
+        "Library scalar operation requires one semantic fact from each operand "
         "Pack."_view,
         "Use one unlabelled scalar value because named and multiple value "
         "Packs require an operation that defines their shape."_view);
@@ -65,19 +62,17 @@ static auto parse_scalar_binary(
   }
 
   return operation_type::create_authored(
-      cursor.get_arena(), *left_expression, *right_expression,
+      cursor.get_arena(), left, *right,
       Anchor::create(opening, left_span, right_span));
 }
 
 template <typename operation_type>
-static auto parse_scalar_prefix(
-    const Abstract& context,
-    Cursor& cursor) -> Option<Language::Expression&> {
+static auto parse_scalar_prefix(const Abstract& context, Cursor& cursor)
+    -> Option<Language::Expression&> {
   Token opening = cursor.consume();
   Token operand_start = cursor.current();
   Count error_count = cursor.get_error_count();
-  auto operand = Interpreter::Expression::parse_prefix_operand(
-      context, cursor);
+  auto operand = Interpreter::Expression::parse_prefix_operand(context, cursor);
   if (!operand) {
     if (cursor.get_error_count() == error_count) {
       cursor.create_expression_error(
@@ -87,17 +82,16 @@ static auto parse_scalar_prefix(
     }
     return {};
   }
-  auto expression = operand->select<Language::Expression>();
   Span operand_span(operand_start, cursor.peek(-1));
-  if (!expression) {
+  if (!operand->get_identity()) {
     cursor.create_expression_error(
         Anchor::create(opening, Span(opening), operand_span),
-        "Library unary operation requires one Expression operand."_view,
+        "Library unary operation requires one semantic operand."_view,
         "Use one unlabelled scalar value after the prefix operator."_view);
     return {};
   }
   return operation_type::create_authored(
-      cursor.get_arena(), *expression,
+      cursor.get_arena(), *operand,
       Anchor::create(opening, Span(opening), operand_span));
 }
 
@@ -125,18 +119,16 @@ static auto parse_range(
     return {};
   }
 
-  auto left_expression = left.select<Language::Expression>();
-  auto right_expression = right->select<Language::Expression>();
   Span right_span(right_start, cursor.peek(-1));
-  if (!left_expression || !right_expression) {
+  if (!left.get_identity() || !right->get_identity()) {
     cursor.create_expression_error(
         Anchor::create(opening, left_span, right_span),
-        "Library Range requires one Expression from each endpoint Pack."_view,
+        "Library Range requires one semantic fact from each endpoint Pack."_view,
         "Use one unlabelled integer value for each Range endpoint."_view);
     return {};
   }
   return Language::Operations::Range::create_authored(
-      cursor.get_arena(), *left_expression, *right_expression,
+      cursor.get_arena(), left, *right,
       Anchor::create(opening, left_span, right_span));
 }
 
@@ -145,7 +137,7 @@ static auto parse_assignment(
     Cursor& cursor,
     Language::Model::Pack& left,
     Span left_span) -> Option<Language::Expression&> {
-  auto target = left.select<Language::Expression>();
+  auto target = left.select_identity<Language::Expression>();
   if (!target) {
     cursor.create_expression_error(
         left_span, "Library assignment requires one Expression target."_view,
@@ -160,8 +152,7 @@ static auto parse_assignment(
   BAIL_IF(!operation);
   Token right_start = cursor.current();
   Count error_count = cursor.get_error_count();
-  auto right = Interpreter::Expression::parse_write_operand(
-      context, cursor);
+  auto right = Interpreter::Expression::parse_write_operand(context, cursor);
   if (!right) {
     if (cursor.get_error_count() == error_count) {
       cursor.create_expression_error(
@@ -174,8 +165,7 @@ static auto parse_assignment(
 
   return Language::Operations::Assignment::create_authored(
       cursor.get_arena(), *target, *right,
-      Anchor::create(
-          operation, left_span, Span(right_start, cursor.peek(-1))));
+      Anchor::create(operation, left_span, Span(right_start, cursor.peek(-1))));
 }
 
 template <typename operation_type>
@@ -185,7 +175,7 @@ static auto parse_compound_assignment(
     Cursor& cursor,
     Language::Model::Pack& left,
     Span left_span) -> Option<Language::Expression&> {
-  auto target = left.select<Language::Expression>();
+  auto target = left.select_identity<Language::Expression>();
   if (!target) {
     cursor.create_expression_error(
         left_span,
@@ -199,8 +189,8 @@ static auto parse_compound_assignment(
   BAIL_IF(!operation);
   Token right_start = cursor.current();
   Count error_count = cursor.get_error_count();
-  auto right_pack = Interpreter::Expression::parse_write_operand(
-      context, cursor);
+  auto right_pack =
+      Interpreter::Expression::parse_write_operand(context, cursor);
   if (!right_pack) {
     if (cursor.get_error_count() == error_count) {
       cursor.create_expression_error(
@@ -211,18 +201,16 @@ static auto parse_compound_assignment(
     return {};
   }
 
-  auto right = right_pack->select<Language::Expression>();
   Anchor anchor =
       Anchor::create(operation, left_span, Span(right_start, cursor.peek(-1)));
-  if (!right) {
+  if (!right_pack->get_identity()) {
     cursor.create_expression_error(
-        anchor,
-        "Library compound assignment requires one Expression value."_view,
+        anchor, "Library compound assignment requires one semantic value."_view,
         "Use one unlabelled scalar operand for this operator."_view);
     return {};
   }
   return operation_type::create_authored(
-      cursor.get_arena(), *target, *right, anchor);
+      cursor.get_arena(), *target, *right_pack, anchor);
 }
 
 auto Interpreter::Operation::parse_binary(

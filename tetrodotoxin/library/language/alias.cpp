@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/library/language/alias.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/merged.hpp"
 #include "ttx/model/type.hpp"
 

@@ -18,7 +18,7 @@ static constexpr Ttx::Model::Layouts::Fluid assignment_layout;
 auto Language::Operations::AddAssignment::create_authored(
     Perimortem::Memory::Allocator::Arena& domain,
     Expression& target,
-    Expression& right,
+    Model::Pack& right,
     Anchor anchor) -> AddAssignment& {
   return Expression::create_authored<AddAssignment>(
       domain, anchor, [&](auto authored) -> AddAssignment {
@@ -77,7 +77,7 @@ auto Language::Operations::AddAssignment::finalize(Cursor& cursor) -> void {
 
 auto Language::Operations::AddAssignment::get_value_type(Count) const
     -> const Abstract& {
-  return Invalid::get_invalid();
+  return Unknown::get_unknown();
 }
 
 auto Language::Operations::AddAssignment::get_layout() const -> const Layout& {
@@ -85,6 +85,6 @@ auto Language::Operations::AddAssignment::get_layout() const -> const Layout& {
 }
 
 auto Language::Operations::AddAssignment::resolve() const -> const Abstract& {
-  return linked ? static_cast<const Model::Pack&>(*this)
-                : static_cast<const Abstract&>(Invalid::get_invalid());
+  return linked ? static_cast<const Expression&>(*this)
+                : static_cast<const Abstract&>(Unknown::get_unknown());
 }

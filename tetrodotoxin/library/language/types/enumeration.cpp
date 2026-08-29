@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -30,7 +30,7 @@ static auto select_intrinsic_type(
     const Types::Enumeration& enumeration,
     Core::View::Bytes name) -> Option<const Model::Type&> {
   return enumeration.get_host()
-      .resolve_context(name)
+      .resolve_concept(name)
       .resolve()
       .select<Model::Type>();
 }
@@ -39,7 +39,7 @@ static auto select_name_type(const Types::Enumeration& enumeration)
     -> Option<const Model::Type&> {
   auto bytes = select_intrinsic_type(enumeration, "U8"_view);
   const Abstract& selected =
-      enumeration.get_host().resolve_context("View"_view).resolve();
+      enumeration.get_host().resolve_concept("View"_view).resolve();
   auto generic = selected.select<Generic>();
   BAIL_IF(!bytes || !generic);
 
@@ -372,16 +372,23 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
 auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve() const
     -> const Abstract& {
   if (stage < Stage::StorageLinked) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return *this;
 }
 
-auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_context(
+auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_concept(
     Core::View::Bytes route) const -> const Abstract& {
+  if (route == "static"_view) {
+    return *this;
+  }
+  if (route == "instance"_view) {
+    return Model::Type::resolve_concept("instance"_view);
+  }
+
   if (stage != Stage::Finalized) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   auto case_view = cases.get_view();
@@ -392,19 +399,11 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_context(
     }
   }
 
-  return Invalid::get_invalid();
-}
-
-auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_type_access(
-    const Abstract&,
-    Core::View::Bytes route,
-    Model::Type::Access access) const -> const Abstract& {
-  if (access == Model::Type::Access::Static && generated_size &&
-      generated_size->get().get_name() == route) {
+  if (generated_size && generated_size->get().get_name() == route) {
     return generated_size->get();
   }
 
-  return Invalid::get_invalid();
+  return None::get_none();
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::create_default(

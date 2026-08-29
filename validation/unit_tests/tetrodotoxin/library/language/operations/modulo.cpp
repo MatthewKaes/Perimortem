@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -72,10 +72,10 @@ class ModuloUnresolvedType : public Ttx::Model::Type {
     return Documentation::get_empty();
   }
   auto resolve() const -> const Abstract& override {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 
@@ -83,13 +83,13 @@ class ModuloFoldInput : public Operation {
  public:
   ModuloFoldInput(
       Allocator::Arena& domain,
-      Expression& input,
-      Constant& result,
+      Model::Pack& input,
+      Tetrodotoxin::Library::Language::Constant& result,
       const Model::Type& type,
       Bool fails = False)
       : Operation(
             domain,
-            Static::Vector<Reference<Expression>, 1>{{input}},
+            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
             {}),
         result(result),
         type(type),
@@ -102,8 +102,9 @@ class ModuloFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&)
-      -> Result<Option<Constant&>, Expression::Error> override {
+  auto evaluate_constants(Allocator::Arena&) -> Result<
+      Option<Tetrodotoxin::Library::Language::Constant&>,
+      Expression::Error> override {
     evaluations++;
     if (fails) {
       return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
@@ -118,7 +119,7 @@ class ModuloFoldInput : public Operation {
   }
 
  private:
-  Constant& result;
+  Tetrodotoxin::Library::Language::Constant& result;
   const Model::Type& type;
   Bool fails;
   Count evaluations = 0;
@@ -126,34 +127,41 @@ class ModuloFoldInput : public Operation {
 
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
-    -> Option<Expression&> {
+    -> Option<Tetrodotoxin::Library::Language::Constant&> {
   return result.visit(
-      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return folded.visit(
-            []() -> Option<Expression&> { return {}; },
-            [](Model::Pack& selected) -> Option<Expression&> {
-              return selected.select<Expression>();
+            []() -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return {};
+            },
+            [](Model::Pack& selected)
+                -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return selected
+                  .select_identity<Tetrodotoxin::Library::Language::Constant>();
             });
       },
-      [](const Expression::Error&) -> Option<Expression&> { return {}; });
+      [](const Expression::Error&)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
 static auto reports(
     const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
-    const Expression& origin) -> Bool {
+    const Abstract& origin) -> Bool {
   return result.visit(
       [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
-        return error.get_type() == expected &&
-                       &error.get_expression() == &origin
+        return error.get_type() == expected && &error.get_subject() == &origin
                    ? True
                    : False;
       });
 }
 
 template <typename constant_type, typename value_type>
-static auto get_value(const Expression& expression) -> Option<value_type> {
+static auto get_value(
+    const Tetrodotoxin::Library::Language::Constant& expression)
+    -> Option<value_type> {
   return expression.visit<constant_type>(
       [](const constant_type& constant) -> Option<value_type> {
         return constant.get_value();
@@ -162,8 +170,9 @@ static auto get_value(const Expression& expression) -> Option<value_type> {
 }
 
 template <typename constant_type, typename value_type>
-static auto value_is(const Expression& expression, value_type expected)
-    -> Bool {
+static auto value_is(
+    const Tetrodotoxin::Library::Language::Constant& expression,
+    value_type expected) -> Bool {
   auto value = get_value<constant_type, value_type>(expression);
   return value && *value == expected ? True : False;
 }
@@ -186,7 +195,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   ModuloExpression unsigned_right("unsigned right"_view, u8);
   ModuloExpression other("other"_view, u16);
   ModuloExpression unresolved("unresolved"_view, unresolved_type);
-  ModuloExpression invalid("invalid"_view, Invalid::get_invalid());
+  ModuloExpression invalid("invalid"_view, Unknown::get_unknown());
   auto& real = Constants::Real::create_synthetic(domain, r32, 1.0);
   auto& truth = Constants::True::create_synthetic(domain, boolean);
   auto& bytes =
@@ -206,7 +215,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   auto& byte_values =
       Operations::Modulo::create_synthetic(domain, bytes, bytes);
 
-  EXPECT(signed_exact.get_type().resolve().is<Invalid>());
+  EXPECT(signed_exact.get_type().resolve().is<Unknown>());
   EXPECT_NOT(signed_exact.get_anchor());
   EXPECT(link_operation(signed_exact, source));
   EXPECT(link_operation(unsigned_exact, source));
@@ -225,12 +234,12 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, type_selection) {
   EXPECT_NOT(retained);
   ASSERT(real_retained);
   EXPECT(value_is<Constants::Real>(*real_retained, R64(0.0)));
-  EXPECT(mismatch.get_type().resolve().is<Invalid>());
-  EXPECT(unresolved_pair.get_type().resolve().is<Invalid>());
-  EXPECT(invalid_pair.get_type().resolve().is<Invalid>());
+  EXPECT(mismatch.get_type().resolve().is<Unknown>());
+  EXPECT(unresolved_pair.get_type().resolve().is<Unknown>());
+  EXPECT(invalid_pair.get_type().resolve().is<Unknown>());
   EXPECT(&real_values.get_type() == &r32);
-  EXPECT(flags.get_type().resolve().is<Invalid>());
-  EXPECT(byte_values.get_type().resolve().is<Invalid>());
+  EXPECT(flags.get_type().resolve().is<Unknown>());
+  EXPECT(byte_values.get_type().resolve().is<Unknown>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
@@ -297,7 +306,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, integer_remainders) {
   auto& unsigned_width = Operations::Modulo::create_synthetic(
       domain, invalid_unsigned_left, invalid_unsigned_right);
 
-  EXPECT(positive_result.get_type().resolve().is<Invalid>());
+  EXPECT(positive_result.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(positive_result, source));
   EXPECT(link_operation(negative_dividend, source));
   EXPECT(link_operation(negative_divisor, source));
@@ -374,7 +383,7 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
   auto& failure =
       Operations::Modulo::create_synthetic(domain, failing, divisor);
 
-  EXPECT(modulo.get_type().resolve().is<Invalid>());
+  EXPECT(modulo.get_type().resolve().is<Unknown>());
   EXPECT(link_operation(modulo, source));
   EXPECT(link_operation(modulo, source));
   EXPECT(link_operation(failure, source));
@@ -418,15 +427,17 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
       Span(failure_left_trigger, failure_left_end));
 
   ASSERT(parsed);
-  EXPECT(parsed->is<Operations::Modulo>());
-  EXPECT(parsed->get_type().resolve().is<Invalid>());
+  EXPECT(parsed->is_identity<Operations::Modulo>());
+  EXPECT(parsed->get_type().resolve().is<Unknown>());
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
   EXPECT(parsed->link(success_cursor, source));
 
   auto parsed_fold = parsed->visit<Operation>(
       [&](Operation& operation) { return selected(operation.fold()); },
-      [](Abstract&) -> Option<Expression&> { return {}; });
+      [](Abstract&) -> Option<Tetrodotoxin::Library::Language::Constant&> {
+        return {};
+      });
   auto parsed_value = parsed_fold
                           ? get_value<Constants::Signed, S64>(*parsed_fold)
                           : Option<S64>();
@@ -436,11 +447,11 @@ PERIMORTEM_UNIT_TEST(LibraryModulo, atomic_provenance) {
   EXPECT(&parsed->get_type() == &parser_type);
 
   ASSERT(rejected);
-  EXPECT(rejected->is<Operations::Modulo>());
-  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(rejected->is_identity<Operations::Modulo>());
+  EXPECT(rejected->get_type().resolve().is<Unknown>());
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
   EXPECT(failure_errors.is_empty());
   EXPECT_NOT(rejected->link(failure_cursor, source));
-  EXPECT(rejected->get_type().resolve().is<Invalid>());
+  EXPECT(rejected->get_type().resolve().is<Unknown>());
   EXPECT_EQ(failure_errors.get_size(), Count(1));
 }

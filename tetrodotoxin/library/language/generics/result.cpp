@@ -24,7 +24,7 @@ auto Generics::Result::create(
   }
 
   auto flag = get_context()
-                  .resolve_context("Bool"_view)
+                  .resolve_concept("Bool"_view)
                   .resolve()
                   .select<Model::Types::Flag>();
   if (!flag) {

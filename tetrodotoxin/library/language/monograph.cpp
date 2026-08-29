@@ -24,13 +24,18 @@
 #include "tetrodotoxin/library/language/types/u32.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
+
+static auto is_missing(const Abstract& abstract) -> Bool {
+  return abstract.is<Unknown>() || abstract.is<None>();
+}
 
 Library::Language::Monograph::Monograph(
     Allocator::Arena& arena,
@@ -131,12 +136,20 @@ auto Library::Language::Monograph::get_name() const -> View::Bytes {
   return "Library"_view;
 }
 
-auto Library::Language::Monograph::resolve_context(View::Bytes route) const
+auto Library::Language::Monograph::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "static"_view || route == "instance"_view) {
+    return source.resolve_concept(route);
+  }
   const Abstract& local = resolve_local_context(route);
-  return local.is<Invalid>()
-             ? Tetrodotoxin::Language::Monograph::resolve_context(route)
+  return is_missing(local)
+             ? Tetrodotoxin::Language::Monograph::resolve_concept(route)
              : local;
+}
+
+auto Library::Language::Monograph::get_concepts(Context& context) const
+    -> const Pack& {
+  return source.get_concepts(context);
 }
 
 auto Library::Language::Monograph::resolve_local_context(
@@ -153,17 +166,17 @@ auto Library::Language::Monograph::resolve_local_context(
   }
 
   const Abstract& authored = source.resolve_local(route);
-  if (!authored.is<Invalid>()) {
+  if (!is_missing(authored)) {
     return authored;
   }
 
   const Abstract& root = resolve_root_context(route);
-  if (!root.is<Invalid>()) {
+  if (!is_missing(root)) {
     return root;
   }
 
   const Abstract& imported = source.resolve_imports(route);
-  return imported.is<Invalid>()
+  return is_missing(imported)
              ? resolve_type(route, Tetrodotoxin::Language::Visibility::Public)
              : imported;
 }
@@ -180,26 +193,26 @@ auto Library::Language::Monograph::resolve_lexical_context(
 
   const Abstract& authored =
       source.resolve_local(route, Tetrodotoxin::Language::Visibility::Private);
-  if (!authored.is<Invalid>()) {
+  if (!is_missing(authored)) {
     return authored;
   }
 
   const Abstract& root = resolve_root_context(route);
-  if (!root.is<Invalid>()) {
+  if (!is_missing(root)) {
     return root;
   }
 
   const Abstract& imported = source.resolve_imports(route);
-  return imported.is<Invalid>()
+  return is_missing(imported)
              ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
              : imported;
 }
 
 auto Library::Language::Monograph::can_bind_source_type(View::Bytes name) const
     -> Bool {
-  return resolve_root_context(name).is<Invalid>() &&
+  return resolve_root_context(name).is<Unknown>() &&
          resolve_type(name, Tetrodotoxin::Language::Visibility::Private)
-             .is<Invalid>();
+             .is<Unknown>();
 }
 
 auto Library::Language::Monograph::retain_import(
@@ -215,22 +228,10 @@ auto Library::Language::Monograph::resolve_root_context(View::Bytes route) const
   const Abstract& intrinsic = vocabulary.visit(
       route,
       [](const Abstract& selected) -> const Abstract& { return selected; },
-      []() -> const Abstract& { return Invalid::get_invalid(); });
-  if (!intrinsic.is<Invalid>()) {
+      []() -> const Abstract& { return Unknown::get_unknown(); });
+  if (!intrinsic.is<Unknown>()) {
     return intrinsic;
   }
 
-  return Invalid::get_invalid();
-}
-
-auto Library::Language::Monograph::resolve_access(
-    const Abstract& host,
-    View::Bytes route) const -> const Abstract& {
-  return source.resolve_type_access(host, route, Model::Type::Access::Static);
-}
-
-auto Library::Language::Monograph::resolve_call(
-    const Abstract& host,
-    View::Bytes route) const -> const Abstract& {
-  return source.resolve_type_call(host, route, Model::Type::Access::Static);
+  return Unknown::get_unknown();
 }

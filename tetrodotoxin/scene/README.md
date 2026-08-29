@@ -179,14 +179,13 @@ Embedded assets resolve relative to the Scene source beneath its Package root.
 Package canonicalizes and keeps those resources confined and alive while Scene
 or its Library child interprets their bytes.
 
-Scene can be stored in a Package Archive and reconstructed without its source
-file. A Complete payload keeps its public and private Signal, lifecycle,
-and Library query contracts. A Contract payload keeps their public closure and
-compiled artifact locations. Graphics hosting is derived again from the
-restored real Fields, so the Archive needs no parallel render inventory.
-Executable Scene behavior remains in the compiled artifacts.
+Scene can be stored in a Package product and reconstructed without its source
+file. Its complete graph keeps public and private Signal, lifecycle, and
+Library query facts. Graphics hosting is derived again from the restored real
+Fields, so the product needs no parallel render or artifact inventory.
+Executable Scene behavior remains a separate Terminal result.
 
-Neither profile stores a live Scene instance, current Object values, queued
+The product stores no live Scene instance, current Object values, queued
 frame events, elapsed time, input state, backend resources, or source level
 debugging data.
 

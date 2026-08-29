@@ -3,12 +3,19 @@
 
 #include "tetrodotoxin/render/language/declarations.hpp"
 
+#include "perimortem/core/static/vector.hpp"
+
+#include "perimortem/memory/dynamic/vector.hpp"
+
 #include "tetrodotoxin/render/language/alias.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/monograph.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -21,14 +28,72 @@ auto Language::Declarations::retain(
     Abstract& declaration,
     Tetrodotoxin::Language::Visibility visibility) -> Bool {
   BAIL_IF(linked);
-  for (const Reference<Abstract>& retained : declarations.get_view()) {
-    BAIL_IF(retained.get().get_name() == declaration.get_name());
-  }
+  auto occupied = [&](View::Vector<Reference<Abstract>> owned) -> Bool {
+    for (const Reference<Abstract>& retained : owned) {
+      if (retained.get().get_name() == declaration.get_name()) {
+        return True;
+      }
+    }
+    return False;
+  };
+  BAIL_IF(
+      occupied(addressables.get_view()) || occupied(callables.get_view()) ||
+      occupied(types.get_view()));
 
   declarations.insert(declaration);
   published.insert(
       &declaration, visibility != Tetrodotoxin::Language::Visibility::Private);
   return True;
+}
+
+auto Language::Declarations::Authority::resolve_concept(View::Bytes name) const
+    -> const Abstract& {
+  const Abstract& type =
+      owner.resolve_type(name, Tetrodotoxin::Language::Visibility::Public);
+  if (!type.is<Unknown>() && !type.is<None>()) {
+    return type;
+  }
+  const Abstract& addressable = owner.resolve_addressable(
+      name, Tetrodotoxin::Language::Visibility::Public);
+  if (!addressable.is<Unknown>() && !addressable.is<None>()) {
+    return addressable;
+  }
+  return owner.resolve_callable(
+      name, Tetrodotoxin::Language::Visibility::Public);
+}
+
+auto Language::Declarations::Authority::get_concepts(Context& context) const
+    -> const Pack& {
+  Dynamic::Vector<Reference<const Abstract>> values;
+  Dynamic::Vector<View::Bytes> names;
+  auto retain = [&](View::Vector<Reference<Abstract>> declarations) {
+    for (const Reference<Abstract>& declaration : declarations) {
+      auto publication = owner.published.find(&declaration.get());
+      if (publication && publication->value) {
+        values.insert(declaration.get());
+        names.insert(declaration.get().get_name());
+      }
+    }
+  };
+  retain(owner.types.get_view());
+  retain(owner.addressables.get_view());
+  retain(owner.callables.get_view());
+  Ttx::Model::Layouts::Fluid layout(values.get_view());
+  Ttx::Model::Layouts::Named named(layout, names.get_view());
+  return context.pack(named);
+}
+
+auto Language::Declarations::get_concepts(Context& context) const
+    -> const Pack& {
+  const Static::Vector<Reference<const Abstract>, 1> values = {{
+    authority,
+  }};
+  const Static::Vector<View::Bytes, 1> names = {{
+    "static"_view,
+  }};
+  Ttx::Model::Layouts::Fluid layout(values);
+  Ttx::Model::Layouts::Named named(layout, names);
+  return context.pack(named);
 }
 
 auto Language::Declarations::retain_addressable(
@@ -115,13 +180,13 @@ auto Language::Declarations::resolve_lexical_context(
   auto structure = context.select<Language::Structure>();
   if (structure) {
     const Abstract& local = structure->resolve_local_context(name);
-    return local.is<Invalid>()
+    return local.is<Unknown>() || local.is<None>()
                ? resolve_lexical_context(
                      structure->get_definition().get_host(), name)
                : local;
   }
 
-  return context.resolve_context(name);
+  return context.resolve_concept(name);
 }
 
 auto Language::Declarations::resolve(
@@ -138,7 +203,8 @@ auto Language::Declarations::resolve(
       return declaration.get();
     }
   }
-  return Invalid::get_invalid();
+  return linked ? static_cast<const Abstract&>(None::get_none())
+                : static_cast<const Abstract&>(Unknown::get_unknown());
 }
 
 auto Language::Declarations::resolve_addressable(

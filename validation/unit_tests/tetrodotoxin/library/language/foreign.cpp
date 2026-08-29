@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -90,20 +90,20 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_lifecycle) {
   EXPECT_TEXT(
       foreign.get_documentation().get_line(1),
       "Extended Foreign context."_view);
-  EXPECT(&monograph->resolve_context("foreign"_view) == &foreign);
-  EXPECT(&monograph->get_source().resolve_context("foreign"_view) == &foreign);
-  EXPECT(monograph->resolve_context("shared"_view).is<Invalid>());
+  EXPECT(&monograph->resolve_concept("foreign"_view) == &foreign);
+  EXPECT(&monograph->get_source().resolve_concept("foreign"_view) == &foreign);
+  EXPECT(monograph->resolve_concept("shared"_view).is<Unknown>());
 
   const Abstract& shared_identity =
-      foreign.resolve_access(foreign, "shared"_view);
+      foreign.resolve_concept("static"_view).resolve_concept("shared"_view);
   const Abstract& observed_identity =
-      foreign.resolve_access(foreign, "observed"_view);
+      foreign.resolve_concept("static"_view).resolve_concept("observed"_view);
   const Abstract& buffer_identity =
-      foreign.resolve_access(foreign, "buffer"_view);
+      foreign.resolve_concept("static"_view).resolve_concept("buffer"_view);
   const Abstract& transform_identity =
-      foreign.resolve_call(foreign, "transform"_view);
+      foreign.resolve_concept("static"_view).resolve_concept("transform"_view);
   const Abstract& notify_identity =
-      foreign.resolve_call(foreign, "notify"_view);
+      foreign.resolve_concept("static"_view).resolve_concept("notify"_view);
   EXPECT_EQ(foreign.get_states().get_size(), Count(3));
   EXPECT_EQ(foreign.get_functions().get_size(), Count(2));
 
@@ -124,7 +124,7 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_lifecycle) {
   const auto& notify =
       static_cast<const Library::Language::Foreign::Function&>(notify_identity);
 
-  EXPECT(&shared_state.get_type() == &monograph->resolve_context("U64"_view));
+  EXPECT(&shared_state.get_type() == &monograph->resolve_concept("U64"_view));
   const auto& state_definition = shared_state.get_definition();
   EXPECT(state_definition.get_visibility() == Visibility::Public);
   EXPECT(observed.get_definition().get_visibility() == Visibility::Exposed);
@@ -185,19 +185,8 @@ PERIMORTEM_UNIT_TEST(ForeignTests, foreign_categories) {
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
-  ASSERT(monograph);
-  const Library::Language::Foreign& foreign =
-      monograph->get_source().get_foreign();
-  const Abstract& root_shared = monograph->resolve_context("shared"_view);
-  const Abstract& state_shared = foreign.resolve_access(foreign, "shared"_view);
-  const Abstract& function_shared =
-      foreign.resolve_call(foreign, "shared"_view);
-  EXPECT(!root_shared.is<Invalid>());
-  EXPECT(state_shared.is<Library::Language::Foreign::State>());
-  EXPECT(function_shared.is<Library::Language::Foreign::Function>());
-  EXPECT(&root_shared != &state_shared);
-  EXPECT(&state_shared != &function_shared);
-  EXPECT(errors.is_empty());
+  EXPECT_NOT(monograph);
+  EXPECT_NOT(errors.is_empty());
 }
 
 PERIMORTEM_UNIT_TEST(ForeignTests, authored_rejections) {

@@ -8,7 +8,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -26,8 +26,8 @@ static auto select_access(const Abstract& output)
   return output.resolve().select<Language::Types::Access>();
 }
 
-static auto is_integer(const Language::Expression& expression) -> Bool {
-  const Abstract& output = expression.get_type();
+static auto is_integer(const Language::Model::Pack& pack) -> Bool {
+  const Abstract& output = pack.get_type();
   auto direct = output.select<Language::Model::Type>();
   const Abstract& type =
       direct ? static_cast<const Abstract&>(*direct) : output.resolve();
@@ -35,18 +35,18 @@ static auto is_integer(const Language::Expression& expression) -> Bool {
          type.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
 }
 
-static auto get_range_count(Language::Expression& expression)
+static auto get_range_count(Language::Model::Pack& pack)
     -> Core::Option<Count> {
   Core::Option<Language::Model::Pack&> folded;
   Core::Option<Language::Expression::Error> fold_error;
-  expression.fold().visit(
+  Language::Expression::fold(pack).visit(
       [&](const Core::Option<Language::Model::Pack&>& selected) {
         folded = selected;
       },
       [&](const Language::Expression::Error& error) { fold_error = error; });
   BAIL_IF(fold_error || !folded);
 
-  auto scalar = folded->select<Language::Expression>();
+  auto scalar = folded->select_identity<Language::Constant>();
   BAIL_IF(!scalar);
   return scalar->visit<Language::Constants::Signed>(
       [](const Language::Constants::Signed& value) -> Core::Option<Count> {
@@ -64,20 +64,19 @@ static auto get_range_count(Language::Expression& expression)
 
 auto Language::Access::Index::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& index,
+    Model::Pack& receiver,
+    Model::Pack& index,
     Anchor anchor) -> Index& {
   return Expression::create_authored<Index>(
-      domain, anchor, [&](auto authored) -> Index {
-        return Index(receiver, index, authored);
-      });
+      domain, anchor,
+      [&](auto authored) -> Index { return Index(receiver, index, authored); });
 }
 
 auto Language::Access::Index::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& start,
-    Expression& count,
+    Model::Pack& receiver,
+    Model::Pack& start,
+    Model::Pack& count,
     Anchor anchor) -> Index& {
   return Expression::create_authored<Index>(
       domain, anchor, [&](auto authored) -> Index {
@@ -163,13 +162,13 @@ auto Language::Access::Index::finalize(Cursor& cursor) -> void {
 
 auto Language::Access::Index::get_element_type() const -> const Abstract& {
   return element_type.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
+      []() -> const Abstract& { return Unknown::get_unknown(); },
       [](const Reference<const Language::Model::Type>& selected)
           -> const Abstract& { return selected.get(); });
 }
 
 auto Language::Access::Index::get_type() const -> const Abstract& {
-  return count ? static_cast<const Abstract&>(Invalid::get_invalid())
+  return count ? static_cast<const Abstract&>(Unknown::get_unknown())
                : get_element_type();
 }
 
@@ -185,7 +184,7 @@ auto Language::Access::Index::get_write_type(const Language::Model::Type&) const
 }
 
 auto Language::Access::Index::resolve() const -> const Abstract& {
-  return Invalid::get_invalid();
+  return Unknown::get_unknown();
 }
 
 auto Language::Access::Index::link_write_target(

@@ -135,13 +135,11 @@ role in the startup profile.
 
 ## Persistence
 
-App supports both Package Archive profiles. Complete stores the public and
-private startup and lifecycle policy. Contract stores its public policy and
-compiled program location. App execution remains in compiled artifacts rather
-than either semantic payload.
+The Package product stores App's complete public and private startup and
+lifecycle policy. App execution remains a separate Terminal result.
 
 Referenced Scenes remain separate Package members. App stores the relationships
-to those members instead of copying their data. Neither profile stores a live
+to those members instead of copying their data. The product stores no live
 Scene stack, queued events, process state, an open window, generated code, or
 debug information.
 

@@ -7,16 +7,18 @@
 
 namespace Ttx::Model {
 
-// Addressable names typed data that another semantic object can reach. Fields,
-// receivers, locals, external symbols, interpreted endpoints, and runtime
-// objects can all share this edge while keeping their richer behavior with the
-// Dialect that defines them. That Dialect also decides whether an address can
-// be written, invoked as a receiver, or observed only as a value.
+// Addressable names typed data that another semantic object can reach. Its
+// total Type answer remains Unknown until the exact nonempty Type edge exists.
+// Fields, receivers, locals, external symbols, interpreted endpoints, and
+// runtime objects can all share this edge while keeping their richer behavior
+// with the Dialect that defines them. That Dialect also decides whether an
+// address can be written, invoked as a receiver, or observed only as a value.
 class Addressable : public Concept::Abstract {
  public:
   TTX_CONTRACT(Addressable, Abstract);
 
-  virtual constexpr auto get_type() const -> const Type& = 0;
+  virtual constexpr auto get_type() const
+      -> const Ttx::Concept::Abstract& override = 0;
 };
 
 }  // namespace Ttx::Model

@@ -59,7 +59,7 @@ auto Language::Operations::Assignment::finalize(Cursor& cursor) -> void {
 
 auto Language::Operations::Assignment::get_value_type(Count) const
     -> const Abstract& {
-  return Invalid::get_invalid();
+  return Unknown::get_unknown();
 }
 
 auto Language::Operations::Assignment::get_layout() const -> const Layout& {
@@ -67,6 +67,6 @@ auto Language::Operations::Assignment::get_layout() const -> const Layout& {
 }
 
 auto Language::Operations::Assignment::resolve() const -> const Abstract& {
-  return linked ? static_cast<const Model::Pack&>(*this)
-                : static_cast<const Abstract&>(Invalid::get_invalid());
+  return linked ? static_cast<const Expression&>(*this)
+                : static_cast<const Abstract&>(Unknown::get_unknown());
 }

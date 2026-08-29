@@ -122,62 +122,48 @@ same retained Resource, including when different sources reach it through
 different relative spellings. Empty content is a successful Resource. Library
 and other Dialects assign meaning to the returned bytes; Package does not.
 
-## Source distribution
+## Repository products
 
-A Package installation is selected by exact identity and version. Its physical
-directory has one stable shape:
+A completed Package is selected by exact identity and version. Its repository
+directory has one stable semantic product:
 
 ```text
 <repository>/<identity>/<major>.<minor>/
-  package.ttx
-  ...source files and resources...
-  contract.txa
-  complete.txa
-  abi.manifest
-  native/
-    <artifact>/
-      package.a
+  package.ttxp
+  api.h       # optional C ABI product
+  api.hpp     # optional C++ wrapper
+  api.cpp     # optional C++ wrapper
 ```
 
-The source portion preserves the complete Package rooted file tree, not only
-files whose names end in `.ttx`. Source imports decide which language files join
-the semantic graph, while embedded operands decide which images, tables,
-generated data, or other files become retained Resources. Keeping both beneath
-the same installed root preserves relative paths and Package confinement.
+Puffer receives one authored source. Source imports decide which neighboring
+language files join its graph, while embedded operands decide which images,
+tables, generated data, or other files become retained Resources. Package
+confinement applies to that source transaction; it is not an installed
+sidecar inventory.
 
-Repository receives the coordinate from the importing source or build request.
-A caller may map that exact coordinate to a local source root during
-development. Otherwise Repository selects the versioned installed directory.
-The mapping grants a physical location to an existing Package key; neither the
-directory name nor `package.ttx` manufactures semantic identity or version.
-
-Editor sessions interpret an installed or local source distribution directly.
-Builds may instead select the Contract and ABI products beside that source.
-Both paths enter the same Workspace owners, which keeps source distribution and
-compiled distribution from becoming separate Package models.
+Repository receives the coordinate from a real Package Import and selects the
+exact versioned product. The authored `package(...)` declaration remains the
+only authority for the identity and version; directory names merely locate the
+already materialized product.
 
 ## Archive
 
-Archive Format 5 records the completed graph rather than recreating a manifest
-table. It contains:
+The current Package envelope records the completed graph rather than recreating
+a manifest table. It contains:
 
-1. Package identity, version, and profile.
+1. Package identity and version.
 2. One restricted Library payload for the Package export surface.
 3. One opaque payload for each source Monograph, keyed by its deterministic
    first route from the Package root rather than an intrinsic source name.
 4. Every source and Package Import Type with importer, local name, Visibility,
    chained Type route, target, and exact Package version when applicable.
 5. The canonical Resource closure.
-6. Native artifact agreements and exported symbol routes.
+Package edges exist exclusively in the Import graph, so restoration constructs
+no parallel dependency scope. Workspace restores every member, reacquires each
+recorded external Type, orders the source graph, and applies the same
+composition, linking, finalization, and publication barriers as authored
+source.
 
-The older Dependency section remains readable only for Archive Formats 2 and
-3. Formats 4 and 5 keep Package edges exclusively in the Type graph, so
-restoration does not construct a parallel dependency scope. Workspace restores
-every member, reacquires each recorded external Type, orders the source graph,
-and applies the same composition, linking, finalization, and publication
-barriers as authored source.
-
-Package arranges the envelope but never interprets a member's opaque payload.
-Each persistent Dialect owns its own Complete and Contract representations.
-Compiled CPU objects and SPIR-V modules remain Terminal products rather than
-semantic Archive state.
+Package arranges the envelope but never interprets a member's opaque complete
+payload. Compiled CPU objects and SPIR-V modules remain independent Terminal
+products rather than semantic Package state.

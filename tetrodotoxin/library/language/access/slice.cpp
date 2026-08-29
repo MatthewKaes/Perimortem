@@ -12,7 +12,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -22,8 +22,8 @@ using namespace Ttx::Model;
 
 auto Language::Access::Slice::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& index,
+    Model::Pack& receiver,
+    Model::Pack& index,
     Anchor anchor) -> Slice& {
   return Expression::create_authored<Slice>(
       domain, anchor, [&](auto source) -> Slice {
@@ -33,9 +33,9 @@ auto Language::Access::Slice::create_authored(
 
 auto Language::Access::Slice::create_authored(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& start,
-    Expression& count,
+    Model::Pack& receiver,
+    Model::Pack& start,
+    Model::Pack& count,
     Anchor anchor) -> Slice& {
   return Expression::create_authored<Slice>(
       domain, anchor, [&](auto source) -> Slice {
@@ -45,22 +45,22 @@ auto Language::Access::Slice::create_authored(
 
 Language::Access::Slice::Slice(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& index,
+    Model::Pack& receiver,
+    Model::Pack& index,
     Core::Option<Anchor> anchor)
     : Expression(anchor), domain(domain), receiver(receiver), first(index) {}
 
 Language::Access::Slice::Slice(
     Memory::Allocator::Arena& domain,
-    Expression& receiver,
-    Expression& start,
-    Expression& count,
+    Model::Pack& receiver,
+    Model::Pack& start,
+    Model::Pack& count,
     Core::Option<Anchor> anchor)
     : Expression(anchor),
       domain(domain),
       receiver(receiver),
       first(start),
-      count(Ttx::Concept::Reference<Expression>(count)) {}
+      count(Ttx::Model::PackReference<Model::Pack>(count)) {}
 
 // Slice links one homogeneous receiver and folds retained values without
 // manufacturing an aggregate Type. Compact Bytes and general folded Packs use
@@ -85,8 +85,8 @@ static auto get_byte_type(const Language::Model::Type& type) -> Core::Option<
       });
 }
 
-static auto is_integer(const Language::Expression& expression) -> Bool {
-  const Abstract& type = expression.get_type().resolve();
+static auto is_integer(const Language::Model::Pack& value) -> Bool {
+  const Abstract& type = value.get_type().resolve();
   return type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>() ||
          type.is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>();
 }
@@ -94,10 +94,10 @@ static auto is_integer(const Language::Expression& expression) -> Bool {
 // Option is the safe miss produced by an integer outside Count. Error remains
 // reserved for a Constant that does not expose its promised integer domain.
 static auto get_count(
-    const Language::Expression& expression,
-    const Language::Expression& authored)
+    const Language::Constant& constant,
+    const Language::Model::Pack& authored)
     -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
-  return expression.visit<Language::Constants::Signed>(
+  return constant.visit<Language::Constants::Signed>(
       [&](const Language::Constants::Signed& value)
           -> Utility::Result<Core::Option<Count>, Language::Expression::Error> {
         if (value.get_value() < 0) {
@@ -126,23 +126,45 @@ static auto get_count(
             [&](const Abstract&)
                 -> Utility::Result<
                     Core::Option<Count>, Language::Expression::Error> {
-              return Language::Expression::Error(
+              return Language::Expression::Error::from_pack(
                   Language::Expression::Error::Type::InvalidConstant, authored);
             });
       });
 }
 
 static auto select_scalar(Language::Model::Pack& pack)
-    -> Core::Option<Language::Expression&> {
-  return pack.select<Language::Expression>();
+    -> Core::Option<Language::Constant&> {
+  return pack.select_identity<Language::Constant>();
+}
+
+static auto fold_pack(Language::Model::Pack& pack) -> Utility::
+    Result<Core::Option<Language::Model::Pack&>, Language::Expression::Error> {
+  if (pack.select_identity<Language::Constant>()) {
+    return Core::Option<Language::Model::Pack&>(pack);
+  }
+  auto expression = pack.select_identity<Language::Expression>();
+  return expression ? expression->fold()
+                    : Utility::Result<
+                          Core::Option<Language::Model::Pack&>,
+                          Language::Expression::Error>(
+                          Core::Option<Language::Model::Pack&>());
+}
+
+static auto pack_anchor(const Language::Model::Pack& pack)
+    -> Core::Option<Ttx::Lexical::Anchor> {
+  auto expression = pack.select_identity<Language::Expression>();
+  if (expression) {
+    return expression->get_anchor();
+  }
+  auto constant = pack.select_identity<Language::Constant>();
+  return constant ? constant->get_anchor() : Core::Option<Anchor>();
 }
 
 static auto select_folded_entry(Language::Model::Pack& pack, Count index)
     -> Core::Option<Language::Model::Pack&> {
-  auto produced = pack.get_produced(index);
-  BAIL_IF(!produced || produced->local_index != 0);
-
-  auto constant = produced->producer.select<Language::Constant>();
+  auto producer = pack.get_layout().get_abstract(index);
+  BAIL_IF(!producer);
+  auto constant = producer->select<Language::Constant>();
   BAIL_IF(!constant || constant->get_layout().get_size() != 1);
   return const_cast<Language::Constant&>(*constant);
 }
@@ -154,7 +176,7 @@ static auto select_required_type(const Abstract& candidate)
     return *direct;
   }
 
-  auto pack = candidate.select<Language::Model::Pack>();
+  auto pack = Language::Model::Pack::from(candidate);
   if (pack) {
     direct = pack->get_type().select<Language::Model::Type>();
     if (direct) {
@@ -288,23 +310,26 @@ auto Language::Access::Slice::link(
   if (!count) {
     auto selected_fallback = element.create_default(cursor.get_arena());
     BAIL_IF(!selected_fallback);
-    fallback = Reference<Model::Pack>(*selected_fallback);
+    fallback = Ttx::Model::PackReference<Model::Pack>(*selected_fallback);
     return Expression::link(cursor, lexical_context, access_scope);
   }
 
   // Range count determines the complete Pack shape and is therefore a link
   // fact, not a lowering payload detail. Start remains ordinary dynamic
   // input because it changes which values flow, never how many slots exist.
-  Expression& count_expression = count->get();
+  Model::Pack& count_expression = count->get();
 
   Core::Option<Model::Pack&> folded_count;
   Core::Option<Expression::Error> fold_error;
-  count_expression.fold().visit(
-      [&](const Core::Option<Model::Pack&>& folded) { folded_count = folded; },
-      [&](const Expression::Error& error) { fold_error = error; });
+  fold_pack(count_expression)
+      .visit(
+          [&](const Core::Option<Model::Pack&>& folded) {
+            folded_count = folded;
+          },
+          [&](const Expression::Error& error) { fold_error = error; });
   if (fold_error || !folded_count) {
     cursor.create_expression_error(
-        count_expression.get_anchor(),
+        pack_anchor(count_expression),
         "Slice range count did not constant-fold during linking."_view,
         "Supply one nonnegative integer Constant for the range count."_view);
     return False;
@@ -313,7 +338,7 @@ auto Language::Access::Slice::link(
   auto folded_count_expression = select_scalar(*folded_count);
   if (!folded_count_expression) {
     cursor.create_expression_error(
-        count_expression.get_anchor(),
+        pack_anchor(count_expression),
         "Slice range count did not fold to one scalar Constant."_view,
         "Supply one nonnegative integer Constant for the range count."_view);
     return False;
@@ -329,7 +354,7 @@ auto Language::Access::Slice::link(
           [&](const Expression::Error& error) { count_error = error; });
   if (count_error || !selected_count) {
     cursor.create_expression_error(
-        count_expression.get_anchor(),
+        pack_anchor(count_expression),
         "Slice range count is outside the supported nonnegative range."_view,
         "Use a nonnegative integer Constant representable as Count."_view);
     return False;
@@ -356,7 +381,7 @@ auto Language::Access::Slice::link(
 auto Language::Access::Slice::get_type() const -> const Abstract& {
   if (!element_type ||
       (count && (!range_layout || !range_count || *range_count != 1))) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return element_type->get();
@@ -365,19 +390,10 @@ auto Language::Access::Slice::get_type() const -> const Abstract& {
 auto Language::Access::Slice::get_value_type(Count index) const
     -> const Abstract& {
   if (!element_type || index >= get_layout().get_size()) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   return element_type->get();
-}
-
-auto Language::Access::Slice::get_produced(Count index) const
-    -> Core::Option<Ttx::Model::Pack::Produced> {
-  if (index >= get_layout().get_size() || &resolve() != this) {
-    return {};
-  }
-
-  return Ttx::Model::Pack::Produced{*this, index};
 }
 
 auto Language::Access::Slice::get_layout() const
@@ -395,10 +411,10 @@ auto Language::Access::Slice::resolve() const -> const Abstract& {
   }
 
   if (!range_layout) {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
-  return static_cast<const Ttx::Model::Pack&>(*this);
+  return *this;
 }
 
 auto Language::Access::Slice::fits(const Ttx::Model::Type& target) const
@@ -425,7 +441,7 @@ auto Language::Access::Slice::finalize(Cursor& cursor) -> void {
 auto Language::Access::Slice::evaluate()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
   Core::Option<Model::Pack&> folded_receiver_pack;
-  auto receiver_fold = receiver.fold();
+  auto receiver_fold = fold_pack(receiver);
   auto receiver_error = Core::Option<Expression::Error>{};
   receiver_fold.visit(
       [&](const Core::Option<Model::Pack&>& selected) {
@@ -437,7 +453,7 @@ auto Language::Access::Slice::evaluate()
   }
 
   Core::Option<Model::Pack&> folded_first_pack;
-  auto first_fold = first.fold();
+  auto first_fold = fold_pack(first);
   auto first_error = Core::Option<Expression::Error>{};
   first_fold.visit(
       [&](const Core::Option<Model::Pack&>& selected) {
@@ -493,7 +509,8 @@ auto Language::Access::Slice::evaluate()
                 Expression::Error::Type::InvalidConstant, *this);
           }
 
-          Memory::Managed::Vector<Reference<Model::Pack>> entries(domain);
+          Memory::Managed::Vector<Ttx::Model::PackReference<Model::Pack>>
+              entries(domain);
           entries.reset(*range_count);
           for (Count offset = 0; offset < *range_count; offset++) {
             Bool present = False;
@@ -554,7 +571,7 @@ auto Language::Access::Slice::evaluate()
 
                 auto byte_type = get_byte_type(element);
                 if (!byte_type) {
-                  return Expression::Error(
+                  return Expression::Error::from_pack(
                       Expression::Error::Type::InvalidConstant, receiver);
                 }
                 U64 selected = U64(value.get_data()[*index]);
@@ -570,12 +587,13 @@ auto Language::Access::Slice::evaluate()
 
               auto byte_type = get_byte_type(element);
               if (!byte_type) {
-                return Expression::Error(
+                return Expression::Error::from_pack(
                     Expression::Error::Type::InvalidConstant, receiver);
               }
 
               constexpr Count maximum_entries =
-                  (Count(-1) - sizeof(U8*)) / sizeof(Reference<Model::Pack>);
+                  (Count(-1) - sizeof(U8*)) /
+                  sizeof(Ttx::Model::PackReference<Model::Pack>);
               if (*range_count > maximum_entries) {
                 // The semantic Pack can describe this count but no host Vector
                 // can retain its folded producers without overflowing its byte
@@ -583,7 +601,8 @@ auto Language::Access::Slice::evaluate()
                 return Core::Option<Model::Pack&>{};
               }
 
-              Memory::Managed::Vector<Reference<Model::Pack>> entries(domain);
+              Memory::Managed::Vector<Ttx::Model::PackReference<Model::Pack>>
+                  entries(domain);
               entries.reset(*range_count);
               for (Count offset = 0; offset < *range_count; offset++) {
                 Bool has_position = False;

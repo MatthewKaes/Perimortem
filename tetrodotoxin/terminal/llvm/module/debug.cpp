@@ -306,6 +306,12 @@ static auto set_location(Llvm::Module::Body& body, Ttx::Lexical::Anchor anchor)
   return True;
 }
 
+static auto select_type(const Ttx::Concept::Abstract& answer)
+    -> Core::Option<const Ttx::Model::Type&> {
+  auto direct = answer.select<Ttx::Model::Type>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+}
+
 static auto select_type(const Ttx::Concept::Layout& layout, Count index)
     -> Core::Option<const Ttx::Model::Type&> {
   auto entry = layout.get_abstract(index);
@@ -319,9 +325,8 @@ static auto select_type(const Ttx::Concept::Layout& layout, Count index)
   }
 
   auto addressable = entry->select<Ttx::Model::Addressable>();
-  return addressable
-             ? Core::Option<const Ttx::Model::Type&>(addressable->get_type())
-             : Core::Option<const Ttx::Model::Type&>();
+  return addressable ? select_type(addressable->get_type())
+                     : Core::Option<const Ttx::Model::Type&>();
 }
 
 static auto native_module(Llvm::Module::Program& program) -> llvm::Module& {
@@ -522,8 +527,10 @@ static auto create_debug_type(
           return {};
         }
 
-        auto debug_field = create_type(create_type, field->get_type(), 0);
-        if (!debug_field) {
+        auto field_type = select_type(field->get_type());
+        auto debug_field = field_type ? create_type(create_type, *field_type, 0)
+                                      : Core::Option<llvm::DIType&>();
+        if (!field_type || !debug_field) {
           return {};
         }
 
@@ -746,8 +753,11 @@ static auto create_debug_type(
             return {};
           }
 
-          auto debug_field = create_type(create_type, field->get_type(), 0);
-          if (!debug_field) {
+          auto field_type = select_type(field->get_type());
+          auto debug_field = field_type
+                                 ? create_type(create_type, *field_type, 0)
+                                 : Core::Option<llvm::DIType&>();
+          if (!field_type || !debug_field) {
             return {};
           }
 
@@ -883,8 +893,10 @@ static auto create_local_variable(
   auto builder = native_builder(program);
   auto file = native_file(program);
   auto scope = native_scope(body);
-  auto type = create_debug_type(program, addressable.get_type());
-  BAIL_IF(!builder || !file || !scope || !type);
+  auto semantic_type = select_type(addressable.get_type());
+  auto type = semantic_type ? create_debug_type(program, *semantic_type)
+                            : Core::Option<llvm::DIType&>();
+  BAIL_IF(!builder || !file || !scope || !semantic_type || !type);
 
   if (parameter) {
     auto* created = builder->createParameterVariable(
@@ -1077,8 +1089,11 @@ auto Llvm::Module::Debug::global(
   }
 
   Ttx::Lexical::Anchor anchor = definition.get_anchor();
-  auto type = create_debug_type(*selected_program, addressable.get_type());
-  if (!type) {
+  auto semantic_type = select_type(addressable.get_type());
+  auto type = semantic_type
+                  ? create_debug_type(*selected_program, *semantic_type)
+                  : Core::Option<llvm::DIType&>();
+  if (!semantic_type || !type) {
     return selected_program->fail_toolchain(
         "LLVM cannot describe the completed Static carrier."_view);
   }
@@ -1094,8 +1109,7 @@ auto Llvm::Module::Debug::global(
 
   Core::Option<llvm::DIDerivedType&> declaration;
   if (auto* composite = llvm::dyn_cast<llvm::DICompositeType>(&*scope)) {
-    auto physical =
-        selected_program->get_carriers().get_type(addressable.get_type());
+    auto physical = selected_program->get_carriers().get_type(*semantic_type);
     if (!physical) {
       return selected_program->fail_toolchain(
           "LLVM cannot find the completed Static carrier alignment."_view);

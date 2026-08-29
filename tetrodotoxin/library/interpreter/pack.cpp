@@ -33,7 +33,8 @@ auto Interpreter::Pack::parse(
   }
 
   Token opening = cursor.consume();
-  Memory::Managed::Vector<Reference<Language::Model::Pack>> entries(domain);
+  Memory::Managed::Vector<Ttx::Model::PackReference<Language::Model::Pack>>
+      entries(domain);
   Memory::Managed::Vector<Core::View::Bytes> names(domain);
   Core::Option<Bool> named;
 

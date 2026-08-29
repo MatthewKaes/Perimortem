@@ -8,7 +8,7 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
@@ -24,15 +24,21 @@ static auto select_accessible_field(
   auto field = candidate.select<Field>();
   BAIL_IF(!field || field->get_writability() != Writability::Internal);
 
-  const Abstract& host = access_scope.visit(
-      []() -> const Abstract& { return Invalid::get_invalid(); },
-      [](const Abstract& selected) -> const Abstract& { return selected; });
-  const Abstract& selected =
-      field->get_host()
-          .resolve_type_access(
-              host, field->get_name(), Model::Type::Access::Self)
-          .resolve();
+  const Abstract& selected = field->get_host()
+                                 .resolve_concept("instance"_view)
+                                 .resolve_concept(field->get_name())
+                                 .resolve();
   BAIL_IF(&selected != &*field);
+
+  if (field->get_definition().get_visibility() ==
+      Tetrodotoxin::Language::Visibility::Private) {
+    auto caller = access_scope.visit(
+        []() -> Option<const Model::Type&> { return {}; },
+        [](const Abstract& selected) {
+          return selected.select<Model::Type>();
+        });
+    BAIL_IF(!caller || !caller->has_private_access_to(field->get_host()));
+  }
 
   // Object construction shares ordinary receiver visibility. This admits
   // published state plus private state reached from a hosted descendant while
@@ -50,9 +56,7 @@ static auto select_supplied(
     if (&fitted_fields.get_data()[index].get() == &field) {
       return inputs.get_abstract(index).visit(
           []() -> Option<const Model::Pack&> { return {}; },
-          [](const Abstract& selected) {
-            return selected.select<Model::Pack>();
-          });
+          [](const Abstract& selected) { return Model::Pack::from(selected); });
     }
   }
   return {};
@@ -157,7 +161,7 @@ auto Types::Object::create_supplied(
   // A fitted supplied value wins, then the declaration initializer, then the
   // exact Field Type default. Const and Static facts never enter this inventory
   // and therefore cannot become construction inputs by accident.
-  Managed::Vector<Reference<Model::Pack>> values(arena);
+  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
   values.reset(get_layout().get_size());
   for (const Reference<Abstract>& selected : get_addressables()) {
     auto field = selected.get().select<Field>();
@@ -178,7 +182,9 @@ auto Types::Object::create_supplied(
       continue;
     }
 
-    auto fallback = field->get_type().create_default(arena);
+    auto field_type = field->get_type().select<Model::Type>();
+    auto fallback =
+        field_type ? field_type->create_default(arena) : Option<Model::Pack&>();
     if (!fallback) {
       cursor.create_expression_error(
           anchor,
@@ -212,7 +218,7 @@ auto Types::Object::create_supplied_restored(
     return Expressions::Initializer::create_provider(arena, *this, arguments);
   }
 
-  Managed::Vector<Reference<Model::Pack>> values(arena);
+  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
   values.reset(get_layout().get_size());
   for (const Reference<Abstract>& selected : get_addressables()) {
     auto field = selected.get().select<Field>();
@@ -231,7 +237,9 @@ auto Types::Object::create_supplied_restored(
       values.insert(const_cast<Model::Pack&>(*authored));
       continue;
     }
-    auto fallback = field->get_type().create_default(arena);
+    auto field_type = field->get_type().select<Model::Type>();
+    auto fallback =
+        field_type ? field_type->create_default(arena) : Option<Model::Pack&>();
     BAIL_IF(!fallback);
     values.insert(*fallback);
   }

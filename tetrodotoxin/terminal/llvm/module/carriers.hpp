@@ -107,13 +107,13 @@ class Carriers {
   auto fit_and_assemble(
       Emission& body,
       const Ttx::Model::Type& type,
-      const Ttx::Model::Pack& source,
+      const Tetrodotoxin::Library::Language::Model::Pack& source,
       Perimortem::Core::View::Vector<LLVMValueRef> elements) const
       -> Perimortem::Core::Option<LLVMValueRef>;
 
   auto fit(
       Emission& body,
-      const Ttx::Model::Pack& source,
+      const Tetrodotoxin::Library::Language::Model::Pack& source,
       const Ttx::Concept::Layout& target,
       Perimortem::Core::View::Vector<LLVMValueRef> values) const
       -> Perimortem::Core::Option<
@@ -194,7 +194,7 @@ class Carriers {
 
   auto fit_values(
       Emission& body,
-      const Ttx::Model::Pack& source,
+      const Tetrodotoxin::Library::Language::Model::Pack& source,
       const Ttx::Concept::Layout& target,
       Perimortem::Core::View::Vector<LLVMValueRef> values) const
       -> Perimortem::Core::Option<

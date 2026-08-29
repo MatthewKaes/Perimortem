@@ -19,37 +19,30 @@ using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin;
 
-using BinaryReader = Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>;
-
-auto Scene::Archive::Reader::open(
-    View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
+auto Scene::Archive::Reader::open(View::Bytes payload) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
-  BinaryReader reader(payload.slice(0, 8));
+  Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
+      payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
   U16 version = reader.read_u16();
-  U8 encoded_profile = reader.read_u8();
-  U8 flags = reader.read_u8();
-  BAIL_IF(
-      magic != "TTSC"_view || version != 2 || encoded_profile != U8(profile) ||
-      flags != 0);
+  U16 flags = reader.read_u16();
+  BAIL_IF(magic != "TTSC"_view || version != 3 || flags != 0);
   return Reader(payload.slice(8));
 }
 
 auto Scene::Archive::Reader::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& language,
     const Library::Dialect& library,
     Abstract& context) -> Option<Scene::Language::Monograph&> {
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
   auto child_payload = opened->read_bytes();
   BAIL_IF(!child_payload);
 
-  auto child = Library::Archive::Reader::read(
-      arena, *child_payload, profile, library, context);
+  auto child =
+      Library::Archive::Reader::read(arena, *child_payload, library, context);
   BAIL_IF(!child);
   Option<Library::Language::Types::Object&> instance;
   for (const Reference<Abstract>& declaration :
@@ -80,7 +73,7 @@ auto Scene::Archive::Reader::restore(
       auto reference_payload = opened->read_bytes();
       BAIL_IF(!reference_payload);
       payload_reference = Library::Archive::Reader::restore_type_reference(
-          arena, *reference_payload, profile, *instance);
+          arena, *reference_payload, *instance);
       BAIL_IF(!payload_reference);
     }
     auto& signal = Scene::Language::Signal::create_restored(
@@ -124,14 +117,22 @@ auto Scene::Archive::Reader::take(Count size) -> Option<View::Bytes> {
 
 auto Scene::Archive::Reader::read_u8() -> Option<U8> {
   auto selected = take(sizeof(U8));
-  return selected ? Option<U8>(BinaryReader(*selected).read_u8())
-                  : Option<U8>();
+  return selected
+             ? Option<U8>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u8())
+             : Option<U8>();
 }
 
 auto Scene::Archive::Reader::read_u32() -> Option<U32> {
   auto selected = take(sizeof(U32));
-  return selected ? Option<U32>(BinaryReader(*selected).read_u32())
-                  : Option<U32>();
+  return selected
+             ? Option<U32>(
+                   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little>(
+                       *selected)
+                       .read_u32())
+             : Option<U32>();
 }
 
 auto Scene::Archive::Reader::read_bytes() -> Option<View::Bytes> {

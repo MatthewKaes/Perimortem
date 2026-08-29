@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -84,7 +84,7 @@ static Harness InitializerTests = {
 static auto is_four_zero_values(
     const Language::Model::Pack& value,
     const Language::Model::Type& type) -> Bool {
-  if (!value.is<Language::Expressions::Initializer>()) {
+  if (!value.is_identity<Language::Expressions::Initializer>()) {
     return False;
   }
 
@@ -122,33 +122,37 @@ PERIMORTEM_UNIT_TEST(InitializerTests, value_defaults) {
   ASSERT(monograph);
 
   const auto& scalar = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("scalar"_view));
+      monograph->get_source().resolve_concept("scalar"_view));
   const auto& bytes = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("bytes"_view));
+      monograph->get_source().resolve_concept("bytes"_view));
   auto authored_scalar = scalar.get_initializer();
   auto authored_bytes = bytes.get_initializer();
-  ASSERT(authored_scalar && authored_bytes);
+  auto scalar_type = scalar.get_type().select<Language::Model::Type>();
+  auto bytes_type = bytes.get_type().select<Language::Model::Type>();
+  ASSERT(authored_scalar && authored_bytes && scalar_type && bytes_type);
 
   Perimortem::Memory::Allocator::Arena direct_values;
-  auto direct_scalar = scalar.get_type().create_default(direct_values);
-  auto direct_bytes = bytes.get_type().create_default(direct_values);
+  auto direct_scalar = scalar_type->create_default(direct_values);
+  auto direct_bytes = bytes_type->create_default(direct_values);
   ASSERT(direct_scalar && direct_bytes);
-  ASSERT(authored_scalar->is<Language::Expressions::Initializer>());
-  ASSERT(direct_scalar->is<Language::Constants::Unsigned>());
+  ASSERT(authored_scalar->is_identity<Language::Expressions::Initializer>());
+  ASSERT(direct_scalar->is_identity<Language::Constants::Unsigned>());
   const auto& authored_initializer =
       static_cast<const Language::Expressions::Initializer&>(*authored_scalar);
   auto authored_value = authored_initializer.get_completed_values();
-  ASSERT(authored_value && authored_value->is<Language::Constants::Unsigned>());
+  ASSERT(
+      authored_value &&
+      authored_value->is_identity<Language::Constants::Unsigned>());
   const auto& authored_unsigned =
       static_cast<const Language::Constants::Unsigned&>(*authored_value);
   const auto& direct_unsigned =
       static_cast<const Language::Constants::Unsigned&>(*direct_scalar);
-  EXPECT(&authored_unsigned.get_type() == &scalar.get_type());
-  EXPECT(&direct_unsigned.get_type() == &scalar.get_type());
+  EXPECT(&authored_unsigned.get_type() == &*scalar_type);
+  EXPECT(&direct_unsigned.get_type() == &*scalar_type);
   EXPECT_EQ(authored_unsigned.get_value(), U64(0));
   EXPECT_EQ(direct_unsigned.get_value(), U64(0));
-  EXPECT(is_four_zero_values(*authored_bytes, bytes.get_type()));
-  EXPECT(is_four_zero_values(*direct_bytes, bytes.get_type()));
+  EXPECT(is_four_zero_values(*authored_bytes, *bytes_type));
+  EXPECT(is_four_zero_values(*direct_bytes, *bytes_type));
   EXPECT(errors.is_empty());
 }
 
@@ -174,19 +178,20 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_arguments) {
 
   const auto& source_type = monograph->get_source();
   const auto& defaults = static_cast<const Language::Types::Object&>(
-      source_type.resolve_context("Defaults"_view));
+      source_type.resolve_concept("Defaults"_view));
   const auto& required = static_cast<const Language::Types::Object&>(
-      source_type.resolve_context("Required"_view));
+      source_type.resolve_concept("Required"_view));
   const auto& empty_field = static_cast<const Language::Field&>(
-      source_type.resolve_context("empty"_view));
+      source_type.resolve_concept("empty"_view));
   const auto& configured_field = static_cast<const Language::Field&>(
-      source_type.resolve_context("configured"_view));
+      source_type.resolve_concept("configured"_view));
   auto empty_initializer = empty_field.get_initializer();
   auto configured_initializer = configured_field.get_initializer();
   ASSERT(empty_initializer);
   ASSERT(configured_initializer);
-  ASSERT(empty_initializer->is<Language::Expressions::Initializer>());
-  ASSERT(configured_initializer->is<Language::Expressions::Initializer>());
+  ASSERT(empty_initializer->is_identity<Language::Expressions::Initializer>());
+  ASSERT(configured_initializer
+             ->is_identity<Language::Expressions::Initializer>());
   const auto& empty = static_cast<const Language::Expressions::Initializer&>(
       *empty_initializer);
   const auto& configured =
@@ -242,14 +247,16 @@ PERIMORTEM_UNIT_TEST(InitializerTests, private_arguments) {
   ASSERT(monograph);
 
   const auto& owner = static_cast<const Language::Types::Object&>(
-      monograph->get_source().resolve_context("Owner"_view));
+      monograph->get_source().resolve_concept("Owner"_view));
   const auto& builder = static_cast<const Language::Types::Structure&>(
-      owner.resolve_context("Builder"_view));
+      owner.resolve_concept("Builder"_view));
   auto fields = builder.get_addressables();
   ASSERT(fields != fields.end());
   const auto& value = static_cast<const Language::Field&>((*fields).get());
   auto initializer = value.get_initializer();
-  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
+  ASSERT(
+      initializer &&
+      initializer->is_identity<Language::Expressions::Initializer>());
   const auto& created =
       static_cast<const Language::Expressions::Initializer&>(*initializer);
   EXPECT(&created.get_type() == &owner);
@@ -269,12 +276,14 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_object) {
   ASSERT(monograph);
 
   const auto& source_type = monograph->get_source();
-  const Abstract& session = source_type.resolve_context("Session"_view);
+  const Abstract& session = source_type.resolve_concept("Session"_view);
   const auto& inferred = static_cast<const Language::Field&>(
-      source_type.resolve_context("inferred"_view));
+      source_type.resolve_concept("inferred"_view));
   EXPECT(&inferred.get_type() == &session);
   auto initializer = inferred.get_initializer();
-  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
+  ASSERT(
+      initializer &&
+      initializer->is_identity<Language::Expressions::Initializer>());
   EXPECT(errors.is_empty());
 }
 
@@ -292,19 +301,20 @@ PERIMORTEM_UNIT_TEST(InitializerTests, explicit_scalar_conversion) {
   ASSERT(monograph);
 
   const auto& signed_field = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("narrow_signed"_view));
+      monograph->get_source().resolve_concept("narrow_signed"_view));
   const auto& unsigned_field = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("narrow_unsigned"_view));
+      monograph->get_source().resolve_concept("narrow_unsigned"_view));
   const auto& real_field = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("rounded_real"_view));
+      monograph->get_source().resolve_concept("rounded_real"_view));
   auto signed_value = signed_field.get_constant();
   auto unsigned_value = unsigned_field.get_constant();
   auto real_value = real_field.get_constant();
   ASSERT(signed_value && unsigned_value && real_value);
-  auto selected_signed = signed_value->select<Language::Constants::Signed>();
+  auto selected_signed =
+      signed_value->select_identity<Language::Constants::Signed>();
   auto selected_unsigned =
-      unsigned_value->select<Language::Constants::Unsigned>();
-  auto selected_real = real_value->select<Language::Constants::Real>();
+      unsigned_value->select_identity<Language::Constants::Unsigned>();
+  auto selected_real = real_value->select_identity<Language::Constants::Real>();
   ASSERT(selected_signed && selected_unsigned && selected_real);
   EXPECT_EQ(selected_signed->get_value(), S64(127));
   EXPECT_EQ(selected_unsigned->get_value(), U64(255));
@@ -367,11 +377,11 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& inner = monograph->get_source().resolve_context("Inner"_view);
+  const Abstract& inner = monograph->get_source().resolve_concept("Inner"_view);
   const auto& created = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("created"_view));
+      monograph->get_source().resolve_concept("created"_view));
   auto value = created.get_initializer();
-  ASSERT(value && value->is<Language::Expressions::Initializer>());
+  ASSERT(value && value->is_identity<Language::Expressions::Initializer>());
   const auto& initializer =
       static_cast<const Language::Expressions::Initializer&>(*value);
   ASSERT(initializer.get_completed_values());
@@ -434,9 +444,11 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_cycles) {
   auto monograph = interpret(workspace, errors, optional);
   ASSERT(monograph);
   const auto& valid = static_cast<const Language::Field&>(
-      monograph->get_source().resolve_context("valid"_view));
+      monograph->get_source().resolve_concept("valid"_view));
   auto initializer = valid.get_initializer();
-  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
+  ASSERT(
+      initializer &&
+      initializer->is_identity<Language::Expressions::Initializer>());
   const auto& value =
       static_cast<const Language::Expressions::Initializer&>(*initializer);
   ASSERT(value.get_completed_values());

@@ -3,6 +3,7 @@
 //
 // Perimortem Memory Package.
 dialect : Package;
+package(.name = "Perimortem.Memory", .version = "1.0");
 
 private DynamicSource : alias = source("dynamic.ttx");
 

@@ -26,23 +26,20 @@ auto Shader::Dialect::interpret(
   return monograph;
 }
 
-auto Shader::Dialect::encode(
-    const Abstract& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile) const
+auto Shader::Dialect::encode(const Abstract& monograph) const
     -> Option<Perimortem::Memory::Dynamic::Bytes> {
   auto shader = monograph.select<Shader::Language::Monograph>();
   BAIL_IF(!shader);
-  return Shader::Archive::Writer::encode(*shader, profile);
+  return Shader::Archive::Writer::encode(*shader);
 }
 
 auto Shader::Dialect::restore(
     Perimortem::Memory::Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation&,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored = Shader::Archive::Reader::restore(
-      arena, payload, profile, *this, library, context);
+  auto restored =
+      Shader::Archive::Reader::restore(arena, payload, *this, library, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

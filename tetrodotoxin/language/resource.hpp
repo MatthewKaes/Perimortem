@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -19,8 +19,6 @@ class Resource : public Ttx::Concept::Abstract {
   TTX_NAME("Resource"_view);
 
   TTX_EMPTY_DOCUMENTATION();
-
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   virtual constexpr auto get_value() const -> Perimortem::Core::View::Bytes = 0;
 };

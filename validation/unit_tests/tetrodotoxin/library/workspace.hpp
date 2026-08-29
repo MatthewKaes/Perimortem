@@ -31,7 +31,7 @@ inline auto get_library_dialect(Tetrodotoxin::Environment::Toolchain& toolchain)
 inline auto retains_library_source(
     const Tetrodotoxin::Environment::Workspace& workspace,
     Perimortem::Core::View::Bytes semantic_name) -> Bool {
-  return workspace.resolve_context(semantic_name)
+  return workspace.resolve_concept(semantic_name)
       .is<Tetrodotoxin::Library::Language::Monograph>();
 }
 

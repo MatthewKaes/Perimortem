@@ -49,7 +49,7 @@
 #include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
@@ -88,8 +88,8 @@ class EmptyRegistry : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 
@@ -111,14 +111,14 @@ class ResourceRegistry final : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == "$[resource/hello.txt]"_view) {
       return table;
     }
     if (route == "$[resource/greeting.txt]"_view) {
       return greeting;
     }
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
  private:
@@ -134,8 +134,8 @@ class FutureType : public Language::Model::Type {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto create_default(Perimortem::Memory::Allocator::Arena&) const
       -> Option<Language::Model::Pack&> override {
@@ -154,12 +154,12 @@ class QualifiedContext : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == qualified.get_name()) {
       return qualified;
     }
 
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
  private:
@@ -174,8 +174,8 @@ class NonTypeFact : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
 };
 
@@ -187,7 +187,7 @@ class AliasContext : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == types.get_name()) {
       return types;
     }
@@ -198,7 +198,7 @@ class AliasContext : public Abstract {
       return fact;
     }
 
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
  private:
@@ -273,8 +273,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   auto& second = Language::Monograph::create_authored(
       cursor.get_arena(), documentation, source_anchor, dialect, context);
 
-  EXPECT_NOT(dialect.encode(
-      first, Tetrodotoxin::Language::Persistence::Profile::Complete));
+  EXPECT_NOT(dialect.encode(first));
 
   EXPECT(&first.get_documentation() == &documentation);
   EXPECT(&first.get_source().get_documentation() == &documentation);
@@ -286,13 +285,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   EXPECT(&first.get_source() != &second.get_source());
 
   const auto& first_element = static_cast<const Language::Model::Type&>(
-      first.resolve_context("U8"_view));
+      first.resolve_concept("U8"_view));
   const auto& second_element = static_cast<const Language::Model::Type&>(
-      second.resolve_context("U8"_view));
+      second.resolve_concept("U8"_view));
   const auto& first_formula =
-      static_cast<const Language::Generic&>(first.resolve_context("View"_view));
+      static_cast<const Language::Generic&>(first.resolve_concept("View"_view));
   const auto& second_formula = static_cast<const Language::Generic&>(
-      second.resolve_context("View"_view));
+      second.resolve_concept("View"_view));
   Static::Vector<Language::Generic::Argument, 1> first_arguments = {{
     Language::Generic::Argument(first_element),
   }};
@@ -335,7 +334,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, progressive_source) {
   EXPECT_NOT(completed);
   EXPECT_NOT(errors.is_empty());
 
-  auto monograph = workspace.resolve_context("Progressive"_view)
+  auto monograph = workspace.resolve_concept("Progressive"_view)
                        .select<Language::Monograph>();
   ASSERT(monograph);
   const auto& root = monograph->get_source();
@@ -350,7 +349,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, progressive_source) {
   EXPECT(later.is<Language::Field>());
   const auto& pending_field = static_cast<const Language::Field&>(pending);
   EXPECT_NOT(pending_field.get_type_reference());
-  EXPECT(pending_field.resolve().is<Invalid>());
+  EXPECT(pending_field.resolve().is<Unknown>());
   EXPECT(workspace.get_associations("progressive.ttx"_view));
 }
 
@@ -427,8 +426,8 @@ PERIMORTEM_UNIT_TEST(DialectTests, qualified_type_associations) {
   auto& monograph = *interpreted;
   ASSERT(monograph.link(cursor));
 
-  const Abstract& outer = monograph.resolve_context("Outer"_view);
-  const Abstract& inner = outer.resolve_context("Inner"_view);
+  const Abstract& outer = monograph.resolve_concept("Outer"_view);
+  const Abstract& inner = outer.resolve_concept("Inner"_view);
   Count route = Algorithm::search(source, "Outer::Inner"_view);
   ASSERT(route != Count(-1));
   auto selected_outer = associations.find_at(route);
@@ -530,10 +529,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_aliases) {
   ASSERT_EQ(public_documentation.line_count(), Count(2));
   EXPECT_TEXT(public_documentation.get_line(0), "Local documentation."_view);
   EXPECT_TEXT(public_documentation.get_line(1), "Hidden documentation."_view);
-  EXPECT(&monograph.resolve_context("PublicAlias"_view) == &public_identity);
+  EXPECT(&monograph.resolve_concept("PublicAlias"_view) == &public_identity);
   EXPECT(
-      &monograph.resolve_context("PrivateAlias"_view) ==
-      &Invalid::get_invalid());
+      &monograph.resolve_concept("PrivateAlias"_view) ==
+      &Unknown::get_unknown());
   EXPECT(errors.is_empty());
   EXPECT(cursor.matches(Code::Type::Terminal));
 }
@@ -657,13 +656,13 @@ PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace) {
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
   const Language::Foreign& foreign = monograph.get_source().get_foreign();
-  const Abstract& readonly =
-      foreign.resolve_access(foreign, "library_foreign_bias"_view);
-  const Abstract& state =
-      foreign.resolve_access(foreign, "library_foreign_state"_view);
-  const Abstract& function =
-      foreign.resolve_call(foreign, "library_foreign_add"_view);
-  EXPECT(monograph.resolve_context("library_foreign_state"_view).is<Invalid>());
+  const Abstract& readonly = foreign.resolve_concept("static"_view)
+                                 .resolve_concept("library_foreign_bias"_view);
+  const Abstract& state = foreign.resolve_concept("static"_view)
+                              .resolve_concept("library_foreign_state"_view);
+  const Abstract& function = foreign.resolve_concept("static"_view)
+                                 .resolve_concept("library_foreign_add"_view);
+  EXPECT(monograph.resolve_concept("library_foreign_state"_view).is<Unknown>());
   EXPECT(readonly.is<Addressable>());
   EXPECT(state.is<Addressable>());
   EXPECT(function.is<Callable>());
@@ -726,7 +725,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, opaque_attributes) {
   ASSERT(monograph);
 
   const Abstract& first_identity =
-      monograph->resolve_call(*monograph, "first"_view);
+      monograph->resolve_concept("static"_view).resolve_concept("first"_view);
   ASSERT(first_identity.is<Language::Function>());
   const auto& first = static_cast<const Language::Function&>(first_identity);
   auto first_attributes = first.get_definition().get_attributes();
@@ -750,12 +749,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, opaque_attributes) {
   EXPECT_TEXT(*second_extension, "second"_view);
   EXPECT(empty_symbol->is_empty());
 
-  const Abstract& host_identity = monograph->resolve_context("Host"_view);
+  const Abstract& host_identity = monograph->resolve_concept("Host"_view);
   ASSERT(host_identity.is<Language::Types::Structure>());
   const auto& host =
       static_cast<const Language::Types::Structure&>(host_identity);
-  const Abstract& member_identity = host.resolve_type_call(
-      host, "member"_view, Language::Model::Type::Access::Self);
+  const Abstract& member_identity =
+      host.resolve_concept("instance"_view).resolve_concept("member"_view);
   ASSERT(member_identity.is<Language::Function>());
   const auto& member = static_cast<const Language::Function&>(member_identity);
   ASSERT_EQ(member.get_definition().get_attributes().get_size(), Count(2));
@@ -780,7 +779,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       monograph.get_documentation().get_line(1),
       "Library source acceptance."_view);
 
-  EXPECT(&workspace.resolve_context("SourceAcceptance"_view) == &monograph);
+  EXPECT(&workspace.resolve_concept("SourceAcceptance"_view) == &monograph);
 
   const auto& source_type = monograph.get_source();
   EXPECT_TEXT(source_type.get_name(), "<source>"_view);
@@ -798,11 +797,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       "// Library source acceptance.\n"
       "dialect : Library;"_view);
   const Abstract& count_identity =
-      source_type.resolve_context("CountAlias"_view);
-  const Abstract& mode_identity = source_type.resolve_context("Mode"_view);
-  const Abstract& packet_identity = source_type.resolve_context("Packet"_view);
+      source_type.resolve_concept("CountAlias"_view);
+  const Abstract& mode_identity = source_type.resolve_concept("Mode"_view);
+  const Abstract& packet_identity = source_type.resolve_concept("Packet"_view);
   const Abstract& session_identity =
-      source_type.resolve_context("Session"_view);
+      source_type.resolve_concept("Session"_view);
   ASSERT(count_identity.is<Alias>());
   ASSERT(mode_identity.is<Language::Types::Enumeration>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
@@ -823,7 +822,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       static_cast<const Language::Function&>((*callable).get());
   ++callable;
   EXPECT(callable == callables.end());
-  EXPECT(&count_alias.resolve() == &monograph.resolve_context("U64"_view));
+  EXPECT(&count_alias.resolve() == &monograph.resolve_concept("U64"_view));
   ASSERT_EQ(mode.get_definition().get_attributes().get_size(), Count(1));
   EXPECT_TEXT(
       mode.get_definition().get_attributes().get_data()[0].get_key(),
@@ -834,7 +833,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   EXPECT_TEXT(cases.get_data()[0].get().get_name(), "idle"_view);
   EXPECT_TEXT(cases.get_data()[1].get().get_name(), "ready"_view);
 
-  const Abstract& nested = packet.resolve_context("Nested"_view);
+  const Abstract& nested = packet.resolve_concept("Nested"_view);
   ASSERT(nested.is<Language::Types::Structure>());
   EXPECT_TEXT(
       packet.get_definition().get_attributes().get_data()[0].get_key(),
@@ -866,7 +865,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       static_cast<const Language::Field&>(*ready_identity);
   EXPECT_TEXT(id_field.get_name(), "id"_view);
   EXPECT_TEXT(ready_field.get_name(), "ready"_view);
-  EXPECT(&id_field.get_type() == &monograph.resolve_context("U64"_view));
+  EXPECT(&id_field.get_type() == &monograph.resolve_concept("U64"_view));
   EXPECT_TEXT(
       session.get_definition().get_attributes().get_data()[0].get_key(),
       "reference_type"_view);
@@ -875,12 +874,14 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
       "identity"_view);
 
   const Abstract& source_field_identity =
-      source_type.resolve_context("session"_view);
+      source_type.resolve_concept("session"_view);
   ASSERT(source_field_identity.is<Language::Field>());
   const auto& source_field =
       static_cast<const Language::Field&>(source_field_identity);
   auto initializer = source_field.get_initializer();
-  ASSERT(initializer && initializer->is<Language::Expressions::Initializer>());
+  ASSERT(
+      initializer &&
+      initializer->is_identity<Language::Expressions::Initializer>());
   const auto& object_initializer =
       static_cast<const Language::Expressions::Initializer&>(*initializer);
   EXPECT(&object_initializer.get_type() == &session);
@@ -917,11 +918,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
       workspace.interpret_source(errors, "ValueAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
-  EXPECT(&workspace.resolve_context("ValueAcceptance"_view) == &monograph);
+  EXPECT(&workspace.resolve_concept("ValueAcceptance"_view) == &monograph);
 
   const auto& source_type = monograph.get_source();
-  const Abstract& packet_identity = source_type.resolve_context("Packet"_view);
-  const Abstract& pair_identity = source_type.resolve_context("Pair"_view);
+  const Abstract& packet_identity = source_type.resolve_concept("Packet"_view);
+  const Abstract& pair_identity = source_type.resolve_concept("Pair"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   ASSERT(pair_identity.is<Language::Types::Structure>());
   const auto& packet =
@@ -935,11 +936,12 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
 
   auto sum = find_field(source_type, "sum"_view);
   ASSERT(sum && sum->get_initializer());
-  ASSERT(sum->get_initializer()->is<Language::Operations::Add>());
+  ASSERT(sum->get_initializer()->is_identity<Language::Operations::Add>());
   const auto& sum_expression =
       static_cast<const Language::Expression&>(*sum->get_initializer());
   auto folded_sum = sum_expression.get_folded();
-  ASSERT(folded_sum && folded_sum->is<Language::Constants::Unsigned>());
+  ASSERT(
+      folded_sum && folded_sum->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_sum)
           .get_value(),
@@ -951,7 +953,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
       static_cast<const Language::Expression&>(
           *constant_offset->get_initializer());
   auto folded_offset = constant_offset_expression.get_folded();
-  ASSERT(folded_offset && folded_offset->is<Language::Constants::Unsigned>());
+  ASSERT(
+      folded_offset &&
+      folded_offset->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_offset)
           .get_value(),
@@ -972,16 +976,18 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   ASSERT(sequence->get_type().is<Language::Types::Range>());
   const auto& range =
       static_cast<const Language::Types::Range&>(sequence->get_type());
-  EXPECT(&range.get_element_type() == &monograph.resolve_context("U64"_view));
-  EXPECT(&selected_byte->get_type() == &monograph.resolve_context("U8"_view));
-  EXPECT(&missing_byte->get_type() == &monograph.resolve_context("U8"_view));
+  EXPECT(&range.get_element_type() == &monograph.resolve_concept("U64"_view));
+  EXPECT(&selected_byte->get_type() == &monograph.resolve_concept("U8"_view));
+  EXPECT(&missing_byte->get_type() == &monograph.resolve_concept("U8"_view));
   ASSERT(
       missing_byte->get_initializer() &&
-      missing_byte->get_initializer()->is<Language::Access::Slice>());
+      missing_byte->get_initializer()->is_identity<Language::Access::Slice>());
   const auto& default_expression = static_cast<const Language::Expression&>(
       *missing_byte->get_initializer());
   auto folded_default = default_expression.get_folded();
-  ASSERT(folded_default && folded_default->is<Language::Constants::Unsigned>());
+  ASSERT(
+      folded_default &&
+      folded_default->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*folded_default)
           .get_value(),
@@ -991,7 +997,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   const auto& slice_type =
       static_cast<const Language::Types::Fixed&>(selected_slice->get_type());
   EXPECT(
-      &slice_type.get_element_type() == &monograph.resolve_context("U8"_view));
+      &slice_type.get_element_type() == &monograph.resolve_concept("U8"_view));
   EXPECT_EQ(slice_type.get_extent(), U64(2));
 
   const auto& constant_slice_expression =
@@ -1025,9 +1031,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   ASSERT(called && called->get_initializer());
   ASSERT(addressed && addressed->get_initializer());
   ASSERT(self_called && self_called->get_initializer());
-  ASSERT(called->get_initializer()->is<Language::Access::Call>());
-  ASSERT(addressed->get_initializer()->is<Language::Access::Address>());
-  ASSERT(self_called->get_initializer()->is<Language::Access::Call>());
+  ASSERT(called->get_initializer()->is_identity<Language::Access::Call>());
+  ASSERT(
+      addressed->get_initializer()->is_identity<Language::Access::Address>());
+  ASSERT(self_called->get_initializer()->is_identity<Language::Access::Call>());
   const auto& address = static_cast<const Language::Access::Address&>(
       *addressed->get_initializer());
   const auto& self_call = static_cast<const Language::Access::Call&>(
@@ -1049,8 +1056,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   EXPECT(empty->get_results().is_empty());
   ASSERT(single && single->get_initializer());
   ASSERT(reordered && reordered->get_initializer());
-  ASSERT(single->get_initializer()->is<Language::Access::Swizzle>());
-  ASSERT(reordered->get_initializer()->is<Language::Access::Swizzle>());
+  ASSERT(single->get_initializer()->is_identity<Language::Access::Swizzle>());
+  ASSERT(
+      reordered->get_initializer()->is_identity<Language::Access::Swizzle>());
   const auto& single_swizzle =
       static_cast<const Language::Access::Swizzle&>(*single->get_initializer());
   const auto& reordered_swizzle = static_cast<const Language::Access::Swizzle&>(
@@ -1090,26 +1098,19 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
       errors, "ExecutableAcceptance"_view, path, *source);
   ASSERT(interpreted && interpreted->is<Language::Monograph>());
   auto& monograph = static_cast<Language::Monograph&>(*interpreted);
-  EXPECT(&workspace.resolve_context("ExecutableAcceptance"_view) == &monograph);
+  EXPECT(&workspace.resolve_concept("ExecutableAcceptance"_view) == &monograph);
 
   Dialect archive_dialect;
-  auto complete = archive_dialect.encode(
-      monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
-  auto complete_again = archive_dialect.encode(
-      monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
-  auto contract = archive_dialect.encode(
-      monograph, Tetrodotoxin::Language::Persistence::Profile::Contract);
-  ASSERT(complete && complete_again && contract);
+  auto complete = archive_dialect.encode(monograph);
+  auto complete_again = archive_dialect.encode(monograph);
+  ASSERT(complete && complete_again);
   EXPECT(*complete == *complete_again);
-  EXPECT_NOT(*complete == *contract);
-  ASSERT(complete->get_size() >= 8 && contract->get_size() >= 8);
+  ASSERT(complete->get_size() >= 8);
+  EXPECT_EQ((*complete)[4], U8(2));
   EXPECT_EQ((*complete)[6], U8(0));
-  EXPECT_EQ((*contract)[6], U8(1));
   Allocator::Arena restored_arena;
   auto restored = archive_dialect.restore(
-      restored_arena, *complete,
-      Tetrodotoxin::Language::Persistence::Profile::Complete,
-      Documentation::get_empty(), workspace);
+      restored_arena, *complete, Documentation::get_empty(), workspace);
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());
@@ -1126,31 +1127,16 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   auto restored_constant = restored_present->get_constant();
   auto restored_option =
       restored_constant
-          ? restored_constant->select<Language::Constants::Option>()
+          ? restored_constant->select_identity<Language::Constants::Option>()
           : Option<Language::Constants::Option&>();
   ASSERT(restored_option);
   auto restored_payload = restored_option->get_payload();
   auto restored_value =
       restored_payload
-          ? restored_payload->select<Language::Constants::Unsigned>()
+          ? restored_payload->select_identity<Language::Constants::Unsigned>()
           : Option<const Language::Constants::Unsigned&>();
   ASSERT(restored_value);
   EXPECT_EQ(restored_value->get_value(), U64(5));
-
-  Allocator::Arena contract_arena;
-  auto restored_contract = archive_dialect.restore(
-      contract_arena, *contract,
-      Tetrodotoxin::Language::Persistence::Profile::Contract,
-      Documentation::get_empty(), workspace);
-  ASSERT(
-      restored_contract && restored_contract->link_restored() &&
-      restored_contract->finalize_restored());
-  EXPECT(restored_contract->resolve_context("Counter"_view)
-             .resolve()
-             .is<Language::Types::Object>());
-  EXPECT(restored_contract->resolve_context("executable_acceptance"_view)
-             .resolve()
-             .is<Invalid>());
 
   const auto& source_type = monograph.get_source();
   auto execute = find_function(source_type, "executable_acceptance"_view);
@@ -1334,7 +1320,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, resource_slice) {
   ASSERT(hello);
   auto hello_value = hello->get_constant();
   ASSERT(hello_value);
-  auto hello_bytes = hello_value->select<Language::Constants::Bytes>();
+  auto hello_bytes = hello_value->select_identity<Language::Constants::Bytes>();
   ASSERT(hello_bytes);
   EXPECT_TEXT(hello_bytes->get_value(), "Hello"_view);
   EXPECT(errors.is_empty());
@@ -1348,8 +1334,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
       "  public state value : U64;\n"
       "}\n"
       "private packet : Packet;\n"
-      "private from_type := Packet.offset + 12;\n"
-      "private from_address := packet.offset + 12;"_view;
+      "private from_type := Packet.offset + 12;"_view;
   Allocator::Arena arena;
   ResourceRegistry registry;
   Dialect dialect;
@@ -1363,7 +1348,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   ASSERT(interpreted);
   auto& monograph = *interpreted;
   ASSERT(monograph.link(cursor));
-  const Abstract& packet_identity = monograph.resolve_context("Packet"_view);
+  const Abstract& packet_identity = monograph.resolve_concept("Packet"_view);
   ASSERT(packet_identity.is<Language::Types::Structure>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
@@ -1375,7 +1360,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   ASSERT(offset);
   auto linked_constant = offset->get_constant();
   ASSERT(linked_constant);
-  ASSERT(linked_constant->is<Language::Constants::Unsigned>());
+  ASSERT(linked_constant->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*linked_constant)
           .get_value(),
@@ -1384,27 +1369,16 @@ PERIMORTEM_UNIT_TEST(DialectTests, const_field_access) {
   ASSERT(monograph.finalize(cursor));
 
   auto from_type = find_field(monograph.get_source(), "from_type"_view);
-  auto from_address = find_field(monograph.get_source(), "from_address"_view);
   ASSERT(from_type && from_type->get_initializer());
-  ASSERT(from_address && from_address->get_initializer());
   auto type_expression =
-      from_type->get_initializer()->select<Language::Expression>();
-  auto address_expression =
-      from_address->get_initializer()->select<Language::Expression>();
+      from_type->get_initializer()->select_identity<Language::Expression>();
   ASSERT(type_expression);
-  ASSERT(address_expression);
   auto type_constant = type_expression->get_folded();
-  auto address_constant = address_expression->get_folded();
-  ASSERT(type_constant && type_constant->is<Language::Constants::Unsigned>());
   ASSERT(
-      address_constant &&
-      address_constant->is<Language::Constants::Unsigned>());
+      type_constant &&
+      type_constant->is_identity<Language::Constants::Unsigned>());
   EXPECT_EQ(
       static_cast<const Language::Constants::Unsigned&>(*type_constant)
-          .get_value(),
-      U64(13));
-  EXPECT_EQ(
-      static_cast<const Language::Constants::Unsigned&>(*address_constant)
           .get_value(),
       U64(13));
   EXPECT(errors.is_empty());

@@ -150,23 +150,24 @@ tries to finish the source. A dependency loop is always an invalid Workspace.
 
 ## Contextual resolution
 
-`resolve()` follows represented identity. `resolve_context(name)` asks the
-receiving Abstract to interpret one borrowed, unqualified name in its own
+`resolve()` follows represented identity. `resolve_concept(name)` asks the
+receiving Abstract to interpret one borrowed, unqualified concept in its own
 domain. A concrete grammar operator owns punctuation, resolves a selected Alias,
 and issues the next segment as another query. No Abstract accepts `A::B` as one
 lookup key. The consumer then proves the category required by its grammar.
 
-Three questions recur across the provided languages:
+Concrete languages compose shared concept questions instead of adding operator
+modes to Abstract:
 
-1. Address access selects an Addressable through an applicable Layout.
-2. A context route reaches an object, and the consuming position checks that it
-   belongs to the required category.
-3. Call access lets a concrete language select and invoke a Callable using its
-   parameter and result Layouts.
+1. An Addressable receiver asks its exact Type for `instance`, then asks that
+   authority for the authored name.
+2. A Type receiver asks itself for `static`, then asks that authority for the
+   authored name.
+3. The consuming language proves Addressable, Type, or Callable only after the
+   concept has resolved.
 
-These are shared question domains rather than one universal operator grammar.
-Each Dialect decides which questions its source can ask and what additional
-policy applies.
+The resulting questions stay nested and factual. They do not flatten member
+names, invocation, or receiver policy into a shared routing table.
 
 ## Monograph
 
@@ -235,7 +236,7 @@ own language from the same result.
 failed in the receiving domain. The concrete owner retains the cause. The
 source consumer supplies the authored location and presentation.
 
-An unrecognized semantic name still resolves to TTX `Invalid`. Resource and
+An unrecognized semantic name still resolves to TTX `Unknown`. Resource and
 Error therefore distinguish successful data, recognized failure, and ordinary
 absence without introducing a universal error enum.
 
@@ -278,22 +279,14 @@ Monographs without the original source. Languages that are always read from
 source do not need an Archive format. Package stores each language's data under
 the corresponding member and leaves its contents to that language.
 
-Persistent payloads have two profiles:
+Each persistent payload keeps the complete public and private facts promised by
+its Dialect. It contains no executable bodies. Native objects, SPIR-V, and
+other compiled implementations remain separate Terminal products.
 
-* `Complete` keeps the public and private observations promised by the
-  persistent Dialect.
-* `Interface` keeps only the public observations required by dependent
-  consumers.
-
-Neither profile implies executable bodies. Each Dialect retains the smallest
-closed set of facts that can reconstruct an equivalent graph for its promised
-queries. Native objects, SPIR-V, and other compiled implementations remain
-separate Terminal products.
-
-The selected profile also applies to child layers. The outer language stores a
-separate section for each child, but only the child's language reads and checks
-that section. Neither profile stores parser state, temporary caches, generated
-IR, live runtime handles, or process addresses. Debug symbols and source mapping
+Child layers belong to the same complete graph. The outer language stores an
+opaque section for each child, and only the child's language reads and checks
+that section. Payloads store no parser state, temporary caches, generated IR,
+live runtime handles, or process addresses. Debug symbols and source mapping
 belong to a separate output.
 
 Archive reconstruction creates a fresh graph with equivalent observable

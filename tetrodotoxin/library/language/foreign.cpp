@@ -4,7 +4,7 @@
 #include "tetrodotoxin/library/language/foreign.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
@@ -16,6 +16,7 @@ using namespace Tetrodotoxin;
 Library::Language::Foreign::Foreign(Allocator::Arena& domain, Abstract& parent)
     : domain(domain),
       parent(parent),
+      static_authority(domain.construct<Types::Static>(domain)),
       documentation(&Documentation::get_empty()),
       states(domain),
       functions(domain),
@@ -37,9 +38,13 @@ auto Library::Language::Foreign::retain_block(
     abi = selected_abi;
   }
   for (const Reference<State>& state : selected_states) {
+    BAIL_IF(!static_authority.bind(
+        state.get(), state.get().get_definition().is_published()));
     states.insert(state);
   }
   for (const Reference<Function>& function : selected_functions) {
+    BAIL_IF(!static_authority.bind(
+        function.get(), function.get().get_definition().is_published()));
     functions.insert(function);
   }
   for (const Reference<Abstract>& declaration : selected_declarations) {
@@ -123,41 +128,21 @@ auto Library::Language::Foreign::finalize_restored() -> Bool {
 
 auto Library::Language::Foreign::resolve() const -> const Abstract& {
   return is_authored() ? static_cast<const Abstract&>(*this)
-                       : Invalid::get_invalid();
+                       : Unknown::get_unknown();
 }
 
-auto Library::Language::Foreign::resolve_context(View::Bytes route) const
+auto Library::Language::Foreign::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "static"_view) {
+    return static_authority;
+  }
+
   // Foreign borrows Source lexical Type lookup for declaration routes only.
   // Its State and Callable names remain contained behind explicit access and
   // call queries, so they never become bare Source names.
   auto type = parent.select<Library::Language::Model::Type>();
   return type ? type->resolve_lexical_context(route)
-              : parent.resolve_context(route);
-}
-
-auto Library::Language::Foreign::resolve_access(
-    const Abstract&,
-    View::Bytes route) const -> const Abstract& {
-  for (const Reference<State>& state : states.get_view()) {
-    if (state.get().get_name() == route) {
-      return state.get();
-    }
-  }
-
-  return Invalid::get_invalid();
-}
-
-auto Library::Language::Foreign::resolve_call(
-    const Abstract&,
-    View::Bytes route) const -> const Abstract& {
-  for (const Reference<Function>& function : functions.get_view()) {
-    if (function.get().get_name() == route) {
-      return function.get();
-    }
-  }
-
-  return Invalid::get_invalid();
+              : parent.resolve_concept(route);
 }
 
 auto Library::Language::Foreign::retain_documentation(

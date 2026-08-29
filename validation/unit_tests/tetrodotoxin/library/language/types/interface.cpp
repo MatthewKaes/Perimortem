@@ -27,8 +27,6 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Validation;
 
-namespace Lib = Tetrodotoxin::Library::Language;
-
 static Harness InterfaceTypes = {
   .name = "Tetrodotoxin::Library::Language::Types::Interface"_view,
 };
@@ -59,30 +57,41 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
   auto interpreted = workspace.interpret_source(
       errors, "InterfaceTypes"_view, "interface.ttx"_view, source);
   ASSERT(interpreted);
-  ASSERT(interpreted->is<Lib::Monograph>());
+  ASSERT(interpreted->is<Tetrodotoxin::Library::Language::Monograph>());
   ASSERT(errors.is_empty());
 
-  const auto& monograph = static_cast<const Lib::Monograph&>(*interpreted);
-  const Abstract& requirement = monograph.resolve_context("DrawableUI"_view);
-  const Abstract& candidate = monograph.resolve_context("Sprite"_view);
-  ASSERT(requirement.is<Lib::Types::Interface>());
-  ASSERT(candidate.is<Lib::Types::Implemented>());
+  const auto& monograph =
+      static_cast<const Tetrodotoxin::Library::Language::Monograph&>(
+          *interpreted);
+  const Abstract& requirement = monograph.resolve_concept("DrawableUI"_view);
+  const Abstract& candidate = monograph.resolve_concept("Sprite"_view);
+  ASSERT(requirement.is<Tetrodotoxin::Library::Language::Types::Interface>());
+  ASSERT(candidate.is<Tetrodotoxin::Library::Language::Types::Implemented>());
   EXPECT(
-      static_cast<const Lib::Model::Type&>(requirement)
+      static_cast<const Tetrodotoxin::Library::Language::Model::Type&>(
+          requirement)
           .get_layout()
           .is_empty());
   EXPECT(candidate.satisfies(requirement));
 
-  const auto& sprite = static_cast<const Lib::Types::Implemented&>(candidate);
+  const auto& sprite =
+      static_cast<const Tetrodotoxin::Library::Language::Types::Implemented&>(
+          candidate);
   auto fields = sprite.get_addressables();
   ASSERT(fields != fields.end());
-  const auto& visible = static_cast<const Lib::Field&>((*fields).get());
+  const auto& visible =
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(
+          (*fields).get());
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& z_index = static_cast<const Lib::Field&>((*fields).get());
+  const auto& z_index =
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(
+          (*fields).get());
   ++fields;
   ASSERT(fields != fields.end());
-  const auto& texture = static_cast<const Lib::Field&>((*fields).get());
+  const auto& texture =
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(
+          (*fields).get());
   ++fields;
   EXPECT(fields == sprite.get_addressables().end());
   EXPECT_TEXT(visible.get_name(), "visible"_view);
@@ -91,14 +100,19 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
   ASSERT(visible.get_initializer());
   ASSERT_EQ(sprite.get_layout().get_size(), Count(3));
 
-  const auto& holder = static_cast<const Lib::Types::Object&>(
-      monograph.resolve_context("Holder"_view));
+  const auto& holder =
+      static_cast<const Tetrodotoxin::Library::Language::Types::Object&>(
+          monograph.resolve_concept("Holder"_view));
   auto holder_fields = holder.get_addressables();
   ASSERT(holder_fields != holder_fields.end());
-  const auto& drawable = static_cast<const Lib::Field&>((*holder_fields).get());
-  ASSERT(drawable.get_type().is<Lib::Types::Implementation>());
-  const auto& erased =
-      static_cast<const Lib::Types::Implementation&>(drawable.get_type());
+  const auto& drawable =
+      static_cast<const Tetrodotoxin::Library::Language::Field&>(
+          (*holder_fields).get());
+  ASSERT(drawable.get_type()
+             .is<Tetrodotoxin::Library::Language::Types::Implementation>());
+  const auto& erased = static_cast<
+      const Tetrodotoxin::Library::Language::Types::Implementation&>(
+      drawable.get_type());
   EXPECT(&erased.get_requirement().resolve() == &requirement);
 
   Allocator::Arena values;
@@ -154,30 +168,33 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, archive_round_trip) {
   Errors errors;
   auto interpreted = workspace.interpret_source(
       errors, "InterfaceArchive"_view, "interface.ttx"_view, source);
-  ASSERT(interpreted && interpreted->is<Lib::Monograph>());
+  ASSERT(
+      interpreted &&
+      interpreted->is<Tetrodotoxin::Library::Language::Monograph>());
   ASSERT(errors.is_empty());
-  auto& monograph = static_cast<Lib::Monograph&>(*interpreted);
+  auto& monograph =
+      static_cast<Tetrodotoxin::Library::Language::Monograph&>(*interpreted);
   auto& dialect = get_library_dialect(*toolchain);
-  auto encoded = dialect.encode(
-      monograph, Tetrodotoxin::Language::Persistence::Profile::Complete);
+  auto encoded = dialect.encode(monograph);
   ASSERT(encoded);
 
   Allocator::Arena restored_domain;
   auto restored = dialect.restore(
-      restored_domain, *encoded,
-      Tetrodotoxin::Language::Persistence::Profile::Complete,
-      Documentation::get_empty(), workspace);
+      restored_domain, *encoded, Documentation::get_empty(), workspace);
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());
-  ASSERT(restored->is<Lib::Monograph>());
-  const auto& restored_library = static_cast<const Lib::Monograph&>(*restored);
+  ASSERT(restored->is<Tetrodotoxin::Library::Language::Monograph>());
+  const auto& restored_library =
+      static_cast<const Tetrodotoxin::Library::Language::Monograph&>(*restored);
   const Abstract& requirement =
-      restored_library.resolve_context("DrawableUI"_view);
-  const Abstract& candidate = restored_library.resolve_context("Sprite"_view);
-  ASSERT(requirement.is<Lib::Types::Interface>());
-  ASSERT(candidate.is<Lib::Types::Implemented>());
+      restored_library.resolve_concept("DrawableUI"_view);
+  const Abstract& candidate = restored_library.resolve_concept("Sprite"_view);
+  ASSERT(requirement.is<Tetrodotoxin::Library::Language::Types::Interface>());
+  ASSERT(candidate.is<Tetrodotoxin::Library::Language::Types::Implemented>());
   EXPECT(candidate.satisfies(requirement));
-  const auto& sprite = static_cast<const Lib::Types::Implemented&>(candidate);
+  const auto& sprite =
+      static_cast<const Tetrodotoxin::Library::Language::Types::Implemented&>(
+          candidate);
   ASSERT_EQ(sprite.get_layout().get_size(), Count(3));
 }

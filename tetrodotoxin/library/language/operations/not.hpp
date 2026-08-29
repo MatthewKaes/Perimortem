@@ -19,25 +19,25 @@ class Not : public Operation {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand,
+      Model::Pack& operand,
       Ttx::Lexical::Anchor anchor) -> Not&;
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand) -> Not&;
+      Model::Pack& operand) -> Not&;
 
   TTX_NAME("Not"_view);
 
  protected:
   auto evaluate_constants(Perimortem::Memory::Allocator::Arena& domain)
       -> Perimortem::Utility::Result<
-          Perimortem::Core::Option<Constant&>,
+          Perimortem::Core::Option<Tetrodotoxin::Library::Language::Constant&>,
           Expression::Error> override;
   auto select_type(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Model::Type&> override;
 
  private:
   Not(Perimortem::Memory::Allocator::Arena& domain,
-      Expression& operand,
+      Model::Pack& operand,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor);
 };
 

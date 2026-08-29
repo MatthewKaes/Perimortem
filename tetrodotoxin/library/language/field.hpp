@@ -116,18 +116,6 @@ class Field : public Model::Addressable {
     return writability == Writability::Internal;
   }
 
-  constexpr auto supports_access(Model::Type::Access access) const
-      -> Bool override {
-    if (writability == Writability::Constant) {
-      return True;
-    }
-    return Bool(
-        (access == Model::Type::Access::Static &&
-         writability == Writability::Full) ||
-        (access == Model::Type::Access::Self &&
-         writability == Writability::Internal));
-  }
-
   constexpr auto permits_write_from(const Model::Type& access_scope) const
       -> Bool override {
     switch (writability) {
@@ -161,14 +149,12 @@ class Field : public Model::Addressable {
     return definition.get_declaration_anchor();
   }
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto get_type() const -> const Model::Type& override {
-    return type->get();
-  }
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
   auto get_type_reference() const
       -> Perimortem::Core::Option<const TypeReference&> {
@@ -225,7 +211,7 @@ class Field : public Model::Addressable {
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
   Bool generated;
-  mutable Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+  mutable Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
       constant;
   mutable ConstantState constant_state = ConstantState::Unresolved;
   Bool initializer_linked;

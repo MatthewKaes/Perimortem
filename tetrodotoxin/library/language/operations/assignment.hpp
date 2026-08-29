@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Operations {
@@ -37,7 +37,7 @@ class Assignment : public Expression {
   TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto get_type() const -> const Ttx::Concept::Abstract& override {
-    return Ttx::Concept::Invalid::get_invalid();
+    return Ttx::Concept::Unknown::get_unknown();
   }
 
   auto get_value_type(Count index) const

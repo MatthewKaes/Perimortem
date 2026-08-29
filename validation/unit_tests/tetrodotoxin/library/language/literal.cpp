@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -73,7 +73,7 @@ class LiteralContext : public Abstract {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == "$[table]"_view) {
       observations.table_seen = True;
       return table;
@@ -93,7 +93,7 @@ class LiteralContext : public Abstract {
       return *this;
     }
 
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 
   LiteralObservations& observations;

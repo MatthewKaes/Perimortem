@@ -32,7 +32,7 @@ auto Language::Flow::Return::link(
   BAIL_IF(!selected.link(cursor, lexical_context, access_scope));
   // Return owns produced flow, not contextual identity traversal. Reject a
   // selected Type before result fitting asks it for a value Layout.
-  if (&selected.resolve() != &selected) {
+  if (!selected.is_complete()) {
     cursor.create_expression_error(
         anchor, "Return expression did not produce value flow."_view,
         "Use a Type result only as an access receiver."_view);

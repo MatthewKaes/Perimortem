@@ -1,124 +1,80 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "ttx/model/pack.hpp"
-
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/concept/invalid.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/type.hpp"
+#include "perimortem/memory/allocator/arena.hpp"
 
-using namespace Perimortem::Core;
-using namespace Ttx::Concept;
-using namespace Ttx::Model;
-using namespace Ttx::Model::Layouts;
+#include "ttx/concept/reference.hpp"
+#include "ttx/model/context.hpp"
+#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/layouts/named.hpp"
+
+using namespace Perimortem;
+using namespace Ttx;
 using namespace Validation;
 
-// PackType supplies one exact terminal Layout entry so Pack fitting observes a
-// real Type identity rather than a test only scalar surrogate.
-class PackType : public Type {
+class PackFact : public Concept::Abstract {
  public:
-  constexpr explicit PackType(View::Bytes name) : name(name) {}
+  constexpr explicit PackFact(Core::View::Bytes name) : name(name) {}
 
-  constexpr auto get_name() const -> View::Bytes override { return name; }
-  constexpr auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-  constexpr auto resolve_context(View::Bytes) const
-      -> const Abstract& override {
-    return Invalid::get_invalid();
+  constexpr auto get_name() const -> Core::View::Bytes override { return name; }
+  constexpr auto get_documentation() const
+      -> const Concept::Documentation& override {
+    return Concept::Documentation::get_empty();
   }
 
  private:
-  View::Bytes name;
-};
-
-// FlowPack models the only lifecycle distinction owned by the shared Pack
-// contract. Its output Layout already exists at a stable address, but consumers
-// may observe it only after the Pack resolves successfully.
-class FlowPack : public Pack {
- public:
-  constexpr FlowPack(
-      View::Bytes name,
-      const Layout& layout,
-      Bool complete = True)
-      : name(name), layout(layout), complete(complete) {}
-
-  constexpr auto get_name() const -> View::Bytes override { return name; }
-  constexpr auto get_documentation() const -> const Documentation& override {
-    return Documentation::get_empty();
-  }
-  constexpr auto resolve() const -> const Abstract& override {
-    return complete ? static_cast<const Abstract&>(*this)
-                    : static_cast<const Abstract&>(Invalid::get_invalid());
-  }
-  constexpr auto get_layout() const -> const Layout& override { return layout; }
-
-  constexpr auto get_produced(Count index) const
-      -> Option<Pack::Produced> override {
-    if (!complete || index >= layout.get_size()) {
-      return {};
-    }
-    return Pack::Produced{*this, index};
-  }
-
-  constexpr auto complete_output() -> void { complete = True; }
-
- private:
-  View::Bytes name;
-  const Layout& layout;
-  Bool complete;
+  Core::View::Bytes name;
 };
 
 static Harness TtxPack = {
-  .name = "Ttx::Model::Pack"_view,
+  .name = "Ttx::Concept::Pack"_view,
 };
 
-PERIMORTEM_UNIT_TEST(TtxPack, output_contract) {
-  PackType left("Left"_view);
-  PackType right("Right"_view);
-  const Static::Vector<Reference<const Abstract>, 2> values = {{left, right}};
-  Fluid output(values);
-  FlowPack pack("Pair"_view, output);
+PERIMORTEM_UNIT_TEST(TtxPack, semantic_flow) {
+  Memory::Allocator::Arena arena;
+  PackFact left("Left"_view);
+  PackFact right("Right"_view);
+  const Core::Static::Vector<Concept::Reference<const Concept::Abstract>, 2>
+      values = {{left, right}};
+  const Core::Static::Vector<Core::View::Bytes, 2> names = {{
+    "left"_view,
+    "right"_view,
+  }};
+  Model::Layouts::Fluid values_layout(values);
+  Model::Layouts::Named named(values_layout, names);
+  Model::Context context(arena);
 
-  EXPECT(pack.is<Pack>());
-  EXPECT_NOT(pack.is<Type>());
-  EXPECT(&pack.resolve() == &pack);
-  EXPECT(&pack.get_layout() == &output);
-  EXPECT_EQ(pack.get_layout().get_size(), Count(2));
-  EXPECT(pack.fits(output));
-  auto produced = pack.get_produced(1);
-  ASSERT(produced);
-  EXPECT(&produced->producer == &pack);
-  EXPECT_EQ(produced->local_index, Count(1));
-  EXPECT_NOT(pack.get_produced(2));
+  const Concept::Pack& pack = context.pack(named);
+  const Concept::Layout& layout = pack.get_layout();
 
-  PackType value("Value"_view);
-  const Static::Vector<Reference<const Abstract>, 1> staged_values = {{value}};
-  Fluid staged_output(staged_values);
-  FlowPack staged("Staged"_view, staged_output, False);
-
-  EXPECT(staged.resolve().is<Invalid>());
-  EXPECT_NOT(staged.get_produced(0));
-
-  staged.complete_output();
-
-  EXPECT(&staged.resolve() == &staged);
-  EXPECT(&staged.get_layout() == &staged_output);
-  auto staged_value = staged.get_produced(0);
-  ASSERT(staged_value);
-  EXPECT(&staged_value->producer == &staged);
+  static_assert(!__is_base_of(Concept::Abstract, Concept::Pack));
+  EXPECT_EQ(layout.get_size(), Count(2));
+  EXPECT(layout.get_abstract(0).visit(
+      []() { return False; },
+      [&](const Concept::Abstract& selected) {
+        return &selected == &left ? True : False;
+      }));
+  EXPECT(layout.get_abstract(1).visit(
+      []() { return False; },
+      [&](const Concept::Abstract& selected) {
+        return &selected == &right ? True : False;
+      }));
+  ASSERT(layout.get_name(0));
+  ASSERT(layout.get_name(1));
+  EXPECT_TEXT(*layout.get_name(0), "left"_view);
+  EXPECT_TEXT(*layout.get_name(1), "right"_view);
 }
 
 PERIMORTEM_UNIT_TEST(TtxPack, empty_flow) {
-  Fluid output;
-  Fluid required;
-  FlowPack pack("Empty"_view, output);
+  Memory::Allocator::Arena arena;
+  Model::Layouts::Fluid empty;
+  Model::Context context(arena);
+
+  const Concept::Pack& pack = context.pack(empty);
 
   EXPECT(pack.get_layout().is_empty());
-  EXPECT(pack.fits(required));
-  EXPECT_NOT(pack.is<Type>());
 }

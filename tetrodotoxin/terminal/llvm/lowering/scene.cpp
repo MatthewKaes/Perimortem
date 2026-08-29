@@ -38,10 +38,11 @@ auto Llvm::Lowering::Scene::lower(
           : Core::Option<
                 const Tetrodotoxin::Library::Language::Model::Addressable&>();
   auto address = self ? body.find_address(*self) : Core::Option<LLVMValueRef>();
-  auto native =
-      self ? execution.get_program().get_carriers().get_type(self->get_type())
-           : Core::Option<LLVMTypeRef>();
-  BAIL_IF(!address || !native);
+  auto type = self ? self->get_type().select<Ttx::Model::Type>()
+                   : Core::Option<const Ttx::Model::Type&>();
+  auto native = type ? execution.get_program().get_carriers().get_type(*type)
+                     : Core::Option<LLVMTypeRef>();
+  BAIL_IF(!address || !type || !native);
 
   auto& module = *llvm::unwrap(&execution.get_program().get_module());
   llvm::IRBuilder<>& builder =

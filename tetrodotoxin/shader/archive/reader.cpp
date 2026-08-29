@@ -10,7 +10,7 @@
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/model/documentations/block.hpp"
 
@@ -89,40 +89,34 @@ auto Shader::Archive::Reader::Definition::create(
       arena, documentation, host, attributes, name, visibility);
 }
 
-auto Shader::Archive::Reader::open(
-    View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Option<Reader> {
+auto Shader::Archive::Reader::open(View::Bytes payload) -> Option<Reader> {
   BAIL_IF(payload.get_size() < 8);
   Perimortem::Core::Reader::Binary<Data::ByteOrder::Little> reader(
       payload.slice(0, 8));
   View::Bytes magic = reader.read_bytes(4);
   U16 version = reader.read_u16();
-  U8 encoded_profile = reader.read_u8();
-  U8 flags = reader.read_u8();
-  BAIL_IF(
-      magic != "TTXS"_view || version != 1 || encoded_profile != U8(profile) ||
-      flags != 0);
-  return Reader(payload.slice(8), profile);
+  U16 flags = reader.read_u16();
+  BAIL_IF(magic != "TTXS"_view || version != 2 || flags != 0);
+  return Reader(payload.slice(8));
 }
 
 auto Shader::Archive::Reader::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Abstract& language,
     const Library::Dialect& library,
     Abstract& context) -> Option<Shader::Language::Monograph&> {
   // Shader and its Library child share one reconstruction Arena just as they
   // share one authored source transaction. Program records can then restore
   // Library declarations into the exact Shader subtype they describe.
-  auto opened = open(payload, profile);
+  auto opened = open(payload);
   BAIL_IF(!opened);
   auto record = opened->read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Monograph) ||
       !opened->is_complete());
 
-  Reader contents(record->get_payload(), profile);
+  Reader contents(record->get_payload());
   auto documentation = contents.read_documentation(arena);
   BAIL_IF(!documentation);
   auto& child = Library::Language::Monograph::create(
@@ -314,7 +308,7 @@ auto Shader::Archive::Reader::read_program(
   // both contracts instead of restoring an ordinary Structure beside it.
   auto record = read_record();
   BAIL_IF(!record || record->get_tag() != U16(Tag::Program));
-  Reader contents(record->get_payload(), profile);
+  Reader contents(record->get_payload());
   auto definition = contents.read_definition(arena);
   auto contract = contents.read_bytes();
   auto declarations = contents.read_bytes();
@@ -334,7 +328,7 @@ auto Shader::Archive::Reader::read_program(
   auto& program = Shader::Language::Program::create_restored(
       arena, restored_definition, contract_reference, monograph);
   BAIL_IF(!Library::Archive::Reader::restore_declarations(
-      arena, *declarations, profile, program));
+      arena, *declarations, program));
   program.complete_body();
   BAIL_IF(!program.restore_runtime_surface());
   BAIL_IF(
@@ -349,7 +343,7 @@ auto Shader::Archive::Reader::read_program(
     // declaration inventory.
     auto binding_record = contents.read_record();
     BAIL_IF(!binding_record || binding_record->get_tag() != U16(Tag::Binding));
-    Reader binding_contents(binding_record->get_payload(), profile);
+    Reader binding_contents(binding_record->get_payload());
     auto name = binding_contents.read_bytes();
     auto kind = binding_contents.read_u8();
     auto access = binding_contents.read_u8();
@@ -379,7 +373,7 @@ auto Shader::Archive::Reader::read_program(
   for (Count index = 0; index < *uniform_count; index++) {
     auto uniform_record = contents.read_record();
     BAIL_IF(!uniform_record || uniform_record->get_tag() != U16(Tag::Uniform));
-    Reader uniform_contents(uniform_record->get_payload(), profile);
+    Reader uniform_contents(uniform_record->get_payload());
     auto name = uniform_contents.read_bytes();
     BAIL_IF(!name || name->is_empty() || !uniform_contents.is_complete());
 
@@ -407,7 +401,7 @@ auto Shader::Archive::Reader::read_bridge(
   // the complete Shader context so CPU and GPU endpoints can cross members.
   auto record = read_record();
   BAIL_IF(!record || record->get_tag() != U16(Tag::Bridge));
-  Reader contents(record->get_payload(), profile);
+  Reader contents(record->get_payload());
   auto host_name = contents.read_bytes();
   BAIL_IF(!host_name || host_name->is_empty());
   Option<Shader::Language::Program&> host;
@@ -441,9 +435,9 @@ auto Shader::Archive::Reader::read_bridge(
       definition->get_attributes(), selected_direction, selected_marshaling,
       selected_synchronization));
   auto cpu = Library::Archive::Reader::restore_type_reference(
-      arena, *cpu_payload, profile, monograph);
+      arena, *cpu_payload, monograph);
   auto gpu = Library::Archive::Reader::restore_type_reference(
-      arena, *gpu_payload, profile, monograph);
+      arena, *gpu_payload, monograph);
   BAIL_IF(!cpu || !gpu);
 
   auto& restored_definition = definition->create(arena, *host);

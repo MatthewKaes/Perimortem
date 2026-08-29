@@ -25,23 +25,20 @@ auto Render::Dialect::interpret(
   return monograph;
 }
 
-auto Render::Dialect::encode(
-    const Abstract& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile) const
+auto Render::Dialect::encode(const Abstract& monograph) const
     -> Option<Dynamic::Bytes> {
   auto render = monograph.select<Render::Language::Monograph>();
   BAIL_IF(!render);
-  return Render::Archive::Writer::encode(*render, profile);
+  return Render::Archive::Writer::encode(*render);
 }
 
 auto Render::Dialect::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation&,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
   auto restored =
-      Render::Archive::Reader::restore(arena, payload, profile, *this, context);
+      Render::Archive::Reader::restore(arena, payload, *this, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

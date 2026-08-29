@@ -20,8 +20,9 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
@@ -29,6 +30,10 @@ using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
+
+static auto is_missing(const Abstract& abstract) -> Bool {
+  return abstract.is<Unknown>() || abstract.is<None>();
+}
 
 static auto resolve_alias(const Abstract& binding) -> const Abstract& {
   return binding.visit<Tetrodotoxin::Language::Import>(
@@ -154,7 +159,7 @@ auto Language::TypeReference::resolve_with_root(
     Core::Option<Cursor&> cursor) const -> Resolution {
   // The declaration context gives the root name its lexical authority. Each
   // explicit suffix then asks the identity selected by the preceding segment.
-  const Abstract* selected = &context.resolve_context(get_root());
+  const Abstract* selected = &context.resolve_concept(get_root());
   if (root == Root::Lexical) {
     auto type = context.select<Language::Model::Type>();
     if (type) {
@@ -166,7 +171,7 @@ auto Language::TypeReference::resolve_with_root(
       }
     }
   }
-  if (selected->is<Invalid>()) {
+  if (is_missing(*selected)) {
     return Failure(Failure::Type::Route, anchor, 0);
   }
   if (cursor && get_size() > 1) {
@@ -180,12 +185,12 @@ auto Language::TypeReference::resolve_with_root(
     // context query. Keeping that step visible also preserves Alias opacity for
     // every other consumer.
     const Abstract& route_context = resolve_alias(*selected);
-    if (route_context.is<Invalid>()) {
+    if (is_missing(route_context)) {
       return Failure(Failure::Type::Route, anchor, i - 1);
     }
 
-    selected = &route_context.resolve_context(get_name(i));
-    if (selected->is<Invalid>()) {
+    selected = &route_context.resolve_concept(get_name(i));
+    if (is_missing(*selected)) {
       return Failure(Failure::Type::Route, anchor, i);
     }
     if (cursor && i + 1 < get_size()) {
@@ -198,7 +203,7 @@ auto Language::TypeReference::resolve_with_root(
   if (!arguments) {
     const Abstract& direct = resolve_alias(*selected);
     const Abstract& resolved = direct;
-    if (resolved.is<Invalid>()) {
+    if (is_missing(resolved)) {
       return Failure(Failure::Type::Route, anchor, get_size() - 1);
     }
 
@@ -211,7 +216,7 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   const Abstract& resolved = resolve_alias(*selected);
-  if (resolved.is<Invalid>()) {
+  if (is_missing(resolved)) {
     return Failure(Failure::Type::Route, anchor, get_size() - 1);
   }
   auto generic = resolved.select<Generic>();
@@ -286,10 +291,10 @@ auto Language::TypeReference::resolve_with_root(
             failure_anchor = reference->get_anchor();
           } else {
             const Abstract* literal = argument.find<const Abstract&>();
-            auto expression = literal ? literal->select<Expression>()
-                                      : Core::Option<const Expression&>();
-            if (expression && expression->get_anchor()) {
-              failure_anchor = *expression->get_anchor();
+            auto pack = literal ? Model::Pack::from(*literal)
+                                : Core::Option<const Model::Pack&>();
+            if (pack && pack->get_anchor()) {
+              failure_anchor = *pack->get_anchor();
             }
           }
         }

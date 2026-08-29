@@ -4,20 +4,22 @@
 #include "tetrodotoxin/library/interpreter/expression.hpp"
 
 #include "tetrodotoxin/library/interpreter/access/address.hpp"
-#include "tetrodotoxin/library/interpreter/access/postfix.hpp"
 #include "tetrodotoxin/library/interpreter/access/call.hpp"
 #include "tetrodotoxin/library/interpreter/access/index.hpp"
-#include "tetrodotoxin/library/language/access/propagate.hpp"
+#include "tetrodotoxin/library/interpreter/access/postfix.hpp"
 #include "tetrodotoxin/library/interpreter/access/slice.hpp"
 #include "tetrodotoxin/library/interpreter/access/swizzle.hpp"
+#include "tetrodotoxin/library/interpreter/expressions/initializer.hpp"
+#include "tetrodotoxin/library/interpreter/literal.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
+#include "tetrodotoxin/library/interpreter/pack.hpp"
+#include "tetrodotoxin/library/language/access/propagate.hpp"
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
-#include "tetrodotoxin/library/interpreter/expressions/initializer.hpp"
-#include "tetrodotoxin/library/interpreter/operation.hpp"
-#include "tetrodotoxin/library/interpreter/pack.hpp"
-#include "tetrodotoxin/library/interpreter/literal.hpp"
+#include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -29,14 +31,34 @@ using namespace Ttx::Lexical;
 // multiplicative grammar, so concrete unary owners never replay either level.
 static constexpr Count prefix_precedence = 31;
 
-static auto associate_expression(
-    Cursor& cursor,
-    Library::Language::Model::Pack& pack) -> void {
-  auto expression = pack.select<Library::Language::Expression>();
-  if (!expression || !expression->get_anchor()) {
+static auto associate_pack(Cursor& cursor, Library::Language::Model::Pack& pack)
+    -> void {
+  auto identity = pack.get_identity();
+  auto anchor = pack.get_anchor();
+  if (!identity || !anchor) {
     return;
   }
-  cursor.get_associations().create(*expression->get_anchor(), *expression);
+
+  // A malformed following postfix can prevent the completed access node from
+  // entering a Statement, but the receiver spelling still asks one factual
+  // Library question. Publish the exact selected identity while the concrete
+  // parser still owns its lexical context; generic tooling then needs only the
+  // shared TTX queries on that Association.
+  const Abstract& authored =
+      identity->visit<Library::Language::Expressions::Identifier>(
+          [](const Library::Language::Expressions::Identifier& identifier)
+              -> const Abstract& { return identifier.resolve_authored(); },
+          [](const Abstract& candidate) -> const Abstract& {
+            return candidate.visit<Library::Language::Access::Type>(
+                [](const Library::Language::Access::Type& access)
+                    -> const Abstract& { return access.resolve_authored(); },
+                [](const Abstract& direct) -> const Abstract& {
+                  return direct;
+                });
+          });
+  const Abstract& semantic =
+      authored.is<Unknown>() || authored.is<None>() ? *identity : authored;
+  cursor.get_associations().create(*anchor, semantic);
 }
 
 static auto is_postfix(Code::Type code) -> Bool {
@@ -58,15 +80,14 @@ static auto parse_postfix(
     Code::Type code,
     const Abstract& context,
     Cursor& cursor,
-    Library::Language::Expression& receiver)
+    Library::Language::Model::Pack& receiver)
     -> Option<Library::Language::Expression&> {
   switch (code) {
   case Code::Type::AddressOp:
     return Library::Interpreter::Access::Address::parse(
         context, cursor, receiver);
   case Code::Type::CallOp:
-    return Library::Interpreter::Access::Call::parse(
-        context, cursor, receiver);
+    return Library::Interpreter::Access::Call::parse(context, cursor, receiver);
   case Code::Type::BracketStart:
     return Library::Interpreter::Access::Index::parse(
         context, cursor, receiver);
@@ -127,8 +148,7 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
 
   if (Library::Interpreter::Expressions::Initializer::is_next(cursor)) {
     auto initializer =
-        Library::Interpreter::Expressions::Initializer::parse(
-            context, cursor);
+        Library::Interpreter::Expressions::Initializer::parse(context, cursor);
     BAIL_IF(!initializer);
     return static_cast<Library::Language::Model::Pack&>(*initializer);
   }
@@ -159,9 +179,8 @@ static auto parse_primary(const Abstract& context, Cursor& cursor)
       return *literal;
     }
     default:
-      auto operation =
-          Library::Interpreter::Operation::parse_prefix(
-              Code::Type::SubOp, context, cursor);
+      auto operation = Library::Interpreter::Operation::parse_prefix(
+          Code::Type::SubOp, context, cursor);
       BAIL_IF(!operation);
       return static_cast<Library::Language::Model::Pack&>(*operation);
     }
@@ -192,9 +211,9 @@ static auto parse_expression(
   Token start = cursor.current();
   auto primary = parse_primary(context, cursor);
   BAIL_IF(!primary);
-  associate_expression(cursor, *primary);
+  associate_pack(cursor, *primary);
 
-  Reference<Library::Language::Model::Pack> parsed(*primary);
+  Ttx::Model::PackReference<Library::Language::Model::Pack> parsed(*primary);
   Span parsed_span(start, cursor.peek(-1));
 
   // Postfix Access binds to the complete receiver before binary grammar. Each
@@ -206,9 +225,10 @@ static auto parse_expression(
           context, cursor, parsed.get(), parsed_span);
       BAIL_IF(!selected);
 
-      parsed = Reference<Library::Language::Model::Pack>(*selected);
+      parsed =
+          Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
       parsed_span = Span(start, cursor.peek(-1));
-      associate_expression(cursor, parsed.get());
+      associate_pack(cursor, parsed.get());
       continue;
     }
 
@@ -217,22 +237,22 @@ static auto parse_expression(
       break;
     }
 
-    auto receiver = parsed.get().select<Library::Language::Expression>();
-    if (!receiver) {
+    if (!parsed.get().get_identity()) {
       cursor.create_expression_error(
           Anchor::create(cursor.current(), parsed_span, Span(cursor.current())),
-          "Library postfix access requires one Expression receiver Pack."_view,
+          "Library postfix access requires one scalar receiver Pack."_view,
           "Select through one unlabelled scalar value; named and multi-value "
           "Packs have no implicit receiver."_view);
       return {};
     }
 
-    auto selected = parse_postfix(postfix, context, cursor, *receiver);
+    auto selected = parse_postfix(postfix, context, cursor, parsed.get());
     BAIL_IF(!selected);
 
-    parsed = Reference<Library::Language::Model::Pack>(*selected);
+    parsed =
+        Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
     parsed_span = Span(start, cursor.peek(-1));
-    associate_expression(cursor, parsed.get());
+    associate_pack(cursor, parsed.get());
   }
 
   while (True) {
@@ -246,9 +266,10 @@ static auto parse_expression(
         binary, context, cursor, parsed.get(), parsed_span);
     BAIL_IF(!selected);
 
-    parsed = Reference<Library::Language::Model::Pack>(*selected);
+    parsed =
+        Ttx::Model::PackReference<Library::Language::Model::Pack>(*selected);
     parsed_span = Span(start, cursor.peek(-1));
-    associate_expression(cursor, parsed.get());
+    associate_pack(cursor, parsed.get());
   }
 }
 

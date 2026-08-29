@@ -27,7 +27,7 @@ class Call : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       Language::Model::Pack& arguments,
@@ -35,7 +35,7 @@ class Call : public Expression {
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,
-      Expression& receiver,
+      Model::Pack& receiver,
       Perimortem::Core::View::Bytes name,
       Language::Model::Pack& arguments) -> Call&;
 
@@ -57,8 +57,6 @@ class Call : public Expression {
   auto get_type() const -> const Ttx::Concept::Abstract& override;
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_produced(Count index) const
-      -> Perimortem::Core::Option<Ttx::Model::Pack::Produced> override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
@@ -76,21 +74,21 @@ class Call : public Expression {
     return arguments;
   }
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
 
   constexpr auto get_name_token() const -> Ttx::Lexical::Token {
     return name_token;
   }
 
  public:
-  // Each fitted input keeps the parameter and the slice of produced values that
-  // reached it. Lowering can reuse that decision instead of repeating argument
-  // matching.
+  // Each fitted input keeps the parameter and the exact slice of the source
+  // Pack Layout that reached it. Lowering can reuse that decision without a
+  // parallel producer map.
   class Input {
    public:
     constexpr Input(
         const Ttx::Model::Addressable& parameter,
-        const Ttx::Model::Pack& source,
+        const Language::Model::Pack& source,
         Count offset,
         Count size)
         : parameter(parameter), source(source), offset(offset), size(size) {}
@@ -99,7 +97,7 @@ class Call : public Expression {
       return parameter.get();
     }
 
-    constexpr auto get_source() const -> const Ttx::Model::Pack& {
+    constexpr auto get_source() const -> const Language::Model::Pack& {
       return source.get();
     }
 
@@ -109,7 +107,7 @@ class Call : public Expression {
 
    private:
     Ttx::Concept::Reference<const Ttx::Model::Addressable> parameter;
-    Ttx::Concept::Reference<const Ttx::Model::Pack> source;
+    Ttx::Model::PackReference<const Language::Model::Pack> source;
     Count offset;
     Count size;
   };
@@ -119,7 +117,7 @@ class Call : public Expression {
  private:
   constexpr Call(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
+      Model::Pack& receiver,
       Ttx::Lexical::Token name_token,
       Perimortem::Core::View::Bytes name,
       Language::Model::Pack& arguments,
@@ -140,7 +138,7 @@ class Call : public Expression {
       Result<Perimortem::Core::Option<Model::Pack&>, Error> override;
 
   Perimortem::Memory::Allocator::Arena& domain;
-  Expression& receiver;
+  Model::Pack& receiver;
   Ttx::Lexical::Token name_token;
   Perimortem::Core::View::Bytes name;
   Language::Model::Pack& arguments;

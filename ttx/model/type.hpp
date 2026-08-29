@@ -15,7 +15,7 @@ namespace Ttx::Model {
 // representation facts needed by its compilers.
 //
 // A language may reserve the Type identity before every declaration edge is
-// ready. It resolves to Invalid during that work, then exposes its completed
+// ready. It resolves to Unknown during that work, then exposes its completed
 // Layout through the same object.
 //
 // Atomic Types use one Value leaf containing their exact identity. Structural

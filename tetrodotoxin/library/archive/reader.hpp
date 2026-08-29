@@ -9,7 +9,6 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/attribute.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/tag.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
@@ -46,15 +45,12 @@ class Reader {
     Perimortem::Core::View::Bytes payload;
   };
 
-  static auto open(
-      Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto open(Perimortem::Core::View::Bytes payload)
       -> Perimortem::Core::Option<Reader>;
 
   static auto read(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Language::Monograph&>;
@@ -62,7 +58,6 @@ class Reader {
   static auto restore_source(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       Language::Types::Source& source) -> Bool;
 
   // The embedding owner constructs its exact Composite subtype first. Library
@@ -71,7 +66,6 @@ class Reader {
   static auto restore_declarations(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       Language::Types::Composite& composite) -> Bool;
 
   // An embedding Archive treats this payload as opaque Library meaning. The
@@ -79,7 +73,6 @@ class Reader {
   static auto restore_type_reference(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       const Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Language::TypeReference>;
 

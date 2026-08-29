@@ -43,12 +43,16 @@ static auto select_parameter(const Ttx::Model::Callable& callable, Count index)
 auto Llvm::Lowering::Builtins::lower(
     const Execution& execution,
     const Ttx::Model::Callable& callable,
-    const Ttx::Model::Pack& result,
+    const Library::Language::Model::Pack& result,
     Core::View::Vector<LLVMValueRef> inputs,
-    Core::Option<const Ttx::Model::Pack&> receiver_source)
+    Core::Option<const Library::Language::Model::Pack&> receiver_source)
     -> Core::Option<Bool> {
   const Invocation& body = execution.get_invocation();
   auto receiver = select_parameter(callable, 0);
+  auto receiver_type =
+      receiver ? receiver->get_type().select<Library::Language::Model::Type>()
+               : Core::Option<const Library::Language::Model::Type&>();
+  BAIL_IF(receiver && !receiver_type);
   auto result_type = select_type(callable.get_results(), 0);
 
   if (callable.is<Builtin::Fixed::View>() ||
@@ -56,24 +60,22 @@ auto Llvm::Lowering::Builtins::lower(
     BAIL_IF(
         !receiver || !result_type || !receiver_source ||
         inputs.get_size() != 1);
-    auto bytes =
-        receiver_source
-            ->select<Tetrodotoxin::Library::Language::Constants::Bytes>();
+    auto bytes = receiver_source->select_identity<
+        Tetrodotoxin::Library::Language::Constants::Bytes>();
     if (bytes && callable.is<Builtin::Fixed::View>()) {
       return execution.get_states().bytes_value(
           *result_type, result, bytes->get_value(), bytes->get_resource());
     }
     return body.borrow_fixed(
-        result, *result_type, receiver->get_type(), *receiver_source,
-        inputs[0]);
+        result, *result_type, *receiver_type, *receiver_source, inputs[0]);
   }
 
   auto enum_name = callable.select<Builtin::Enum::Name>();
   if (enum_name) {
     auto enumeration =
-        receiver
-            ? receiver->get_type()
-                  .select<Tetrodotoxin::Library::Language::Types::Enumeration>()
+        receiver_type
+            ? receiver_type->select<
+                  Tetrodotoxin::Library::Language::Types::Enumeration>()
             : Core::Option<
                   const Tetrodotoxin::Library::Language::Types::Enumeration&>();
     BAIL_IF(!enumeration || !result_type || inputs.get_size() != 1);
@@ -94,51 +96,47 @@ auto Llvm::Lowering::Builtins::lower(
 
   if (callable.is<Builtin::View::Size>()) {
     BAIL_IF(!receiver || !result_type || inputs.get_size() != 1);
-    return body.get_size(result, *result_type, receiver->get_type(), inputs[0]);
+    return body.get_size(result, *result_type, *receiver_type, inputs[0]);
   }
   if (callable.is<Builtin::View::IsEmpty>()) {
     BAIL_IF(!receiver || !result_type || inputs.get_size() != 1);
     return body.contiguous_is_empty(
-        result, *result_type, receiver->get_type(), inputs[0]);
+        result, *result_type, *receiver_type, inputs[0]);
   }
   if (callable.is<Builtin::View::Slice>()) {
     BAIL_IF(!receiver || !result_type || inputs.get_size() != 3);
     return body.slice_view(
-        result, *result_type, receiver->get_type(), inputs[0], inputs[1],
-        inputs[2]);
+        result, *result_type, *receiver_type, inputs[0], inputs[1], inputs[2]);
   }
 
   if (callable.is<Builtin::Object::Capacity>()) {
     BAIL_IF(!receiver || !result_type || inputs.get_size() != 1);
     return body.object_capacity(
-        result, *result_type, receiver->get_type(), inputs[0]);
+        result, *result_type, *receiver_type, inputs[0]);
   }
   if (callable.is<Builtin::Object::IsShared>()) {
     BAIL_IF(
         !receiver || !result_type || !receiver_source ||
         inputs.get_size() != 1);
     return body.object_is_shared(
-        result, *result_type, receiver->get_type(), *receiver_source,
-        inputs[0]);
+        result, *result_type, *receiver_type, *receiver_source, inputs[0]);
   }
   if (callable.is<Builtin::Object::Clone>()) {
     BAIL_IF(!receiver || !receiver_source || inputs.get_size() != 1);
     return body.object_clone(
-        result, receiver->get_type(), *receiver_source, inputs[0]);
+        result, *receiver_type, *receiver_source, inputs[0]);
   }
   if (callable.is<Builtin::Object::View>()) {
     BAIL_IF(!receiver || !result_type || inputs.get_size() != 1);
-    return body.object_view(
-        result, *result_type, receiver->get_type(), inputs[0]);
+    return body.object_view(result, *result_type, *receiver_type, inputs[0]);
   }
 
   if (callable.is<Builtin::Object::Access>() ||
       callable.is<Builtin::Object::Reserve>()) {
     auto storage =
-        receiver
-            ? receiver->get_type()
-                  .select<
-                      Tetrodotoxin::Library::Language::Types::ObjectStorage>()
+        receiver_type
+            ? receiver_type->select<
+                  Tetrodotoxin::Library::Language::Types::ObjectStorage>()
             : Core::Option<const Tetrodotoxin::Library::Language::Types::
                                ObjectStorage&>();
     auto fallback =
@@ -152,14 +150,14 @@ auto Llvm::Lowering::Builtins::lower(
       return Bool(
           inputs.get_size() == 1 &&
           body.object_access(
-              result, *result_type, receiver->get_type(), *receiver_source,
-              inputs[0], *fallback));
+              result, *result_type, *receiver_type, *receiver_source, inputs[0],
+              *fallback));
     }
     return Bool(
         inputs.get_size() == 2 &&
         body.object_reserve(
-            result, *result_type, receiver->get_type(), *receiver_source,
-            inputs[0], inputs[1], *fallback));
+            result, *result_type, *receiver_type, *receiver_source, inputs[0],
+            inputs[1], *fallback));
   }
 
   return {};

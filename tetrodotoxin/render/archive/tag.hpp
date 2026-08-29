@@ -15,7 +15,6 @@ enum class Tag : U16 {
   Structure,
   Layout,
   Slot,
-  HiddenSlot,
 };
 
 }  // namespace Tetrodotoxin::Render::Archive

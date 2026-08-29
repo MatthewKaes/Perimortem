@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -15,7 +15,7 @@ auto Language::Diagnostics::write_type(
     Ttx::Lexical::Errors::Report& report,
     const Abstract& abstract) -> void {
   const Abstract& resolved = abstract.is<Language::Model::Type>() ||
-                                     abstract.is<Language::Model::Addressable>()
+                                     abstract.is<Ttx::Model::Addressable>()
                                  ? abstract
                                  : abstract.resolve();
   const Language::Model::Type* type = nullptr;
@@ -23,14 +23,17 @@ auto Language::Diagnostics::write_type(
   if (direct) {
     type = &*direct;
   } else {
-    auto addressable = resolved.select<Language::Model::Addressable>();
-    if (addressable && !addressable->resolve().is<Invalid>()) {
-      type = &addressable->get_type();
+    auto addressable = resolved.select<Ttx::Model::Addressable>();
+    if (addressable && !addressable->resolve().is<Unknown>()) {
+      auto selected = addressable->get_type().select<Language::Model::Type>();
+      if (selected) {
+        type = &*selected;
+      }
     }
   }
 
   if (!type) {
-    auto pack = resolved.select<Language::Model::Pack>();
+    auto pack = Language::Model::Pack::from(resolved);
     if (pack && pack->get_layout().get_size() == 1) {
       const Abstract& value_type = pack->get_value_type(0);
       if (&value_type != &resolved) {
@@ -40,7 +43,7 @@ auto Language::Diagnostics::write_type(
     }
   }
 
-  if (type == nullptr || type->is<Invalid>()) {
+  if (type == nullptr || type->is<Unknown>()) {
     report << "<invalid>"_view;
     return;
   }

@@ -37,26 +37,13 @@ auto Types::Implementation::validate_layout(Ttx::Lexical::Cursor& cursor) const
   return False;
 }
 
-auto Types::Implementation::resolve_type_access(
-    const Abstract& host,
-    View::Bytes route,
-    Model::Type::Access access) const -> const Abstract& {
-  auto interface = requirement.get().resolve().select<Types::Interface>();
-  if (!interface || access != Model::Type::Access::Self) {
-    return Invalid::get_invalid();
+auto Types::Implementation::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  if (route != "instance"_view) {
+    return Model::Type::resolve_concept(route);
   }
 
-  return interface->resolve_type_access(host, route, access);
-}
-
-auto Types::Implementation::resolve_type_call(
-    const Abstract& host,
-    View::Bytes route,
-    Model::Type::Access access) const -> const Abstract& {
   auto interface = requirement.get().resolve().select<Types::Interface>();
-  if (!interface || access != Model::Type::Access::Self) {
-    return Invalid::get_invalid();
-  }
-
-  return interface->resolve_type_call(host, route, access);
+  return interface ? interface->resolve_concept("instance"_view)
+                   : static_cast<const Abstract&>(Unknown::get_unknown());
 }

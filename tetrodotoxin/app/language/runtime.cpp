@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/runtime.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -61,6 +61,7 @@ auto Language::Runtime::get_name() const -> View::Bytes {
   return "Runtime"_view;
 }
 
-auto Language::Runtime::resolve_context(View::Bytes) const -> const Abstract& {
-  return Invalid::get_invalid();
+auto Language::Runtime::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  return Abstract::resolve_concept(route);
 }

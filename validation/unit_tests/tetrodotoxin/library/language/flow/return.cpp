@@ -14,7 +14,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -118,7 +118,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, layout_fitting) {
   auto monograph = interpret(workspace, errors, source);
   ASSERT(monograph);
 
-  const Abstract& flow_identity = monograph->resolve_context("Flow"_view);
+  const Abstract& flow_identity = monograph->resolve_concept("Flow"_view);
   ASSERT(flow_identity.is<Language::Types::Structure>());
   const auto& flow =
       static_cast<const Language::Types::Structure&>(flow_identity);
@@ -195,7 +195,7 @@ PERIMORTEM_UNIT_TEST(ReturnTests, incompatible_flow) {
 
 PERIMORTEM_UNIT_TEST(ReturnTests, syntax_rollback) {
   static constexpr Static::Vector<View::Bytes, 3> sources = {{
-    "// Unreachable statement.\ndialect : Library; private invalid : func = [] -> [] { return; Invalid -> call(); }"_view,
+    "// Unreachable statement.\ndialect : Library; private invalid : func = [] -> [] { return; Unknown -> call(); }"_view,
     "// Missing return terminator.\ndialect : Library; private invalid : func = [] -> [] { return }"_view,
     "// Missing Pack closing parenthesis.\ndialect : Library; private invalid : func = [] -> Bool { return (true; }"_view,
   }};

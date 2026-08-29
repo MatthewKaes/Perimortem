@@ -9,7 +9,6 @@
 
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/definition.hpp"
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
 #include "tetrodotoxin/render/archive/tag.hpp"
 #include "tetrodotoxin/render/language/layout.hpp"
@@ -26,7 +25,6 @@ class Reader {
   static auto restore(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Tetrodotoxin::Render::Language::Monograph&>;
@@ -102,14 +100,9 @@ class Reader {
     Bool instance;
   };
 
-  Reader(
-      Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile)
-      : payload(payload), profile(profile) {}
+  constexpr Reader(Perimortem::Core::View::Bytes payload) : payload(payload) {}
 
-  static auto open(
-      Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto open(Perimortem::Core::View::Bytes payload)
       -> Perimortem::Core::Option<Reader>;
 
   auto take(Count size)
@@ -134,8 +127,7 @@ class Reader {
       -> Perimortem::Core::Option<Tetrodotoxin::Render::Language::Layout&>;
   auto read_entry(
       Perimortem::Memory::Allocator::Arena& arena,
-      Ttx::Concept::Abstract& host,
-      Count hidden_slot) -> Perimortem::Core::Option<Entry>;
+      Ttx::Concept::Abstract& host) -> Perimortem::Core::Option<Entry>;
   auto read_entries(
       Perimortem::Memory::Allocator::Arena& arena,
       Tetrodotoxin::Render::Language::Monograph& monograph) -> Bool;
@@ -148,7 +140,6 @@ class Reader {
   }
 
   Perimortem::Core::View::Bytes payload;
-  Tetrodotoxin::Language::Persistence::Profile profile;
   Count location = 0;
 };
 

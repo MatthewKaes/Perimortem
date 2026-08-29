@@ -62,7 +62,7 @@ class Scene : public Ttx::Concept::Abstract {
   TTX_NAME("Scene"_view);
   TTX_DOCUMENTATION(documentation);
 
-  auto resolve_context(Perimortem::Core::View::Bytes) const
+  auto resolve_concept(Perimortem::Core::View::Bytes) const
       -> const Ttx::Concept::Abstract& override;
 
  private:

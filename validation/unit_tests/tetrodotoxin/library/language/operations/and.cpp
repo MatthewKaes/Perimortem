@@ -2,7 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/operations/and.hpp"
-#include "tetrodotoxin/library/interpreter/operation.hpp"
 
 #include "validation/unit_test.hpp"
 #include "validation/unit_tests/tetrodotoxin/library/language/fixture.hpp"
@@ -11,12 +10,13 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/library/interpreter/expression.hpp"
+#include "tetrodotoxin/library/interpreter/operation.hpp"
 #include "tetrodotoxin/library/language/constants/false.hpp"
 #include "tetrodotoxin/library/language/constants/true.hpp"
-#include "tetrodotoxin/library/interpreter/expression.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/s8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -63,12 +63,12 @@ class AndFoldInput : public Operation {
  public:
   AndFoldInput(
       Allocator::Arena& domain,
-      Expression& input,
-      Constant& result,
+      Model::Pack& input,
+      Tetrodotoxin::Library::Language::Constant& result,
       Bool fails = False)
       : Operation(
             domain,
-            Static::Vector<Reference<Expression>, 1>{{input}},
+            Static::Vector<Ttx::Model::PackReference<Model::Pack>, 1>{{input}},
             {}),
         result(result),
         fails(fails) {}
@@ -80,8 +80,9 @@ class AndFoldInput : public Operation {
   auto get_evaluations() const -> Count { return evaluations; }
 
  protected:
-  auto evaluate_constants(Allocator::Arena&)
-      -> Result<Option<Constant&>, Expression::Error> override {
+  auto evaluate_constants(Allocator::Arena&) -> Result<
+      Option<Tetrodotoxin::Library::Language::Constant&>,
+      Expression::Error> override {
     evaluations++;
     if (fails) {
       return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
@@ -92,38 +93,43 @@ class AndFoldInput : public Operation {
 
   auto select_type(const Abstract& context) const
       -> Option<const Model::Type&> override {
-    return context.resolve_context("Bool"_view).select<Model::Type>();
+    return context.resolve_concept("Bool"_view).select<Model::Type>();
   }
 
  private:
-  Constant& result;
+  Tetrodotoxin::Library::Language::Constant& result;
   Bool fails;
   Count evaluations = 0;
 };
 
 static auto selected(
     const Result<Option<Model::Pack&>, Expression::Error>& result)
-    -> Option<Expression&> {
+    -> Option<Tetrodotoxin::Library::Language::Constant&> {
   return result.visit(
-      [](const Option<Model::Pack&>& folded) -> Option<Expression&> {
+      [](const Option<Model::Pack&>& folded)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> {
         return folded.visit(
-            []() -> Option<Expression&> { return {}; },
-            [](Model::Pack& expression) -> Option<Expression&> {
-              return expression.select<Expression>();
+            []() -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return {};
+            },
+            [](Model::Pack& expression)
+                -> Option<Tetrodotoxin::Library::Language::Constant&> {
+              return expression
+                  .select_identity<Tetrodotoxin::Library::Language::Constant>();
             });
       },
-      [](const Expression::Error&) -> Option<Expression&> { return {}; });
+      [](const Expression::Error&)
+          -> Option<Tetrodotoxin::Library::Language::Constant&> { return {}; });
 }
 
 static auto reports(
     const Result<Option<Model::Pack&>, Expression::Error>& result,
     Expression::Error::Type expected,
-    const Expression& origin) -> Bool {
+    const Abstract& origin) -> Bool {
   return result.visit(
       [](const Option<Model::Pack&>&) { return False; },
       [&](const Expression::Error& error) {
-        return error.get_type() == expected &&
-                       &error.get_expression() == &origin
+        return error.get_type() == expected && &error.get_subject() == &origin
                    ? True
                    : False;
       });
@@ -163,7 +169,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
       "canonical right"_view, resolve_library_flag(source));
   AndExpression distinct("distinct"_view, distinct_bool);
   AndExpression signed_value("signed"_view, s8);
-  AndExpression invalid("invalid"_view, Invalid::get_invalid());
+  AndExpression invalid("invalid"_view, Unknown::get_unknown());
   auto& canonical = Operations::And::create_synthetic(
       domain, canonical_left, canonical_right);
   auto& distinct_left =
@@ -177,7 +183,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   auto& invalid_operation =
       Operations::And::create_synthetic(domain, invalid, canonical_right);
 
-  EXPECT(canonical.get_type().resolve().is<Invalid>());
+  EXPECT(canonical.get_type().resolve().is<Unknown>());
   EXPECT_NOT(canonical.get_anchor());
   EXPECT(link_operation(canonical, source));
   EXPECT_NOT(link_operation(distinct_left, source));
@@ -190,10 +196,10 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, exact_type_and_edges) {
   EXPECT(&distinct_pair.get_type() == &distinct_bool);
   EXPECT(is_dynamic(canonical.fold()));
   EXPECT(is_dynamic(distinct_pair.fold()));
-  EXPECT(distinct_left.get_type().resolve().is<Invalid>());
-  EXPECT(distinct_right.get_type().resolve().is<Invalid>());
-  EXPECT(signed_operation.get_type().resolve().is<Invalid>());
-  EXPECT(invalid_operation.get_type().resolve().is<Invalid>());
+  EXPECT(distinct_left.get_type().resolve().is<Unknown>());
+  EXPECT(distinct_right.get_type().resolve().is<Unknown>());
+  EXPECT(signed_operation.get_type().resolve().is<Unknown>());
+  EXPECT(invalid_operation.get_type().resolve().is<Unknown>());
 }
 
 PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table) {
@@ -224,10 +230,10 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, truth_table) {
   auto repeated = selected(true_true.fold());
 
   ASSERT(both && left && right && neither && repeated);
-  EXPECT(both->is<Constants::True>());
-  EXPECT(left->is<Constants::False>());
-  EXPECT(right->is<Constants::False>());
-  EXPECT(neither->is<Constants::False>());
+  EXPECT(both->is_identity<Constants::True>());
+  EXPECT(left->is_identity<Constants::False>());
+  EXPECT(right->is_identity<Constants::False>());
+  EXPECT(neither->is_identity<Constants::False>());
   EXPECT(&*both == &*repeated);
   EXPECT(&both->get_type() == &flag_type);
   EXPECT(&left->get_type() == &flag_type);
@@ -259,7 +265,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, ordered_reachability) {
   auto skipped_result = selected(skipped.fold());
 
   ASSERT(skipped_result);
-  EXPECT(skipped_result->is<Constants::False>());
+  EXPECT(skipped_result->is_identity<Constants::False>());
   EXPECT(skipped_failure.get_evaluations() == 0);
   EXPECT(reports(
       reached.fold(), Expression::Error::Type::InvalidConstant,
@@ -285,11 +291,12 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parsing) {
       Anchor::create(success_left_token, Span(success_left_token));
   auto& success_left = Constants::True::create_authored(
       domain, resolve_library_flag(source), success_left_anchor);
-  auto parsed = Interpreter::Operation::parse_binary(Code::Type::And,
-      source, success_cursor, success_left, Span(success_left_token));
+  auto parsed = Interpreter::Operation::parse_binary(
+      Code::Type::And, source, success_cursor, success_left,
+      Span(success_left_token));
 
-  ASSERT(parsed && parsed->is<Operations::And>());
-  EXPECT(parsed->get_type().resolve().is<Invalid>());
+  ASSERT(parsed && parsed->is_identity<Operations::And>());
+  EXPECT(parsed->get_type().resolve().is<Unknown>());
   EXPECT(matches_anchor(*parsed, success_source, "and"_view, success_source));
   EXPECT(success_cursor.matches(Code::Type::Terminal));
   EXPECT(success_errors.is_empty());
@@ -304,8 +311,9 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parsing) {
       Anchor::create(failure_left_token, Span(failure_left_token));
   auto& failure_left = Constants::True::create_authored(
       domain, resolve_library_flag(source), failure_left_anchor);
-  auto rejected = Interpreter::Operation::parse_binary(Code::Type::And,
-      source, failure_cursor, failure_left, Span(failure_left_token));
+  auto rejected = Interpreter::Operation::parse_binary(
+      Code::Type::And, source, failure_cursor, failure_left,
+      Span(failure_left_token));
 
   EXPECT_NOT(rejected);
   EXPECT(failure_cursor.matches(Code::Type::Terminal));
@@ -318,7 +326,7 @@ PERIMORTEM_UNIT_TEST(LibraryAnd, authored_parsing) {
       mismatch_tokens, mismatch_errors, mismatch_associations);
   auto mismatch = Interpreter::Expression::parse(source, mismatch_cursor);
 
-  ASSERT(mismatch && mismatch->is<Operations::And>());
+  ASSERT(mismatch && mismatch->is_identity<Operations::And>());
   EXPECT(mismatch_errors.is_empty());
   EXPECT_NOT(mismatch->link(mismatch_cursor, source));
   EXPECT_EQ(mismatch_errors.get_size(), Count(1));

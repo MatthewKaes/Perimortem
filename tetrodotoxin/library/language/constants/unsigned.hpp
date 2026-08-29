@@ -3,17 +3,22 @@
 
 #pragma once
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
+
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Unsigned is the Constant contract for a nonnegative integer value. The
-// resolved Type supplies the authored width while the value remains wide enough
-// to prove whether a narrower Unsigned target can represent it.
-class Unsigned : public Constant {
+// Unsigned is the Tetrodotoxin::Library::Language::Constant contract for a
+// nonnegative integer value. The resolved Type supplies the authored width
+// while the value remains wide enough to prove whether a narrower Unsigned
+// target can represent it.
+class Unsigned : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Unsigned, Constant);
+  TTX_CONTRACT(Unsigned, Tetrodotoxin::Library::Language::Constant);
   using Value = U64;
 
   static auto create_authored(
@@ -21,18 +26,20 @@ class Unsigned : public Constant {
       const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Unsigned& {
-    return Expression::create_authored<Unsigned>(
-        domain, anchor,
-        [&](auto source) -> Unsigned { return Unsigned(type, value, source); });
+    return Constant::create_authored<Unsigned>(
+        domain, anchor, [&](auto source) -> Unsigned {
+          return Unsigned(domain, type, value, source);
+        });
   }
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type,
       Value value) -> Unsigned& {
-    return Expression::create_synthetic<Unsigned>(
-        domain,
-        [&](auto source) -> Unsigned { return Unsigned(type, value, source); });
+    return Constant::create_synthetic<Unsigned>(
+        domain, [&](auto source) -> Unsigned {
+          return Unsigned(domain, type, value, source);
+        });
   }
 
   constexpr auto get_type() const -> const
@@ -42,7 +49,12 @@ class Unsigned : public Constant {
 
   virtual constexpr auto get_value() const -> Value { return value; }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool override {
+  auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name.get_view();
+  }
+
+  constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
+      const -> Bool override {
     return rhs.visit<Unsigned>(
         [this, &rhs](const Unsigned& selected) {
           return has_same_type(rhs) && get_value() == selected.get_value()
@@ -80,14 +92,24 @@ class Unsigned : public Constant {
   }
 
  private:
-  constexpr Unsigned(
+  Unsigned(
+      Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), value(value) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor),
+        type(type),
+        value(value),
+        name(domain) {
+    Perimortem::Serialization::Stream::Textual<
+        Perimortem::Memory::Managed::Bytes>
+        output(name);
+    output << value;
+  }
 
   const Tetrodotoxin::Library::Language::Model::Types::Unsigned& type;
   Value value;
+  Perimortem::Memory::Managed::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

@@ -3,7 +3,10 @@
 
 #include "tetrodotoxin/package/language/monograph.hpp"
 
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/model/layouts/fluid.hpp"
+#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -21,18 +24,22 @@ auto Package::Language::Monograph::create_authored(
     const Abstract& language,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    View::Bytes identity,
+    Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language) -> Monograph& {
   return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
-        arena, language, documentation, source_anchor, context,
-        library_language, {}, False);
+        arena, language, documentation, source_anchor, identity, version,
+        context, library_language, {}, False);
   });
 }
 
 auto Package::Language::Monograph::create_synthetic(
     Allocator::Arena& arena,
     const Abstract& language,
+    View::Bytes identity,
+    Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language,
     View::Vector<Reference<Package::Resource>> restored_resources)
@@ -40,7 +47,7 @@ auto Package::Language::Monograph::create_synthetic(
   Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
         arena, language, Documentation::get_empty(), Anchor::create(Span()),
-        context, library_language, restored_resources, True);
+        identity, version, context, library_language, restored_resources, True);
   });
   return monograph;
 }
@@ -50,6 +57,8 @@ Package::Language::Monograph::Monograph(
     const Abstract& language,
     const Documentation& documentation,
     const Anchor& source_anchor,
+    View::Bytes identity,
+    Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language,
     View::Vector<Reference<Package::Resource>> restored_resources,
@@ -60,6 +69,8 @@ Package::Language::Monograph::Monograph(
           documentation,
           context),
       resources(domain, restored_resources, resources_sealed),
+      identity(identity),
+      version(version),
       library(
           Library::Language::Monograph::create_authored(
               domain,
@@ -68,7 +79,7 @@ Package::Language::Monograph::Monograph(
               library_language,
               *this)) {}
 
-auto Package::Language::Monograph::resolve_context(View::Bytes route) const
+auto Package::Language::Monograph::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   // The delimiters reserve one complete resource route. Malformed or partial
   // spellings continue through exact Package lookup so this branch never
@@ -76,13 +87,40 @@ auto Package::Language::Monograph::resolve_context(View::Bytes route) const
   if (is_resource_route(route)) {
     return resources.resolve(route.slice(2, route.get_size() - 3));
   }
-
-  const Abstract& exported = library.resolve_local_context(route);
-  if (!exported.is<Invalid>()) {
-    return exported;
+  if (route == "static"_view) {
+    return library.get_source();
+  }
+  if (route == "instance"_view) {
+    return None::get_none();
   }
 
-  return Tetrodotoxin::Language::Monograph::resolve_context(route);
+  return library.get_source().resolve_public_context(route);
+}
+
+auto Package::Language::Monograph::get_concepts(Context& context) const
+    -> const Pack& {
+  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
+      concepts = {{library.get_source()}};
+  const Perimortem::Core::Static::Vector<View::Bytes, 1> names = {{
+    "static"_view,
+  }};
+  Ttx::Model::Layouts::Fluid values(concepts);
+  Ttx::Model::Layouts::Named named(values, names);
+  return context.pack(named);
+}
+
+auto Package::Language::Monograph::retain_import(
+    const Tetrodotoxin::Language::Import::Description& description,
+    Option<Associations&> associations) -> Bool {
+  BAIL_IF(!library.retain_import(description, associations));
+  Tetrodotoxin::Language::Import& import =
+      library.get_imports()
+          .get_data()[library.get_imports().get_size() - 1]
+          .get();
+  Bool published = description.get_visibility() !=
+                   Tetrodotoxin::Language::Visibility::Private;
+  return library.get_source().bind_static(
+      import, Library::Language::Types::Composite::Category::Type, published);
 }
 
 auto Package::Language::Monograph::resolve_lexical_context(
@@ -92,9 +130,7 @@ auto Package::Language::Monograph::resolve_lexical_context(
   }
 
   const Abstract& selected = library.resolve_lexical_context(route);
-  return selected.is<Invalid>()
-             ? Tetrodotoxin::Language::Monograph::resolve_lexical_context(route)
-             : selected;
+  return selected;
 }
 
 auto Package::Language::Monograph::get_layer(const Abstract& requested) const
@@ -113,7 +149,8 @@ auto Package::Language::Monograph::link(Cursor& cursor) -> Bool {
 }
 
 auto Package::Language::Monograph::finalize(Cursor& cursor) -> Bool {
-  return library.finalize(cursor);
+  BAIL_IF(!library.finalize(cursor));
+  return True;
 }
 
 auto Package::Language::Monograph::link_restored() -> Bool {
@@ -121,11 +158,12 @@ auto Package::Language::Monograph::link_restored() -> Bool {
 }
 
 auto Package::Language::Monograph::finalize_restored() -> Bool {
-  return library.finalize_restored();
+  BAIL_IF(!library.finalize_restored());
+  return True;
 }
 
 auto Package::Language::Monograph::get_name() const -> View::Bytes {
-  return "Package"_view;
+  return identity;
 }
 
 auto Package::Language::Monograph::get_resources() -> Package::Resources& {

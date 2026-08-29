@@ -38,20 +38,9 @@ static auto is_published(const Abstract& declaration) -> Bool {
 
 auto Archive::write_declarations(
     Writer& writer,
-    const Language::Types::Composite& composite,
-    Bool public_only) -> Bool {
-  Count hidden_slot = 0;
+    const Language::Types::Composite& composite) -> Bool {
   for (const Reference<Abstract>& retained : composite.get_declarations()) {
     const Abstract& declaration = retained.get();
-    if (public_only && !composite.is_published(declaration)) {
-      auto field = declaration.select<Language::Field>();
-      if (field && field->contributes_to_instance_layout()) {
-        BAIL_IF(!write_field_slot(writer, *field, hidden_slot));
-        hidden_slot++;
-      }
-      continue;
-    }
-
     auto alias = declaration.select<Language::Alias>();
     if (alias) {
       BAIL_IF(!Archive::write(writer, *alias));
@@ -101,10 +90,7 @@ auto Archive::write_declarations(
 auto Archive::read_declarations(
     Reader& reader,
     Allocator::Arena& arena,
-    Language::Types::Composite& composite,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool {
-  using Category = Language::Types::Composite::Category;
-  Count hidden_slot = 0;
+    Language::Types::Composite& composite) -> Bool {
   while (!reader.is_complete()) {
     Reader probe = reader;
     auto record = probe.read_record();
@@ -116,13 +102,14 @@ auto Archive::read_declarations(
     }
 
     Option<Abstract&> restored;
-    Category category = Category::Addressable;
+    Language::Types::Composite::Category category =
+        Language::Types::Composite::Category::Addressable;
     switch (Tag(record->get_tag())) {
     case Tag::Alias: {
       auto selected = read_alias(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Field: {
@@ -131,62 +118,53 @@ auto Archive::read_declarations(
       restored = *selected;
       break;
     }
-    case Tag::FieldSlot: {
-      BAIL_IF(
-          profile != Tetrodotoxin::Language::Persistence::Profile::Contract);
-      auto selected = read_field_slot(reader, arena, composite, hidden_slot);
-      BAIL_IF(!selected);
-      restored = *selected;
-      hidden_slot++;
-      break;
-    }
     case Tag::Function: {
       auto selected = read_function(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Callable;
+      category = Language::Types::Composite::Category::Callable;
       break;
     }
     case Tag::Structure: {
-      auto selected = read_structure(reader, arena, composite, profile);
+      auto selected = read_structure(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Interface: {
-      auto selected = read_interface(reader, arena, composite, profile);
+      auto selected = read_interface(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Namespace: {
-      auto selected = read_namespace(reader, arena, composite, profile);
+      auto selected = read_namespace(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Object: {
-      auto selected = read_object(reader, arena, composite, profile);
+      auto selected = read_object(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Implemented: {
-      auto selected = read_implemented(reader, arena, composite, profile);
+      auto selected = read_implemented(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     case Tag::Enumeration: {
       auto selected = read_enumeration(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
-      category = Category::Type;
+      category = Language::Types::Composite::Category::Type;
       break;
     }
     default:
@@ -204,10 +182,7 @@ auto Archive::write(Writer& writer, const Language::Types::Structure& structure)
     -> Bool {
   auto record = writer.begin(Tag::Structure);
   Declaration declaration(structure.get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
-  return declaration.write(writer) &&
-         write_declarations(writer, structure, public_only) &&
+  return declaration.write(writer) && write_declarations(writer, structure) &&
          writer.finish(record);
 }
 
@@ -215,19 +190,14 @@ auto Archive::write(Writer& writer, const Language::Types::Namespace& selected)
     -> Bool {
   auto record = writer.begin(Tag::Namespace);
   Declaration declaration(selected.get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
-  return declaration.write(writer) &&
-         write_declarations(writer, selected, public_only) &&
+  return declaration.write(writer) && write_declarations(writer, selected) &&
          writer.finish(record);
 }
 
 auto Archive::read_namespace(
     Reader& reader,
     Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Language::Types::Namespace&> {
+    Abstract& host) -> Option<Language::Types::Namespace&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Namespace) ||
@@ -238,7 +208,7 @@ auto Archive::read_namespace(
   auto& definition = declaration->create_definition(arena, host);
   auto& selected =
       Language::Types::Namespace::create_restored(arena, definition);
-  BAIL_IF(!read_declarations(contents, arena, selected, profile));
+  BAIL_IF(!read_declarations(contents, arena, selected));
   selected.complete_body();
   return selected;
 }
@@ -246,9 +216,7 @@ auto Archive::read_namespace(
 auto Archive::read_structure(
     Reader& reader,
     Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Language::Types::Structure&> {
+    Abstract& host) -> Option<Language::Types::Structure&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Structure) ||
@@ -260,7 +228,7 @@ auto Archive::read_structure(
   auto& definition = declaration->create_definition(arena, host);
   auto& structure =
       Language::Types::Structure::create_restored(arena, definition);
-  BAIL_IF(!read_declarations(contents, arena, structure, profile));
+  BAIL_IF(!read_declarations(contents, arena, structure));
   structure.complete_body();
   return structure;
 }
@@ -269,19 +237,14 @@ auto Archive::write(Writer& writer, const Language::Types::Interface& interface)
     -> Bool {
   auto record = writer.begin(Tag::Interface);
   Declaration declaration(interface.get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
-  return declaration.write(writer) &&
-         write_declarations(writer, interface, public_only) &&
+  return declaration.write(writer) && write_declarations(writer, interface) &&
          writer.finish(record);
 }
 
 auto Archive::read_interface(
     Reader& reader,
     Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Language::Types::Interface&> {
+    Abstract& host) -> Option<Language::Types::Interface&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Interface) ||
@@ -293,7 +256,7 @@ auto Archive::read_interface(
   auto& definition = declaration->create_definition(arena, host);
   auto& interface =
       Language::Types::Interface::create_restored(arena, definition);
-  BAIL_IF(!read_declarations(contents, arena, interface, profile));
+  BAIL_IF(!read_declarations(contents, arena, interface));
   interface.complete_body();
   return interface;
 }
@@ -302,19 +265,14 @@ auto Archive::write(Writer& writer, const Language::Types::Object& object)
     -> Bool {
   auto record = writer.begin(Tag::Object);
   Declaration declaration(object.get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
-  return declaration.write(writer) &&
-         write_declarations(writer, object, public_only) &&
+  return declaration.write(writer) && write_declarations(writer, object) &&
          writer.finish(record);
 }
 
 auto Archive::read_object(
     Reader& reader,
     Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Language::Types::Object&> {
+    Abstract& host) -> Option<Language::Types::Object&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Object) ||
@@ -325,7 +283,7 @@ auto Archive::read_object(
   BAIL_IF(!declaration);
   auto& definition = declaration->create_definition(arena, host);
   auto& object = Language::Types::Object::create_restored(arena, definition);
-  BAIL_IF(!read_declarations(contents, arena, object, profile));
+  BAIL_IF(!read_declarations(contents, arena, object));
   object.complete_body();
   return object;
 }
@@ -335,20 +293,15 @@ auto Archive::write(
     const Language::Types::Implemented& implemented) -> Bool {
   auto record = writer.begin(Tag::Implemented);
   Declaration declaration(implemented.get_definition());
-  Bool public_only = writer.get_profile() ==
-                     Tetrodotoxin::Language::Persistence::Profile::Contract;
   return declaration.write(writer) &&
          Archive::write(writer, implemented.get_requirement_reference()) &&
-         write_declarations(writer, implemented, public_only) &&
-         writer.finish(record);
+         write_declarations(writer, implemented) && writer.finish(record);
 }
 
 auto Archive::read_implemented(
     Reader& reader,
     Allocator::Arena& arena,
-    Abstract& host,
-    Tetrodotoxin::Language::Persistence::Profile profile)
-    -> Option<Language::Types::Implemented&> {
+    Abstract& host) -> Option<Language::Types::Implemented&> {
   auto record = reader.read_record();
   BAIL_IF(
       !record || record->get_tag() != U16(Tag::Implemented) ||
@@ -361,7 +314,7 @@ auto Archive::read_implemented(
   auto& definition = declaration->create_definition(arena, host);
   auto& implemented = Language::Types::Implemented::create_restored(
       arena, definition, *requirement);
-  BAIL_IF(!read_declarations(contents, arena, implemented, profile));
+  BAIL_IF(!read_declarations(contents, arena, implemented));
   implemented.complete_body();
   return implemented;
 }

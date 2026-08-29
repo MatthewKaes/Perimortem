@@ -4,9 +4,9 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 #include "ttx/model/layouts/named.hpp"
 #include "ttx/model/layouts/ranged.hpp"
 
@@ -25,7 +25,6 @@ class Clone : public Language::Model::Callable {
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
-  TTX_CONSTEXPR_INVALID_CONTEXT;
 
   constexpr auto get_parameters() const
       -> const Ttx::Concept::Layout& override {
@@ -41,7 +40,8 @@ class Clone : public Language::Model::Callable {
       const Ttx::Concept::Abstract& host) const -> Bool override;
 
  private:
-  constexpr Clone(Language::Parameter& self) : parameters(self, 1) {}
+  constexpr Clone(Ttx::Model::Layouts::Addressable& self)
+      : parameters(self, 1) {}
 
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Named results;

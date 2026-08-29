@@ -7,8 +7,8 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
 
 namespace Tetrodotoxin::Render::Language {
@@ -58,11 +58,10 @@ class Binding : public Ttx::Model::Addressable {
   auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
 
   TTX_NAME(name);
-  TTX_INVALID_CONTEXT;
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
-  auto get_type() const -> const Ttx::Model::Type& override;
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto is_linked() const -> Bool { return Bool(type); }
 

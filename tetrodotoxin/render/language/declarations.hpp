@@ -21,7 +21,8 @@ namespace Tetrodotoxin::Render::Language {
 class Declarations {
  public:
   constexpr Declarations(Perimortem::Memory::Allocator::Arena& domain)
-      : published(domain),
+      : authority(*this),
+        published(domain),
         addressables(domain),
         callables(domain),
         types(domain) {}
@@ -39,6 +40,13 @@ class Declarations {
   auto link(Ttx::Lexical::Cursor& cursor, Ttx::Concept::Abstract& context)
       -> Bool;
   auto link_restored(Ttx::Concept::Abstract& context) -> Bool;
+
+  constexpr auto get_authority() const -> const Ttx::Concept::Abstract& {
+    return authority;
+  }
+
+  auto get_concepts(Ttx::Concept::Context& context) const
+      -> const Ttx::Concept::Pack&;
 
   static auto resolve_lexical_context(
       const Ttx::Concept::Abstract& context,
@@ -63,6 +71,23 @@ class Declarations {
   constexpr auto is_linked() const -> Bool { return linked; }
 
  private:
+  class Authority : public Ttx::Concept::Abstract {
+   public:
+    constexpr explicit Authority(const Declarations& owner) : owner(owner) {}
+
+    TTX_CONTRACT(Authority, Ttx::Concept::Abstract);
+    TTX_NAME("static"_view);
+    TTX_EMPTY_DOCUMENTATION();
+
+    auto resolve_concept(Perimortem::Core::View::Bytes name) const
+        -> const Ttx::Concept::Abstract& override;
+    auto get_concepts(Ttx::Concept::Context& context) const
+        -> const Ttx::Concept::Pack& override;
+
+   private:
+    const Declarations& owner;
+  };
+
   auto retain(
       Perimortem::Memory::Managed::Vector<
           Ttx::Concept::Reference<Ttx::Concept::Abstract>>& declarations,
@@ -75,6 +100,7 @@ class Declarations {
       Tetrodotoxin::Language::Visibility visibility) const
       -> const Ttx::Concept::Abstract&;
 
+  Authority authority;
   Perimortem::Memory::Managed::Map<const Ttx::Concept::Abstract*, Bool>
       published;
   Perimortem::Memory::Managed::Vector<

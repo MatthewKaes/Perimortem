@@ -18,7 +18,7 @@
 #include "tetrodotoxin/library/language/operations/subtract.hpp"
 #include "tetrodotoxin/library/language/operations/subtract_assignment.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -103,7 +103,7 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {
     const Abstract& semantic = statements.get_data()[index + 2].get_root();
     ASSERT(semantic.is<Language::Expression>());
     const auto& expression = static_cast<const Language::Expression&>(semantic);
-    EXPECT(expression.resolve().is<Language::Model::Pack>());
+    EXPECT(expression.is_complete());
     EXPECT(expression.get_layout().is_empty());
   }
 
@@ -119,8 +119,8 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {
   const auto& precedence = static_cast<const Language::Operations::Assignment&>(
       statements.get_data()[2].get_root());
   EXPECT(precedence.get_target().resolve().is<Language::Expression>());
-  EXPECT(precedence.get_source().resolve().is<Language::Model::Pack>());
-  EXPECT(precedence.get_source().is<Language::Operations::Add>());
+  EXPECT(precedence.get_source().is_complete());
+  EXPECT(precedence.get_source().is_identity<Language::Operations::Add>());
   ASSERT(precedence.get_anchor());
   EXPECT_TEXT(
       precedence.get_anchor()->get_span().caculate_text(source),
@@ -140,8 +140,9 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {
           statements.get_data()[5].get_root());
   EXPECT(addition.get_target().resolve().is<Language::Expression>());
   EXPECT(subtraction.get_target().resolve().is<Language::Expression>());
-  EXPECT_NOT(addition.get_right().is<Language::Operations::Add>());
-  EXPECT_NOT(subtraction.get_right().is<Language::Operations::Subtract>());
+  EXPECT_NOT(addition.get_right().is_identity<Language::Operations::Add>());
+  EXPECT_NOT(
+      subtraction.get_right().is_identity<Language::Operations::Subtract>());
   ASSERT(addition.get_right().get_anchor());
   ASSERT(subtraction.get_right().get_anchor());
   EXPECT_TEXT(

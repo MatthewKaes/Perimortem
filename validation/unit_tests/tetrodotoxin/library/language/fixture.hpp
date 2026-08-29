@@ -9,7 +9,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/span.hpp"
 #include "ttx/lexical/tokenizer.hpp"
@@ -37,7 +37,7 @@ inline auto resolve_library_flag(
     -> const Tetrodotoxin::Library::Language::Model::Types::Flag& {
   return static_cast<
       const Tetrodotoxin::Library::Language::Model::Types::Flag&>(
-      monograph.resolve_context("Bool"_view));
+      monograph.resolve_concept("Bool"_view));
 }
 
 inline auto resolve_library_unsigned(
@@ -46,7 +46,7 @@ inline auto resolve_library_unsigned(
     -> const Tetrodotoxin::Library::Language::Model::Types::Unsigned& {
   return static_cast<
       const Tetrodotoxin::Library::Language::Model::Types::Unsigned&>(
-      monograph.resolve_context(name));
+      monograph.resolve_concept(name));
 }
 
 inline auto resolve_library_signed(
@@ -55,7 +55,7 @@ inline auto resolve_library_signed(
     -> const Tetrodotoxin::Library::Language::Model::Types::Signed& {
   return static_cast<
       const Tetrodotoxin::Library::Language::Model::Types::Signed&>(
-      monograph.resolve_context(name));
+      monograph.resolve_concept(name));
 }
 
 inline auto resolve_library_real(
@@ -64,7 +64,7 @@ inline auto resolve_library_real(
     -> const Tetrodotoxin::Library::Language::Model::Types::Real& {
   return static_cast<
       const Tetrodotoxin::Library::Language::Model::Types::Real&>(
-      monograph.resolve_context(name));
+      monograph.resolve_concept(name));
 }
 
 inline auto resolve_library_type(
@@ -72,7 +72,7 @@ inline auto resolve_library_type(
     Perimortem::Core::View::Bytes name)
     -> const Tetrodotoxin::Library::Language::Model::Type& {
   return static_cast<const Tetrodotoxin::Library::Language::Model::Type&>(
-      monograph.resolve_context(name));
+      monograph.resolve_concept(name));
 }
 
 }  // namespace Validation

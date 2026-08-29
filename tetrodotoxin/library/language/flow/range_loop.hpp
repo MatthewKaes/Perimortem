@@ -10,24 +10,24 @@
 
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "tetrodotoxin/library/language/parameter.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/model/layouts/addressable.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
 // RangeLoop owns one authored `for` statement and its complete binding Layout.
-// Each binding is one real Parameter identity retained by the loop, while the
-// selected input Type owns which Layouts it can produce during iteration.
+// Each binding is one real Layout-owned Addressable retained by the loop, while
+// the selected input Type owns which Layouts it can produce during iteration.
 class RangeLoop : public Ttx::Concept::Abstract {
  public:
   // AuthoredBinding is the retained source description for one loop entry.
-  // Linking replaces each delayed Type route with a real Parameter while this
-  // evidence remains available for diagnostics and reflection.
+  // Linking replaces each delayed Type route with a real Addressable while
+  // this evidence remains available for diagnostics and reflection.
   struct AuthoredBinding {
     Ttx::Lexical::Token name_token;
     Perimortem::Core::View::Bytes name;
@@ -59,7 +59,7 @@ class RangeLoop : public Ttx::Concept::Abstract {
   TTX_NAME("For"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  auto resolve_context(Perimortem::Core::View::Bytes route) const
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
   auto resolve_authored_context(
@@ -97,13 +97,14 @@ class RangeLoop : public Ttx::Concept::Abstract {
   Perimortem::Memory::Allocator::Arena& domain;
   Block& lexical_context;
   Perimortem::Memory::Managed::Vector<AuthoredBinding> authored_bindings;
-  Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Parameter>>
+  Perimortem::Memory::Managed::Vector<
+      Ttx::Concept::Reference<Ttx::Model::Layouts::Addressable>>
       bindings;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       binding_entries;
   Perimortem::Core::Option<Ttx::Model::Layouts::Named> binding_layout;
-  Ttx::Concept::Reference<Model::Pack> input;
+  Ttx::Model::PackReference<Model::Pack> input;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> body;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       input_type;

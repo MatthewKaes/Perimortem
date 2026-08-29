@@ -55,7 +55,7 @@ class Match : public Ttx::Concept::Abstract {
  private:
   struct Case {
     CaseKind kind;
-    Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> expression;
+    Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> value;
     Ttx::Concept::Reference<Block> body;
     Perimortem::Core::Option<Ttx::Concept::Reference<Model::Addressable>>
         payload;
@@ -68,7 +68,7 @@ class Match : public Ttx::Concept::Abstract {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& input,
+      Model::Pack& input,
       Ttx::Lexical::Anchor anchor) -> Match&;
 
   static auto create_pattern(
@@ -77,13 +77,13 @@ class Match : public Ttx::Concept::Abstract {
       Perimortem::Core::View::Bytes name) -> Pattern;
 
   auto retain_value_case(
-      Expression& expression,
+      Model::Pack& value,
       Block& body,
       Model::Addressable& payload,
       Ttx::Lexical::Anchor anchor) -> void;
 
   auto retain_constant_case(
-      Expression& expression,
+      Model::Pack& value,
       Block& body,
       Ttx::Lexical::Anchor anchor) -> void;
 
@@ -107,9 +107,8 @@ class Match : public Ttx::Concept::Abstract {
 
   TTX_NAME("Match"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 
-  constexpr auto get_input() const -> const Expression& { return input.get(); }
+  constexpr auto get_input() const -> const Model::Pack& { return input.get(); }
 
   constexpr auto get_case_count() const -> Count { return cases.get_size(); }
 
@@ -145,11 +144,11 @@ class Match : public Ttx::Concept::Abstract {
  private:
   Match(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& input,
+      Model::Pack& input,
       Ttx::Lexical::Anchor anchor)
       : input(input), cases(domain), anchor(anchor) {}
 
-  Ttx::Concept::Reference<Expression> input;
+  Ttx::Model::PackReference<Model::Pack> input;
   Perimortem::Memory::Managed::Vector<Case> cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<Block>> default_body;
   Ttx::Lexical::Anchor anchor;

@@ -6,7 +6,7 @@
 #include "validation/unit_test.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/type.hpp"
@@ -39,7 +39,7 @@ class DefaultMonograph : public Language::Monograph {
   auto get_name() const -> View::Bytes override { return "Default"_view; }
 };
 
-class Context final : public Abstract {
+class SemanticContext final : public Abstract {
  public:
   TTX_CONTRACT(Context, Abstract);
 
@@ -49,11 +49,11 @@ class Context final : public Abstract {
     return Documentation::get_empty();
   }
 
-  auto resolve_context(View::Bytes route) const -> const Abstract& override {
+  auto resolve_concept(View::Bytes route) const -> const Abstract& override {
     if (route == "provided"_view) {
       return *this;
     }
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
 };
 
@@ -61,8 +61,7 @@ class EmptyEncodingDialect final : public DefaultDialect {
  public:
   EmptyEncodingDialect() : DefaultDialect("EmptyEncoding"_view) {}
 
-  auto encode(const Abstract&, Language::Persistence::Profile) const
-      -> Option<Dynamic::Bytes> override {
+  auto encode(const Abstract&) const -> Option<Dynamic::Bytes> override {
     return Dynamic::Bytes();
   }
 };
@@ -74,7 +73,7 @@ static Harness LanguageDialect = {
 PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
   Allocator::Arena arena;
   DefaultDialect dialect;
-  Context context;
+  SemanticContext context;
   DefaultMonograph monograph(arena, dialect, context);
   EmptyEncodingDialect empty_dialect;
   DefaultMonograph empty_monograph(arena, empty_dialect, context);
@@ -85,13 +84,10 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
 
   const Bool linked = monograph.link(cursor);
   const Bool finalized = monograph.finalize(cursor);
-  auto unsupported =
-      dialect.encode(monograph, Language::Persistence::Profile::Complete);
+  auto unsupported = dialect.encode(monograph);
   auto missing = dialect.restore(
-      arena, "unsupported"_view, Language::Persistence::Profile::Complete,
-      Documentation::get_empty(), context);
-  auto empty = empty_dialect.encode(
-      empty_monograph, Language::Persistence::Profile::Complete);
+      arena, "unsupported"_view, Documentation::get_empty(), context);
+  auto empty = empty_dialect.encode(empty_monograph);
   Bool successful_empty = empty.visit(
       []() { return False; },
       [](const Dynamic::Bytes& payload) {
@@ -112,7 +108,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
   Allocator::Arena arena;
   DefaultDialect installed("Installed"_view);
   DefaultDialect same_type("SameType"_view);
-  Context context;
+  SemanticContext context;
   DefaultMonograph monograph(arena, installed, context);
 
   auto selected = monograph.get_layer(installed);
@@ -127,11 +123,11 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
 PERIMORTEM_UNIT_TEST(LanguageDialect, parent_context) {
   Allocator::Arena arena;
   DefaultDialect installed("Installed"_view);
-  Context context;
+  SemanticContext context;
   DefaultMonograph monograph(arena, installed, context);
 
   EXPECT(installed.is<Language::Dialect>());
   EXPECT(&monograph.get_language() == &installed);
-  EXPECT(&monograph.resolve_context("provided"_view) == &context);
-  EXPECT(&monograph.resolve_context("missing"_view) == &Invalid::get_invalid());
+  EXPECT(&monograph.resolve_concept("provided"_view) == &context);
+  EXPECT(&monograph.resolve_concept("missing"_view) == &Unknown::get_unknown());
 }

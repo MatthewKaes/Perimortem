@@ -20,7 +20,8 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -206,9 +207,7 @@ PERIMORTEM_UNIT_TEST(PackageResources, identity_and_seal) {
   resources.seal();
   EXPECT_NOT(resources.connect(*storage));
   EXPECT(&resources.resolve("resources/table.bin"_view) == &first);
-  EXPECT(
-      &resources.resolve("resources/later.bin"_view) ==
-      &Invalid::get_invalid());
+  EXPECT(&resources.resolve("resources/later.bin"_view) == &None::get_none());
 }
 
 PERIMORTEM_UNIT_TEST(PackageResources, error_identity) {
@@ -252,8 +251,7 @@ PERIMORTEM_UNIT_TEST(PackageResources, error_identity) {
 
   resources.seal();
   EXPECT(&resources.resolve("inside/.."_view) == &invalid);
-  EXPECT(
-      &resources.resolve("resources/new.bin"_view) == &Invalid::get_invalid());
+  EXPECT(&resources.resolve("resources/new.bin"_view) == &None::get_none());
 }
 
 PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
@@ -268,27 +266,28 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   Cursor cursor(tokenizer, errors, associations);
   auto& root = Package::Language::Monograph::create_authored(
       arena, dialect, Documentation::get_empty(), Anchor::create(Span()),
-      dialect, library);
-  EXPECT(&root.resolve_context(complete) == &Invalid::get_invalid());
-  EXPECT(&root.resolve_context(partial) == &Invalid::get_invalid());
+      "Validation.Resources"_view, Version(1, 0), dialect, library);
+  EXPECT(&root.resolve_concept(complete) == &Unknown::get_unknown());
+  EXPECT(&root.resolve_concept(partial) == &Unknown::get_unknown());
   EXPECT(
-      &root.resolve_context("$[resources/table.bin"_view) ==
-      &Invalid::get_invalid());
+      &root.resolve_concept("$[resources/table.bin"_view) ==
+      &Unknown::get_unknown());
   EXPECT(
-      &root.resolve_context("resources/table.bin"_view) ==
-      &Invalid::get_invalid());
+      &root.resolve_concept("resources/table.bin"_view) ==
+      &Unknown::get_unknown());
   auto storage = Package::Storage::open(
       arena, "validation/data/ttx/package_resources"_view);
   ASSERT(storage);
   ASSERT(root.get_resources().connect(*storage));
-  const Abstract& resource = root.resolve_context(complete);
+  const Abstract& resource = root.resolve_concept(complete);
   ASSERT(resource.is<Tetrodotoxin::Language::Resource>());
   root.get_resources().seal();
   EXPECT_NOT(root.get_resources().connect(*storage));
-  EXPECT(&root.resolve_context(complete) == &resource);
+  EXPECT(&root.resolve_concept(complete) == &resource);
 
   auto& source_free = Package::Language::Monograph::create_synthetic(
-      arena, dialect, dialect, library, {});
+      arena, dialect, "Validation.Resources"_view, Version(1, 0), dialect,
+      library, {});
   EXPECT_NOT(source_free.get_resources().connect(*storage));
-  EXPECT(&source_free.resolve_context(complete) == &Invalid::get_invalid());
+  EXPECT(&source_free.resolve_concept(complete) == &None::get_none());
 }

@@ -19,7 +19,7 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 #include "ttx/model/addressable.hpp"
@@ -121,13 +121,13 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_identity) {
   EXPECT(
       &static_cast<const Language::Types::Range&>(range_type)
            .get_element_type() == &binding->get_type());
-  EXPECT(&loop.resolve_context("entry"_view) == &*binding);
-  EXPECT(&loop.get_body().resolve_context("entry"_view) == &*binding);
+  EXPECT(&loop.resolve_concept("entry"_view) == &*binding);
+  EXPECT(&loop.get_body().resolve_concept("entry"_view) == &*binding);
   EXPECT(
-      &function->get_body()->resolve_context("entry"_view) ==
-      &Invalid::get_invalid());
+      &function->get_body()->resolve_concept("entry"_view) ==
+      &Unknown::get_unknown());
   EXPECT(
-      &loop.get_body().resolve_context("total"_view) ==
+      &loop.get_body().resolve_concept("total"_view) ==
       &statements.get_data()[1].get_root());
   EXPECT_TEXT(
       loop.get_anchor().get_span().caculate_text(source),

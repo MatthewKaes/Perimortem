@@ -15,5 +15,7 @@ import Library;
 
 packageSource
     : documentation DIALECT DEFINE PACKAGE_DIALECT END_STATEMENT
+      PACKAGE_DIALECT PACKING_START ADDRESS_OP ADDRESSABLE ASSIGN STRING
+      PACKING_OP ADDRESS_OP ADDRESSABLE ASSIGN STRING PACKING_END END_STATEMENT
       (sourceImport | packageImport)* (definition typeDefinition)* EOF
     ;

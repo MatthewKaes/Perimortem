@@ -11,7 +11,7 @@ using namespace Tetrodotoxin::Library::Language;
 
 static auto select_option_constant(Model::Pack& source)
     -> Option<Constants::Option&> {
-  auto direct = source.select<Constants::Option>();
+  auto direct = source.select_identity<Constants::Option>();
   if (direct) {
     return *direct;
   }
@@ -22,8 +22,8 @@ static auto select_option_constant(Model::Pack& source)
       []() -> Option<Constants::Option&> { return {}; },
       [](const Ttx::Concept::Abstract& selected) -> Option<Constants::Option&> {
         auto pack =
-            const_cast<Ttx::Concept::Abstract&>(selected).select<Model::Pack>();
-        return pack ? pack->select<Constants::Option>()
+            Model::Pack::from(const_cast<Ttx::Concept::Abstract&>(selected));
+        return pack ? pack->select_identity<Constants::Option>()
                     : Option<Constants::Option&>();
       });
 }

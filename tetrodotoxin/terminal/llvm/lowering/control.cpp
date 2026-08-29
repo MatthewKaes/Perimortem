@@ -38,12 +38,12 @@ static auto lower_local(
            body.constant_local(local, *value, local.get_anchor());
   }
 
-  BAIL_IF(!Llvm::Lowering::Types::prepare(
-      execution.get_program(), local.get_type()));
+  auto type = local.get_type().select<Model::Type>();
+  BAIL_IF(
+      !type || !Llvm::Lowering::Types::prepare(execution.get_program(), *type));
   Core::Option<const Model::Pack&> value = local.get_initializer();
   if (!value) {
-    auto created =
-        local.get_type().create_default(execution.get_program().get_arena());
+    auto created = type->create_default(execution.get_program().get_arena());
     BAIL_IF(!created);
     value = *created;
   }
@@ -170,10 +170,6 @@ static auto lower_match(
 static auto lower_root(
     const Llvm::Lowering::Execution& execution,
     const Ttx::Concept::Abstract& root) -> Bool {
-  auto pack = root.select<Model::Pack>();
-  if (pack) {
-    return execution.lower(*pack);
-  }
   auto local = root.select<Flow::Local>();
   if (local) {
     return lower_local(execution, *local);
@@ -218,7 +214,9 @@ auto Llvm::Lowering::Control::lower(
   if (!body.statement(statement.get_anchor())) {
     return False;
   }
-  if (!lower_root(execution, statement.get_root())) {
+  auto pack = statement.get_pack();
+  if (!(pack ? execution.lower(*pack)
+             : lower_root(execution, statement.get_root()))) {
     Perimortem::Core::Diagnostics::Log::Message<256> message(
         Perimortem::Core::Diagnostics::Log::Level::Error,
         Perimortem::Core::Diagnostics::Source());

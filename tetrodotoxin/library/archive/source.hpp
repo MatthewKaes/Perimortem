@@ -7,7 +7,6 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/import.hpp"
@@ -29,7 +28,6 @@ auto write(Writer& writer, const Language::Types::Source& source) -> Bool;
 auto read_source(
     Reader& reader,
     Perimortem::Memory::Allocator::Arena& arena,
-    Language::Types::Source& source,
-    Tetrodotoxin::Language::Persistence::Profile profile) -> Bool;
+    Language::Types::Source& source) -> Bool;
 
 }  // namespace Tetrodotoxin::Library::Archive

@@ -6,7 +6,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/language/parser/import.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -112,7 +112,7 @@ auto Language::Dialect::interpret_source(
   return *interpretation;
 }
 
-auto Language::Dialect::encode(const Abstract&, Persistence::Profile) const
+auto Language::Dialect::encode(const Abstract&) const
     -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes> {
   return {};
 }
@@ -120,12 +120,19 @@ auto Language::Dialect::encode(const Abstract&, Persistence::Profile) const
 auto Language::Dialect::restore(
     Allocator::Arena&,
     View::Bytes,
-    Persistence::Profile,
     const Documentation&,
     Abstract&) -> Option<Monograph&> {
   return {};
 }
 
-auto Language::Dialect::resolve_context(View::Bytes) const -> const Abstract& {
-  return Invalid::get_invalid();
+auto Language::Dialect::produce(
+    Allocator::Arena&,
+    const Abstract&,
+    const Monograph&) const -> Option<const Pack&> {
+  return {};
+}
+
+auto Language::Dialect::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  return Abstract::resolve_concept(route);
 }

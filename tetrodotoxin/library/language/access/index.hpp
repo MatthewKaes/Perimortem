@@ -26,15 +26,15 @@ class Index : public Expression {
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& index,
+      Model::Pack& receiver,
+      Model::Pack& index,
       Ttx::Lexical::Anchor anchor) -> Index&;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
-      Expression& receiver,
-      Expression& start,
-      Expression& count,
+      Model::Pack& receiver,
+      Model::Pack& start,
+      Model::Pack& count,
       Ttx::Lexical::Anchor anchor) -> Index&;
 
   auto link(
@@ -52,14 +52,14 @@ class Index : public Expression {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  constexpr auto get_receiver() const -> const Expression& { return receiver; }
-  constexpr auto get_index() const -> const Expression& { return first; }
+  constexpr auto get_receiver() const -> const Model::Pack& { return receiver; }
+  constexpr auto get_index() const -> const Model::Pack& { return first; }
   constexpr auto get_count() const
-      -> Perimortem::Core::Option<const Expression&> {
+      -> Perimortem::Core::Option<const Model::Pack&> {
     return count.visit(
-        []() -> Perimortem::Core::Option<const Expression&> { return {}; },
-        [](const Ttx::Concept::Reference<Expression>& selected)
-            -> Perimortem::Core::Option<const Expression&> {
+        []() -> Perimortem::Core::Option<const Model::Pack&> { return {}; },
+        [](const Ttx::Model::PackReference<Model::Pack>& selected)
+            -> Perimortem::Core::Option<const Model::Pack&> {
           return selected.get();
         });
   }
@@ -78,19 +78,19 @@ class Index : public Expression {
 
  private:
   constexpr Index(
-      Expression& receiver,
-      Expression& index,
+      Model::Pack& receiver,
+      Model::Pack& index,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor), receiver(receiver), first(index) {}
   constexpr Index(
-      Expression& receiver,
-      Expression& start,
-      Expression& count,
+      Model::Pack& receiver,
+      Model::Pack& start,
+      Model::Pack& count,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
       : Expression(anchor),
         receiver(receiver),
         first(start),
-        count(Ttx::Concept::Reference<Expression>(count)) {}
+        count(Ttx::Model::PackReference<Model::Pack>(count)) {}
 
   auto link_target(
       Ttx::Lexical::Cursor& cursor,
@@ -98,9 +98,9 @@ class Index : public Expression {
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)
       -> Bool;
 
-  Expression& receiver;
-  Expression& first;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Expression>> count;
+  Model::Pack& receiver;
+  Model::Pack& first;
+  Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>> count;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       element_type;
   Perimortem::Core::Option<Count> range_count;

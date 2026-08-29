@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
@@ -40,8 +40,8 @@ class ExpressionType : public Model::Type {
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto resolve_context(View::Bytes) const -> const Abstract& override {
-    return Invalid::get_invalid();
+  auto resolve_concept(View::Bytes) const -> const Abstract& override {
+    return Unknown::get_unknown();
   }
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override {
     return layout;
@@ -100,7 +100,7 @@ class ExpressionTypeResult : public Expression {
     return result.get_documentation();
   }
   auto get_type() const -> const Abstract& override {
-    return Invalid::get_invalid();
+    return Unknown::get_unknown();
   }
   auto get_result() const -> const Abstract& override { return result; }
 
@@ -137,7 +137,7 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, no_value_flow) {
 
   EXPECT(&selection.get_result() == &selected);
   EXPECT(selection.get_layout().is_empty());
-  EXPECT(selection.resolve().is<Invalid>());
+  EXPECT(selection.resolve().is<Unknown>());
   EXPECT_NOT(selection.fits(empty));
   EXPECT_NOT(selection.fits(selected));
 }
@@ -156,30 +156,21 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   auto& signed_value =
       Constants::Signed::create_synthetic(arena, signed_type, ::S64(100));
 
-  EXPECT(first.is<Expression>());
-  EXPECT(first.is<Constant>());
+  EXPECT_NOT(first.is<Expression>());
+  EXPECT(first.is<Ttx::Concept::Constant>());
+  EXPECT(first.is<Tetrodotoxin::Library::Language::Constant>());
   EXPECT(first.is<Constants::Unsigned>());
   EXPECT_NOT(first.is<Ttx::Model::Type>());
   EXPECT(&first.get_type() == &type);
-  EXPECT_TEXT(first.get_name(), type.get_name());
+  EXPECT_TEXT(first.get_name(), "100"_view);
   EXPECT(first.get_value() == 100);
   EXPECT(first == same);
   EXPECT(first != different);
   EXPECT(first != other);
   EXPECT(first != signed_value);
 
-  auto first_fold = first.fold();
-  auto repeated_fold = first.fold();
-  EXPECT(first_fold.visit(
-      [&](const Perimortem::Core::Option<Model::Pack&>& selected) {
-        return selected && &*selected == &first ? True : False;
-      },
-      [](const Expression::Error&) { return False; }));
-  EXPECT(repeated_fold.visit(
-      [&](const Perimortem::Core::Option<Model::Pack&>& selected) {
-        return selected && &*selected == &first ? True : False;
-      },
-      [](const Expression::Error&) { return False; }));
+  EXPECT(first.is_complete());
+  EXPECT(first.get_identity() && &*first.get_identity() == &first);
 }
 
 PERIMORTEM_UNIT_TEST(LibraryExpression, constant_fitting) {
@@ -243,7 +234,8 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, byte_lifetime) {
   auto& empty = Constants::Bytes::create_synthetic(arena, type, {});
   auto& also_empty = Constants::Bytes::create_synthetic(arena, type, {});
 
-  EXPECT_TEXT(retained->get_name(), type.get_name());
+  EXPECT_TEXT(
+      retained->get_name(), "$[73 74 61 62 6C 65 20 62 79 74 65 73]"_view);
   EXPECT_TEXT(retained->get_value(), "stable bytes"_view);
   EXPECT(*retained == same);
   EXPECT(*retained != other);

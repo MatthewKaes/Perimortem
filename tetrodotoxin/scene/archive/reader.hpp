@@ -7,7 +7,6 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/persistence/profile.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 
@@ -21,7 +20,6 @@ class Reader {
   static auto restore(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile,
       const Ttx::Concept::Abstract& language,
       const Tetrodotoxin::Library::Dialect& library,
       Ttx::Concept::Abstract& context)
@@ -30,9 +28,7 @@ class Reader {
  private:
   constexpr Reader(Perimortem::Core::View::Bytes payload) : payload(payload) {}
 
-  static auto open(
-      Perimortem::Core::View::Bytes payload,
-      Tetrodotoxin::Language::Persistence::Profile profile)
+  static auto open(Perimortem::Core::View::Bytes payload)
       -> Perimortem::Core::Option<Reader>;
 
   auto take(Count size)

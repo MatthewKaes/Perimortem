@@ -56,8 +56,6 @@ class Result : public Model::Type {
 
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
-  TTX_CONSTEXPR_INVALID_CONTEXT;
-
   constexpr auto get_value_type() const -> const Model::Type& { return value; }
   constexpr auto get_error_type() const -> const Model::Type& { return error; }
 

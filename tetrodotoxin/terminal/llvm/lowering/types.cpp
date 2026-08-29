@@ -28,11 +28,11 @@ using namespace Tetrodotoxin::Library::Language;
 
 static auto reserve_value(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool;
+    const Ttx::Concept::Abstract& answer) -> Bool;
 
 static auto complete_value(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool;
+    const Ttx::Concept::Abstract& answer) -> Bool;
 
 static auto reserve_layout(
     Llvm::Module::Program& program,
@@ -44,7 +44,13 @@ static auto complete_layout(
 
 static auto reserve_value(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool {
+    const Ttx::Concept::Abstract& answer) -> Bool {
+  auto selected = answer.select<Model::Type>();
+  if (!selected) {
+    selected = answer.resolve().select<Model::Type>();
+  }
+  BAIL_IF(!selected);
+  const Model::Type& type = *selected;
   auto kind = Tetrodotoxin::Terminal::Abi::Representation::Type::get_kind(type);
   BAIL_IF(!kind);
   auto reserved = program.get_carriers().reserve(program, type, *kind);
@@ -121,7 +127,13 @@ static auto reserve_value(
 
 static auto complete_value(
     Llvm::Module::Program& program,
-    const Model::Type& type) -> Bool {
+    const Ttx::Concept::Abstract& answer) -> Bool {
+  auto selected = answer.select<Model::Type>();
+  if (!selected) {
+    selected = answer.resolve().select<Model::Type>();
+  }
+  BAIL_IF(!selected);
+  const Model::Type& type = *selected;
   auto kind = Tetrodotoxin::Terminal::Abi::Representation::Type::get_kind(type);
   BAIL_IF(!kind);
   auto began = program.get_carriers().begin_completion(program, type);
@@ -205,10 +217,9 @@ static auto reserve_layout(
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
     auto addressable = entry->select<Model::Addressable>();
-    auto type = addressable
-                    ? Core::Option<const Model::Type&>(addressable->get_type())
-                    : entry->resolve().select<Model::Type>();
-    BAIL_IF(!type || !reserve_value(program, *type));
+    const Ttx::Concept::Abstract& answer =
+        addressable ? addressable->get_type() : *entry;
+    BAIL_IF(!reserve_value(program, answer));
   }
   return True;
 }
@@ -220,10 +231,9 @@ static auto complete_layout(
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
     auto addressable = entry->select<Model::Addressable>();
-    auto type = addressable
-                    ? Core::Option<const Model::Type&>(addressable->get_type())
-                    : entry->resolve().select<Model::Type>();
-    BAIL_IF(!type || !complete_value(program, *type));
+    const Ttx::Concept::Abstract& answer =
+        addressable ? addressable->get_type() : *entry;
+    BAIL_IF(!complete_value(program, answer));
   }
   return True;
 }

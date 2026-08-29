@@ -7,8 +7,10 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/flow/scope.hpp"
+#include "tetrodotoxin/library/language/model/pack.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -95,36 +97,75 @@ class Statement {
         });
   }
 
+  template <typename Link, typename Finalize>
+  static constexpr auto create_pack(
+      Model::Pack& pack,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Lexical::Anchor anchor,
+      Link,
+      Finalize) -> Statement {
+    return Statement(
+        pack, documentation, anchor,
+        PackOperations{
+          .link = [](Model::Pack& pack, Ttx::Lexical::Cursor& cursor,
+                     Flow::Scope& scope) -> Bool {
+            return Link{}(pack, cursor, scope);
+          },
+          .finalize = [](Model::Pack& pack, Ttx::Lexical::Cursor& cursor)
+              -> void { Finalize{}(pack, cursor); },
+        });
+  }
+
   constexpr auto link(Ttx::Lexical::Cursor& cursor, Flow::Scope& scope)
       -> Bool {
-    return operations.link(root.get(), cursor, scope);
+    return pack != nullptr ? pack_operations.link(*pack, cursor, scope)
+                           : operations.link(*root, cursor, scope);
   }
 
   constexpr auto finalize(Ttx::Lexical::Cursor& cursor) -> void {
-    operations.finalize(root.get(), cursor);
+    if (pack != nullptr) {
+      pack_operations.finalize(*pack, cursor);
+    } else {
+      operations.finalize(*root, cursor);
+    }
   }
 
   constexpr auto reaches_next() const -> Bool {
-    return operations.reaches_next(root.get());
+    return pack != nullptr ? True : operations.reaches_next(*root);
   }
 
   constexpr auto get_binding_name() const
       -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
-    return operations.get_binding_name(root.get());
+    return pack != nullptr
+               ? Perimortem::Core::Option<Perimortem::Core::View::Bytes>()
+               : operations.get_binding_name(*root);
   }
 
   constexpr auto get_binding() const
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> {
-    return operations.get_binding(root.get());
+    return pack != nullptr
+               ? Perimortem::Core::Option<const Ttx::Concept::Abstract&>()
+               : operations.get_binding(*root);
   }
 
-  constexpr auto get_root() const -> const Ttx::Concept::Abstract& {
-    return root.get();
+  auto get_root() const -> const Ttx::Concept::Abstract& {
+    if (root != nullptr) {
+      return *root;
+    }
+    auto identity = pack->get_identity();
+    return identity ? *identity : Ttx::Concept::Unknown::get_unknown();
+  }
+
+  auto get_pack() const -> Perimortem::Core::Option<const Model::Pack&> {
+    if (pack != nullptr) {
+      return *pack;
+    }
+    return Model::Pack::from(static_cast<const Ttx::Concept::Abstract&>(*root));
   }
 
   constexpr auto get_documentation() const
       -> const Ttx::Concept::Documentation& {
-    return documentation;
+    return *documentation;
   }
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
@@ -140,20 +181,37 @@ class Statement {
         const Ttx::Concept::Abstract&);
   };
 
+  struct PackOperations {
+    Bool (*link)(Model::Pack&, Ttx::Lexical::Cursor&, Flow::Scope&);
+    void (*finalize)(Model::Pack&, Ttx::Lexical::Cursor&);
+  };
+
   constexpr Statement(
       Ttx::Concept::Abstract& root,
       const Ttx::Concept::Documentation& documentation,
       Ttx::Lexical::Anchor anchor,
       Operations operations)
-      : root(root),
-        documentation(documentation),
+      : root(&root),
+        documentation(&documentation),
         anchor(anchor),
         operations(operations) {}
 
-  Ttx::Concept::Reference<Ttx::Concept::Abstract> root;
-  const Ttx::Concept::Documentation& documentation;
+  constexpr Statement(
+      Model::Pack& pack,
+      const Ttx::Concept::Documentation& documentation,
+      Ttx::Lexical::Anchor anchor,
+      PackOperations operations)
+      : pack(&pack),
+        documentation(&documentation),
+        anchor(anchor),
+        pack_operations(operations) {}
+
+  Ttx::Concept::Abstract* root = nullptr;
+  Model::Pack* pack = nullptr;
+  const Ttx::Concept::Documentation* documentation;
   Ttx::Lexical::Anchor anchor;
-  Operations operations;
+  Operations operations{};
+  PackOperations pack_operations{};
 };
 
 // Managed::Vector grows by relocating its entries as bytes. Keeping this

@@ -25,24 +25,20 @@ auto Library::Dialect::interpret(
   return monograph;
 }
 
-auto Library::Dialect::encode(
-    const Abstract& monograph,
-    Tetrodotoxin::Language::Persistence::Profile profile) const
+auto Library::Dialect::encode(const Abstract& monograph) const
     -> Option<Dynamic::Bytes> {
   auto library = monograph.select<Language::Monograph>();
   BAIL_IF(!library);
 
-  return Archive::Writer::write(*library, profile);
+  return Archive::Writer::write(*library);
 }
 
 auto Library::Dialect::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
-    Tetrodotoxin::Language::Persistence::Profile profile,
     const Documentation&,
     Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored =
-      Archive::Reader::read(arena, payload, profile, *this, context);
+  auto restored = Archive::Reader::read(arena, payload, *this, context);
   return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
                   : Option<Tetrodotoxin::Language::Monograph&>();
 }

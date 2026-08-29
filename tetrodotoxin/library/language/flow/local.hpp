@@ -55,19 +55,7 @@ class Local : public Model::Addressable {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
-  auto resolve_access(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  auto resolve_call(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
-  constexpr auto get_type() const -> const Model::Type& override {
-    return type->get();
-  }
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
 
   constexpr auto get_linked_type() const
       -> Perimortem::Core::Option<const Model::Type&> {
@@ -147,7 +135,7 @@ class Local : public Model::Addressable {
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>> type;
-  mutable Perimortem::Core::Option<Ttx::Concept::Reference<Model::Pack>>
+  mutable Perimortem::Core::Option<Ttx::Model::PackReference<Model::Pack>>
       constant;
   mutable ConstantState constant_state = ConstantState::Unresolved;
   Ttx::Lexical::Anchor anchor;

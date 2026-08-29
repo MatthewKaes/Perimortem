@@ -10,9 +10,9 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "ttx/concept/abstract.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/layout.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -46,7 +46,6 @@ class Return : public Ttx::Concept::Abstract {
 
   TTX_NAME("Return"_view);
   TTX_EMPTY_DOCUMENTATION();
-  TTX_INVALID_CONTEXT;
 
   constexpr auto get_anchor() const -> Ttx::Lexical::Anchor { return anchor; }
   constexpr auto get_pack() const -> const Model::Pack& { return pack.get(); }
@@ -54,11 +53,11 @@ class Return : public Ttx::Concept::Abstract {
  private:
   constexpr Return(
       Ttx::Lexical::Anchor anchor,
-      Ttx::Concept::Reference<Model::Pack> pack)
+      Ttx::Model::PackReference<Model::Pack> pack)
       : anchor(anchor), pack(pack) {}
 
   Ttx::Lexical::Anchor anchor;
-  Ttx::Concept::Reference<Model::Pack> pack;
+  Ttx::Model::PackReference<Model::Pack> pack;
   Bool linked = False;
 };
 

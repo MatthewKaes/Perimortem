@@ -11,8 +11,8 @@
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
-#include "ttx/concept/invalid.hpp"
 #include "ttx/concept/reference.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -40,7 +40,7 @@ auto Types::Fixed::create_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   BAIL_IF(get_extent() == 0 || get_extent() > U64(Count(-1)));
 
-  Managed::Vector<Reference<Model::Pack>> values(arena);
+  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
   values.reset(Count(get_extent()));
   for (Count index = 0; index < Count(get_extent()); index++) {
     auto value = get_element_type().create_default(arena);
@@ -54,13 +54,15 @@ auto Types::Fixed::create_default(Allocator::Arena& arena) const
 
 static auto fold_output(Model::Pack& source, Count index)
     -> Option<Model::Pack&> {
-  auto produced = source.get_produced(index);
-  BAIL_IF(!produced);
-  // Produced is an inspection edge, while constant fitting runs during the
-  // mutable graph completion pass and may populate the Expression's fold
-  // cache. The source Pack and every producer remain owned by this transaction.
-  auto expression =
-      const_cast<Ttx::Model::Pack&>(produced->producer).select<Expression>();
+  auto producer = source.get_layout().get_abstract(index);
+  BAIL_IF(!producer);
+  auto direct = const_cast<Abstract&>(*producer)
+                    .select<Tetrodotoxin::Library::Language::Constant>();
+  if (direct) {
+    return *direct;
+  }
+
+  auto expression = const_cast<Abstract&>(*producer).select<Expression>();
   BAIL_IF(!expression);
 
   Option<Model::Pack&> folded;
@@ -69,25 +71,31 @@ static auto fold_output(Model::Pack& source, Count index)
       [](const Expression::Error&) {});
   BAIL_IF(!folded);
 
-  auto selected = folded->get_produced(produced->local_index);
+  Count selected_index = 0;
+  for (Count source_index = 0; source_index < index; source_index++) {
+    auto prior = source.get_layout().get_abstract(source_index);
+    selected_index += prior && &*prior == &*producer ? 1 : 0;
+  }
+  auto selected = folded->get_layout().get_abstract(selected_index);
   BAIL_IF(!selected);
-  auto constant = selected->producer.select<Constant>();
+  auto constant = selected->select<Tetrodotoxin::Library::Language::Constant>();
   BAIL_IF(!constant);
-  return const_cast<Constant&>(*constant);
+  return const_cast<Tetrodotoxin::Library::Language::Constant&>(*constant);
 }
 
 static auto create_bytes(
     Allocator::Arena& arena,
     const Types::Fixed& type,
-    View::Vector<Reference<Model::Pack>> values) -> Option<Model::Pack&> {
+    View::Vector<Ttx::Model::PackReference<Model::Pack>> values)
+    -> Option<Model::Pack&> {
   auto element =
       type.get_element_type().resolve().select<Model::Types::Unsigned>();
   BAIL_IF(!element || element->get_size() != 1);
 
   auto storage = arena.allocate(values.get_size());
   Count index = 0;
-  for (const Reference<Model::Pack>& selected : values) {
-    auto value = selected.get().select<Constants::Unsigned>();
+  for (const Ttx::Model::PackReference<Model::Pack>& selected : values) {
+    auto value = selected.get().select_identity<Constants::Unsigned>();
     BAIL_IF(!value || value->get_value() > U64(U8(-1)));
     storage.get_data()[index] = U8(value->get_value());
     index++;
@@ -101,7 +109,7 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     const -> Option<Model::Pack&> {
   BAIL_IF(!source.fits(*this));
 
-  Managed::Vector<Reference<Model::Pack>> values(arena);
+  Managed::Vector<Ttx::Model::PackReference<Model::Pack>> values(arena);
   values.reset(Count(get_extent()));
   for (Count index = 0; index < Count(get_extent()); index++) {
     auto value = fold_output(source, index);

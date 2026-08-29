@@ -46,23 +46,38 @@ static auto anchor_of(const Abstract& semantic) -> Ttx::Lexical::Anchor {
                   : Ttx::Lexical::Anchor::create(Ttx::Lexical::Span());
 }
 
-static auto library_pack(const Ttx::Model::Pack& pack)
-    -> Core::Option<const Library::Language::Model::Pack&> {
-  return pack.select<Library::Language::Model::Pack>();
-}
-
 static auto constant_conversion(
     const Library::Language::Expressions::Conversion& conversion)
     -> Core::Option<const Library::Language::Model::Pack&> {
   auto folded = conversion.get_folded();
-  auto produced = folded && folded->get_layout().get_size() == 1
-                      ? folded->get_produced(0)
-                      : Core::Option<Ttx::Model::Pack::Produced>();
-  auto constant = produced
-                      ? produced->producer.select<Library::Language::Constant>()
-                      : Core::Option<const Library::Language::Constant&>();
+  auto producer = folded && folded->get_layout().get_size() == 1
+                      ? folded->get_layout().get_abstract(0)
+                      : Core::Option<const Abstract&>();
+  auto constant = producer ? producer->select<Library::Language::Constant>()
+                           : Core::Option<const Library::Language::Constant&>();
   return constant ? folded
                   : Core::Option<const Library::Language::Model::Pack&>();
+}
+
+static auto select_scalar_pack(
+    const Library::Language::Model::Pack& pack,
+    Count index) -> Core::Option<const Library::Language::Model::Pack&> {
+  if (pack.get_identity()) {
+    return index == 0 && pack.get_layout().get_size() == 1
+               ? Core::Option<const Library::Language::Model::Pack&>(pack)
+               : Core::Option<const Library::Language::Model::Pack&>();
+  }
+
+  Count offset = 0;
+  for (const Ttx::Model::PackReference<Library::Language::Model::Pack>& entry :
+       pack.get_entries()) {
+    Count size = entry.get().get_layout().get_size();
+    if (index < offset + size) {
+      return select_scalar_pack(entry.get(), index - offset);
+    }
+    offset += size;
+  }
+  return {};
 }
 
 static auto is_sample_call(const Library::Language::Access::Call& call)
@@ -129,18 +144,17 @@ auto Module::Body::prepare(const Interface::Stage& stage) -> Bool {
 
 auto Module::Body::prepare_pack(const Library::Language::Model::Pack& pack)
     -> Bool {
-  auto expression = pack.select<Library::Language::Expression>();
+  auto constant = pack.select_identity<Library::Language::Constant>();
+  if (constant) {
+    return constants.collect(*constant);
+  }
+  auto expression = pack.select_identity<Library::Language::Expression>();
   if (expression) {
     return prepare_expression(*expression);
   }
-  for (Count index = 0; index < pack.get_layout().get_size(); index++) {
-    auto produced = pack.get_produced(index);
-    auto child = produced
-                     ? library_pack(produced->producer)
-                     : Core::Option<const Library::Language::Model::Pack&>();
-    BAIL_IF(
-        !produced || &produced->producer == &pack || !child ||
-        !prepare_pack(*child));
+  for (const Ttx::Model::PackReference<Library::Language::Model::Pack>& entry :
+       pack.get_entries()) {
+    BAIL_IF(!prepare_pack(entry.get()));
   }
   return True;
 }
@@ -166,11 +180,8 @@ auto Module::Body::prepare_expression(
     if (folded) {
       return prepare_pack(*folded);
     }
-    auto source =
-        conversion->get_source().select<Library::Language::Model::Pack>();
-    auto source_type =
-        source ? Types::select(source->get_value_type(0))
-               : Core::Option<const Library::Language::Model::Type&>();
+    const auto& source = conversion->get_source();
+    auto source_type = Types::select(source.get_value_type(0));
     auto target_real =
         type ? type->select<Library::Language::Model::Types::Real>()
              : Core::Option<const Library::Language::Model::Types::Real&>();
@@ -183,18 +194,18 @@ auto Module::Body::prepare_expression(
             ? source_type->select<Library::Language::Model::Types::Unsigned>()
             : Core::Option<const Library::Language::Model::Types::Unsigned&>();
     BAIL_IF(
-        !source || !source_type || !target_real ||
-        (!source_real && !source_unsigned) || !prepare_pack(*source));
+        !source_type || !target_real || (!source_real && !source_unsigned) ||
+        !prepare_pack(source));
     return True;
   }
   auto address = expression.select<Library::Language::Access::Address>();
   if (address) {
-    return prepare_expression(address->get_receiver());
+    return prepare_pack(address->get_receiver());
   }
   auto call = expression.select<Library::Language::Access::Call>();
   if (call) {
     BAIL_IF(
-        !is_sample_call(*call) || !prepare_expression(call->get_receiver()) ||
+        !is_sample_call(*call) || !prepare_pack(call->get_receiver()) ||
         !prepare_pack(call->get_arguments()));
     return True;
   }
@@ -205,9 +216,9 @@ auto Module::Body::prepare_expression(
           expression,
           "This arithmetic operation has no floating point SPIR V form."_view);
     }
-    for (const Reference<Library::Language::Expression>& input :
-         operation->get_inputs()) {
-      BAIL_IF(!prepare_expression(input.get()));
+    for (const Ttx::Model::PackReference<Library::Language::Model::Pack>&
+             input : operation->get_inputs()) {
+      BAIL_IF(!prepare_pack(input.get()));
     }
     return True;
   }
@@ -278,7 +289,15 @@ auto Module::Body::lower_pack(
     Assembler::SpirV& assembler) -> Core::Option<Value> {
   // Scalar producers keep their own result id. A Structure is assembled from
   // the real producers selected by Pack fitting in target field order.
-  auto expression = pack.select<Library::Language::Expression>();
+  auto constant = pack.select_identity<Library::Language::Constant>();
+  if (constant) {
+    auto id = constants.get_id(*constant);
+    auto type = Types::select(constant->get_type());
+    BAIL_IF(!id || !type || &*type != &expected);
+    return Value(*constant, expected, *id);
+  }
+
+  auto expression = pack.select_identity<Library::Language::Expression>();
   if (expression) {
     auto lowered = lower_expression(*expression, assembler);
     auto source_id =
@@ -292,11 +311,8 @@ auto Module::Body::lower_pack(
   auto structure = expected.select<Library::Language::Types::Structure>();
   if (!structure) {
     BAIL_IF(pack.get_layout().get_size() != 1);
-    auto produced = pack.get_produced(0);
-    auto child = produced
-                     ? library_pack(produced->producer)
-                     : Core::Option<const Library::Language::Model::Pack&>();
-    BAIL_IF(!produced || produced->local_index != 0 || !child);
+    auto child = select_scalar_pack(pack, 0);
+    BAIL_IF(!child);
     return lower_pack(*child, expected, assembler);
   }
 
@@ -309,12 +325,10 @@ auto Module::Body::lower_pack(
     auto member_type =
         member_semantic ? Types::select(*member_semantic)
                         : Core::Option<const Library::Language::Model::Type&>();
-    auto produced = source_index ? pack.get_produced(*source_index)
-                                 : Core::Option<Ttx::Model::Pack::Produced>();
-    auto child = produced
-                     ? library_pack(produced->producer)
+    auto child = source_index
+                     ? select_scalar_pack(pack, *source_index)
                      : Core::Option<const Library::Language::Model::Pack&>();
-    BAIL_IF(!member_type || !produced || produced->local_index != 0 || !child);
+    BAIL_IF(!member_type || !child);
     auto lowered = lower_pack(*child, *member_type, assembler);
     BAIL_IF(!lowered);
     members.insert(lowered->id);
@@ -323,7 +337,7 @@ auto Module::Body::lower_pack(
   BAIL_IF(!type_id);
   U32 id = ids.take();
   assembler.composite_construct(*type_id, id, members.get_view());
-  return Value(pack, expected, id);
+  return Value(expected, expected, id);
 }
 
 auto Module::Body::lower_expression(
@@ -405,11 +419,12 @@ auto Module::Body::lower_expression(
         coordinate_semantic
             ? Types::select(*coordinate_semantic)
             : Core::Option<const Library::Language::Model::Type&>();
-    auto produced = call->get_arguments().get_produced(0);
-    auto coordinate_pack =
-        produced ? library_pack(produced->producer)
-                 : Core::Option<const Library::Language::Model::Pack&>();
-    auto sampled_image = lower_expression(call->get_receiver(), assembler);
+    auto coordinate_pack = select_scalar_pack(call->get_arguments(), 0);
+    auto sampled_type = Types::select(call->get_receiver().get_type());
+    auto sampled_image =
+        sampled_type
+            ? lower_pack(call->get_receiver(), *sampled_type, assembler)
+            : Core::Option<Value>();
     auto coordinate =
         coordinate_type && coordinate_pack
             ? lower_pack(*coordinate_pack, *coordinate_type, assembler)
@@ -429,7 +444,11 @@ auto Module::Body::lower_expression(
   }
   auto address = expression.select<Library::Language::Access::Address>();
   if (address) {
-    auto receiver = lower_expression(address->get_receiver(), assembler);
+    auto receiver_type = Types::select(address->get_receiver().get_type());
+    auto receiver =
+        receiver_type
+            ? lower_pack(address->get_receiver(), *receiver_type, assembler)
+            : Core::Option<Value>();
     BAIL_IF(!receiver);
     const Ttx::Concept::Layout& layout = receiver->type.get().get_layout();
     Core::Option<Count> member;
@@ -455,8 +474,8 @@ auto Module::Body::lower_expression(
     BAIL_IF(!type->is<Library::Language::Model::Types::Real>());
     auto inputs = operation->get_inputs();
     BAIL_IF(inputs.get_size() != 2);
-    auto left = lower_expression(inputs.get_data()[0].get(), assembler);
-    auto right = lower_expression(inputs.get_data()[1].get(), assembler);
+    auto left = lower_pack(inputs.get_data()[0].get(), *type, assembler);
+    auto right = lower_pack(inputs.get_data()[1].get(), *type, assembler);
     auto type_id = types.get_id(*type);
     BAIL_IF(!left || !right || !type_id);
     U32 id = ids.take();
@@ -521,12 +540,10 @@ auto Module::Body::lower_return(
     }
 
     auto source_index = select_source(pack, results, index);
-    auto produced = source_index ? pack.get_produced(*source_index)
-                                 : Core::Option<Ttx::Model::Pack::Produced>();
-    auto child = produced
-                     ? library_pack(produced->producer)
+    auto child = source_index
+                     ? select_scalar_pack(pack, *source_index)
                      : Core::Option<const Library::Language::Model::Pack&>();
-    BAIL_IF(!produced || produced->local_index != 0 || !child);
+    BAIL_IF(!child);
     auto value = lower_pack(*child, *type, assembler);
     BAIL_IF(!value);
     assembler.store(stage.outputs.get_view().get_data()[index].id, value->id);

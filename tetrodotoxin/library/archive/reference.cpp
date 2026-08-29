@@ -28,7 +28,7 @@ enum class PersistedArgument : U8 {
 
 static auto resolve_root_type(const Abstract& context, Core::View::Bytes name)
     -> Core::Option<const Language::Model::Type&> {
-  return context.resolve_context(name)
+  return context.resolve_concept(name)
       .resolve()
       .select<Language::Model::Type>();
 }

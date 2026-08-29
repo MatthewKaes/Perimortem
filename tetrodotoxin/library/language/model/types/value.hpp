@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model::Types {
 
@@ -14,8 +14,6 @@ namespace Tetrodotoxin::Library::Language::Model::Types {
 class Value : public Model::Type {
  public:
   TTX_CONTRACT(Value, Model::Type);
-
-  TTX_INVALID_CONTEXT;
 
   // Folding may retain the selected Type while producing an incompatible
   // Constant carrier. The scalar domain owns that proof so every consumer can

@@ -61,7 +61,7 @@ auto Language::Flow::Branch::link(
   BAIL_IF(!retained_condition.link(cursor, lexical_context, access_scope));
   // Branch observes value flow rather than the exact identities used by
   // postfix access. Prove that distinction before selecting the leading Flag.
-  if (&retained_condition.resolve() != &retained_condition) {
+  if (!retained_condition.is_complete()) {
     cursor.create_expression_error(
         anchor, "Branch condition did not produce value flow."_view,
         "Use a Type result only as an access receiver."_view);

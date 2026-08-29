@@ -3,5 +3,6 @@
 //
 
 dialect : Package;
+package(.name = "Validation.SystemAbi", .version = "1.0");
 
 public SystemAbi : alias = source("system_abi.ttx");

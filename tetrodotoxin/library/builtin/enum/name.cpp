@@ -15,8 +15,9 @@ auto Builtin::Enum::Name::create(
     Memory::Allocator::Arena& domain,
     const Language::Types::Enumeration& enumeration,
     const Language::Model::Type& result) -> Name& {
-  Language::Parameter& self =
-      Language::Parameter::create_synthetic(domain, "self"_view, enumeration);
+  Ttx::Model::Layouts::Addressable& self =
+      Ttx::Model::Layouts::Addressable::create_synthetic(
+          domain, "self"_view, enumeration);
   return domain.construct_from<Name>(
       [&]() -> Name { return Name(self, enumeration, result); });
 }
@@ -28,7 +29,7 @@ auto Builtin::Enum::Name::fold_call(
     -> Core::Option<Language::Model::Pack&> {
   BAIL_IF(!receiver || !arguments.get_layout().is_empty());
 
-  auto constant = receiver->select<Language::Constants::Enumeration>();
+  auto constant = receiver->select_identity<Language::Constants::Enumeration>();
   BAIL_IF(!constant || &constant->get_type() != &enumeration);
   Core::View::Bytes name = enumeration.find_case_name(constant->get_value());
   return Language::Constants::Bytes::create_synthetic(

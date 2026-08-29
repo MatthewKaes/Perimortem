@@ -3,5 +3,6 @@
 //
 // Native Package consumer.
 dialect : Package;
+package(.name = "Validation.Consumer", .version = "1.0");
 
 public Main : alias = source("main.ttx");

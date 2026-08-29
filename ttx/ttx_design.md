@@ -122,15 +122,17 @@ the queries needed to exchange that identity with another domain:
 
 ```text
 Abstract
-├── Invalid
+├── Unknown
+├── Constant
+│   └── None
 ├── Alias
 ├── Type
 ├── Addressable
-├── Pack
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Interface`, and `Reference` are supporting values.
+`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
+supporting values.
 They describe, negotiate, or connect identities without acquiring another
 semantic identity. Complete
 declaration structure, source provenance, visibility, and publication remain
@@ -143,8 +145,9 @@ route. Those paths retain one Type and do not give it a required parent.
 Structural similarity therefore says nothing about identity. Two Types may
 have equal Layouts and still mean different things. Two Alias objects may have
 different local names and Documentation while representing the same target.
-One Addressable keeps its own identity while reaching a Type. A Pack keeps its
-producer identity while exposing an identity free output Layout. A Callable
+One Addressable keeps its own identity while its total Type query changes only
+from `Unknown` to one exact Type. A Pack borrows the exact producer identities
+exposed by its Layout. A Callable
 keeps its own identity while its parameters and results expose required
 Layouts.
 
@@ -184,8 +187,8 @@ addresses.
 
 ## Owner directed contextual resolution
 
-`resolve()` follows represented identity. `resolve_context(name)` asks the
-receiving Abstract to interpret one borrowed name in its own domain. The
+`resolve()` follows represented identity. `resolve_concept(name)` asks the
+receiving Abstract to interpret one borrowed binary name in its own domain. The
 concrete operator splits qualified syntax and asks each selected result about
 the next name, so a route can cross Package, source, and Type contexts without
 flattening those contexts into one key or converting them into one common
@@ -193,16 +196,12 @@ category. Monograph retains lifetime and never becomes an authored route
 segment. Alias remains opaque to contextual lookup: the caller resolves it
 before asking the selected identity to interpret the next name.
 
-Context lookup does not stand in for explicit receiver access. Address and call
-operators issue `resolve_access(host, name)` and `resolve_call(host, name)` with
-the original caller authority. These hooks are shared because a concrete query
-may cross an arbitrary Abstract context. Their interpretation is not shared:
-TTX Type and Addressable impose no receiver role, forwarding behavior,
-visibility policy, or member inventory. The concrete language refines those
-contracts when it needs such behavior. Type qualification remains ordinary
-one name contextual resolution rather than a second host neutral Type lookup.
-Each query returns the original selected identity or Invalid without searching
-a different category domain.
+Access and invocation remain concrete language operations assembled from the
+same concept graph. Library, for example, waits for an Addressable's total Type
+answer, asks that exact Type for its `instance` concept, and asks a Type for its
+`static` concept before querying the authored name. TTX owns neither spelling's
+policy and adds no flat route mode, receiver enum, forwarding hook, or member
+inventory.
 
 The caller owns the expected contract and proves the returned identity against
 the semantic category it needs. Route spelling does not infer a Type,
@@ -222,14 +221,13 @@ an ambiguous ownership path.
 A graph owner may reserve a stable identity before all of its edges are ready.
 An Alias reserved this way binds its borrowed target once after the defining
 pass. The immediate edge remains opaque and only Alias resolution traverses
-it. An incomplete total query returns the shared `Invalid` object. Completion
+it. An incomplete total query returns the shared `Unknown` object. Completion
 may make that unanswered query valid, while every successful identity remains
-stable.
+stable. Completed absence returns the axiomatic `None` Constant.
 
-A staged Pack follows the same rule. Its Layout query is total and may expose an
-empty shape while the Pack resolves to Invalid. Only a Pack that resolves to
-itself supplies that empty Layout as valid zero value flow. Once resolution
-succeeds, the Layout is stable.
+Concept exploration produces fresh Pack snapshots in a caller-owned Context.
+The snapshot may omit incomplete questions or carry Unknown explicitly. It has
+no stable order and no identity to stage or replace.
 
 This supports recursive declarations and source groups without adding an
 Incomplete Layout or a universal publication bit to every Abstract. The
@@ -237,7 +235,7 @@ concrete owner decides how it stages construction and when completed roots can
 be published.
 
 Negative answers require care while construction is active. A consumer cannot
-treat `Invalid` as permanent across a transition that may complete more facts.
+treat `Unknown` as permanent across a transition that may complete more facts.
 An immutable compiler, writer, or Terminal emitter begins after its owning
 completion barrier. A tool that intentionally observes partial state must treat
 the graph as changing.
@@ -248,9 +246,10 @@ semantic identities.
 
 ## Pack is value flow and Layout is semantic shape
 
-Pack and Layout deliberately answer different questions. A Pack identifies one
-producer and the values it supplies. A Layout has no semantic identity and
-describes a promised shape. This lets a call, swizzle, return, or other
+Pack and Layout deliberately answer different questions. A Pack is an
+identity-free view of produced flow whose Layout names the actual producers. A
+Layout has no semantic identity and describes a promised shape. This lets a
+call, swizzle, return, or other
 multiple value operation remain live value flow without materializing an anonymous
 aggregate Type merely so another owner can fit it.
 
@@ -281,9 +280,9 @@ retaining the exact source Abstract. `Ranged` describes one entry across a fixed
 interval. `Composite` preserves two complete child Layouts.
 
 Successful fitting returns the original source edge that supplies a target
-position. The Pack remains the value flow owner. Its Layout retains order,
-borrowed slot names, and applicability without copying Types, Documentation,
-defaults, or storage facts into a generic member record. A decorator or
+position. The concrete producer remains the value-flow owner. Its Pack Layout
+retains order, borrowed slot names, and applicability without copying Types,
+Documentation, defaults, or storage facts into a generic member record. A decorator or
 composition delegates entry fitting to the source Layout that owns each edge.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,

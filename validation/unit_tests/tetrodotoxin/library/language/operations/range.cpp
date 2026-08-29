@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -107,7 +107,7 @@ PERIMORTEM_UNIT_TEST(LibraryRange, integer_legality) {
   RangeExpression other_width("other width"_view, u16);
   RangeExpression flag("flag"_view, resolve_library_flag(source));
   RangeExpression real("real"_view, r32);
-  RangeExpression unresolved("unresolved"_view, Invalid::get_invalid());
+  RangeExpression unresolved("unresolved"_view, Unknown::get_unknown());
   auto& mismatch =
       Operations::Range::create_synthetic(domain, unsigned_value, other_width);
   auto& bool_range = Operations::Range::create_synthetic(domain, flag, flag);

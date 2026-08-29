@@ -3,19 +3,25 @@
 
 #pragma once
 
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "perimortem/serialization/stream/textual.hpp"
+
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Real is an evaluated floating point Constant. Source decimal text may remain
-// a Dialect owned literal Expression until a receiving Type selects a format,
-// so constructing this contract never silently narrows an exact source literal.
-// NaN values compare as one semantic value so Constant equality remains an
-// equivalence relation suitable for Generic materialization keys.
-class Real : public Constant {
+// Real is an evaluated floating point
+// Tetrodotoxin::Library::Language::Constant. Source decimal text may remain a
+// Dialect owned literal Expression until a receiving Type selects a format, so
+// constructing this contract never silently narrows an exact source literal.
+// NaN values compare as one semantic value so
+// Tetrodotoxin::Library::Language::Constant equality remains an equivalence
+// relation suitable for Generic materialization keys.
+class Real : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Real, Constant);
+  TTX_CONTRACT(Real, Tetrodotoxin::Library::Language::Constant);
   using Value = R64;
 
   static auto create_authored(
@@ -23,17 +29,18 @@ class Real : public Constant {
       const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value,
       Ttx::Lexical::Anchor anchor) -> Real& {
-    return Expression::create_authored<Real>(
+    return Constant::create_authored<Real>(
         domain, anchor,
-        [&](auto source) -> Real { return Real(type, value, source); });
+        [&](auto source) -> Real { return Real(domain, type, value, source); });
   }
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value) -> Real& {
-    return Expression::create_synthetic<Real>(
-        domain, [&](auto source) -> Real { return Real(type, value, source); });
+    return Constant::create_synthetic<Real>(domain, [&](auto source) -> Real {
+      return Real(domain, type, value, source);
+    });
   }
 
   constexpr auto get_type() const
@@ -43,7 +50,12 @@ class Real : public Constant {
 
   virtual constexpr auto get_value() const -> Value { return value; }
 
-  constexpr auto equals(const Constant& rhs) const -> Bool override {
+  auto get_name() const -> Perimortem::Core::View::Bytes override {
+    return name.get_view();
+  }
+
+  constexpr auto equals(const Tetrodotoxin::Library::Language::Constant& rhs)
+      const -> Bool override {
     return rhs.visit<Real>(
         [this, &rhs](const Real& selected) {
           if (!has_same_type(rhs)) {
@@ -71,14 +83,24 @@ class Real : public Constant {
   }
 
  private:
-  constexpr Real(
+  Real(
+      Perimortem::Memory::Allocator::Arena& domain,
       const Tetrodotoxin::Library::Language::Model::Types::Real& type,
       Value value,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor)
-      : Constant(anchor), type(type), value(value) {}
+      : Tetrodotoxin::Library::Language::Constant(anchor),
+        type(type),
+        value(value),
+        name(domain) {
+    Perimortem::Serialization::Stream::Textual<
+        Perimortem::Memory::Managed::Bytes>
+        output(name);
+    output << value;
+  }
 
   const Tetrodotoxin::Library::Language::Model::Types::Real& type;
   Value value;
+  Perimortem::Memory::Managed::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Constants

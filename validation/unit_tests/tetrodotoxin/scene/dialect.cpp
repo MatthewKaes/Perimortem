@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/terminal/graphics/compiler.hpp"
-#include "ttx/concept/invalid.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -61,19 +61,19 @@ PERIMORTEM_UNIT_TEST(SceneDialect, exact_layers) {
   EXPECT(&*immutable.get_layer(*library) == &child);
   EXPECT_NOT(immutable.get_layer(other_scene));
   EXPECT_NOT(immutable.get_layer(other_library));
-  EXPECT(&child.resolve_context("Empty"_view) == &immutable);
+  EXPECT(&child.resolve_concept("Empty"_view) == &immutable);
   ASSERT_EQ(
       child.get_documentation().line_count(),
       immutable.get_documentation().line_count());
   EXPECT_TEXT(
       child.get_documentation().get_line(0),
       immutable.get_documentation().get_line(0));
-  EXPECT(&workspace.resolve_context("Empty"_view) == &immutable);
-  EXPECT(&workspace.resolve_context("Library"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_concept("Empty"_view) == &immutable);
+  EXPECT(&workspace.resolve_concept("Library"_view) == &Unknown::get_unknown());
   EXPECT(child.get_source().is_linked());
   EXPECT(child.get_source().is_finalized());
-  EXPECT(&workspace.resolve_context("Empty"_view) == &immutable);
-  EXPECT(&workspace.resolve_context("Library"_view) == &Invalid::get_invalid());
+  EXPECT(&workspace.resolve_concept("Empty"_view) == &immutable);
+  EXPECT(&workspace.resolve_concept("Library"_view) == &Unknown::get_unknown());
   EXPECT(errors.is_empty());
 }
 
@@ -95,7 +95,7 @@ PERIMORTEM_UNIT_TEST(SceneDialect, child_rejection) {
       errors, "Broken"_view, "broken-scene.ttx"_view, scene_source);
 
   EXPECT_NOT(interpreted);
-  EXPECT(workspace.resolve_context("Broken"_view)
+  EXPECT(workspace.resolve_concept("Broken"_view)
              .is<Scene::Language::Monograph>());
   EXPECT_EQ(errors.get_size(), Count(1));
 }
@@ -121,7 +121,7 @@ PERIMORTEM_UNIT_TEST(SceneDialect, delayed_declarations) {
   ASSERT(retained && retained->is<Scene::Language::Monograph>());
   const auto& scene = static_cast<const Scene::Language::Monograph&>(*retained);
   EXPECT(scene.find_signal("later"_view));
-  EXPECT(&workspace.resolve_context("Rejected"_view) == &*retained);
+  EXPECT(&workspace.resolve_concept("Rejected"_view) == &*retained);
 }
 
 PERIMORTEM_UNIT_TEST(SceneDialect, library_declarations) {
@@ -149,10 +149,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, library_declarations) {
   ASSERT(interpreted && interpreted->is<Scene::Language::Monograph>());
   const auto& scene =
       static_cast<const Scene::Language::Monograph&>(*interpreted);
-  EXPECT(scene.resolve_context("Item"_view)
+  EXPECT(scene.resolve_concept("Item"_view)
              .resolve()
              .is<Library::Language::Types::Structure>());
-  EXPECT(scene.resolve_call(scene, "read"_view)
+  EXPECT(scene.resolve_concept("instance"_view)
+             .resolve_concept("read"_view)
              .resolve()
              .is<Library::Language::Function>());
   EXPECT(scene.get_library().get_source().is_linked());
@@ -184,12 +185,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, expands_fixed_hosted_objects) {
   ASSERT(interpreted && interpreted->is<Scene::Language::Monograph>());
   const auto& scene =
       static_cast<const Scene::Language::Monograph&>(*interpreted);
-  auto requirement = scene.resolve_context("Drawable"_view)
+  auto requirement = scene.resolve_concept("Drawable"_view)
                          .resolve()
                          .select<Ttx::Model::Type>();
-  auto icon = scene.resolve_context("Icon"_view)
-                  .resolve()
-                  .select<Ttx::Model::Type>();
+  auto icon =
+      scene.resolve_concept("Icon"_view).resolve().select<Ttx::Model::Type>();
   ASSERT(requirement && icon);
 
   Static::Vector<Reference<const Ttx::Model::Type>, 1> configured = {{*icon}};
