@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/model/fold_call.h"
+#include "tetrodotoxin/library/language/model/invocation.h"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/bootstrap/model/documentations/comment.hpp"
@@ -52,11 +52,11 @@ class Name : public Language::Model::Callable {
         parameters(self, 1),
         results(result, 1) {}
 
-  static auto fold_abi(
+  static auto invoke_abi(
       const ttx_abstract* callable,
       const ttx_pack* receiver,
-      const ttx_pack* arguments) -> const ttx_abstract*;
-  auto fold(
+      const ttx_pack* arguments) -> const ttx_pack*;
+  auto invoke(
       Perimortem::Core::Option<const Language::Model::Pack&> receiver,
       const Language::Model::Pack& arguments) const
       -> Perimortem::Core::Option<Language::Model::Pack&>;
@@ -66,7 +66,7 @@ class Name : public Language::Model::Callable {
   const Language::Model::Type& result_type;
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Ranged results;
-  static const ttx_library_fold_call_operations fold_operations;
+  static const ttx_library_invocation_operations invocation_operations;
 
   static constexpr Ttx::Model::Documentations::Comment documentation{
     "Returns the authored name of this Enumeration value or an empty View."_view,

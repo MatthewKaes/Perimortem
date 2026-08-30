@@ -6,13 +6,13 @@
 
 #include "ttx/concept/documentation.h"
 
-typedef struct ttx_comment_documentation {
-  ttx_documentation documentation;
-  perimortem_bytes line;
-} ttx_comment_documentation;
+struct ttx_comment_documentation {
+  struct ttx_documentation documentation;
+  struct perimortem_bytes line;
+};
 
 PERIMORTEM_EXTERN_C void ttx_comment_documentation_initialize(
-    ttx_comment_documentation* documentation,
-    perimortem_bytes line);
+    struct ttx_comment_documentation* documentation,
+    struct perimortem_bytes line);
 
 #endif

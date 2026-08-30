@@ -10,7 +10,31 @@ load("//validation:c_headers.bzl", "c_header")
 
 package(default_visibility = ["//visibility:public"])
 
-c_header("abi_core", "perimortem/abi/c/core.h")
+c_header(
+    "perimortem_core",
+    "perimortem/core/perimortem.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_object",
+    "perimortem/core/object.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_terminal",
+    "perimortem/system/terminal.h",
+    deps = ["//perimortem:system"],
+)
+c_header(
+    "language_product",
+    "tetrodotoxin/language/product.h",
+    deps = ["//tetrodotoxin/language"],
+)
+c_header(
+    "library_invocation",
+    "tetrodotoxin/library/language/model/invocation.h",
+    deps = ["//tetrodotoxin/library:language"],
+)
 c_header("abstract", "ttx/concept/abstract.h")
 c_header("alias", "ttx/concept/alias.h")
 c_header("concept_callable", "ttx/concept/callable.h")
@@ -42,7 +66,9 @@ c_header("type", "ttx/model/type.h")
 cc_library(
     name = "c_ttx_headers",
     deps = [
-        ":c_header_abi_core",
+        ":c_header_perimortem_core",
+        ":c_header_perimortem_object",
+        ":c_header_perimortem_terminal",
         ":c_header_abstract",
         ":c_header_addressable",
         ":c_header_alias",
@@ -63,6 +89,8 @@ cc_library(
         ":c_header_layout_ranged",
         ":c_header_layout_termination",
         ":c_header_layout_value",
+        ":c_header_language_product",
+        ":c_header_library_invocation",
         ":c_header_interface_callable",
         ":c_header_model_callable",
         ":c_header_model_context",
@@ -88,7 +116,10 @@ cc_binary(
         "-Wextra",
         "-Werror",
     ],
-    deps = ["//ttx:model"],
+    deps = [
+        "//perimortem:system",
+        "//ttx:model",
+    ],
 )
 
 ttx_source(

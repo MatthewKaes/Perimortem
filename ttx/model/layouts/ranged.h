@@ -6,15 +6,15 @@
 
 #include "ttx/concept/layout.h"
 
-typedef struct ttx_ranged_layout {
-  ttx_layout layout;
-  const ttx_abstract* entry;
+struct ttx_ranged_layout {
+  struct ttx_layout layout;
+  const struct ttx_abstract* entry;
   perimortem_count count;
-} ttx_ranged_layout;
+};
 
 PERIMORTEM_EXTERN_C void ttx_ranged_layout_initialize(
-    ttx_ranged_layout* layout,
-    const ttx_abstract* entry,
+    struct ttx_ranged_layout* layout,
+    const struct ttx_abstract* entry,
     perimortem_count count);
 
 #endif

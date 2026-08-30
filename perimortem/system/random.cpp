@@ -46,7 +46,7 @@ struct PhiloxState {
 };
 
 auto Random::read_entropy() -> U64 {
-  U64 value;
+  unsigned long long value;
   Count timeout = 100000;
   while (!_rdrand64_step(&value) and timeout) {
     timeout -= 1;
@@ -59,7 +59,7 @@ auto Random::read_entropy() -> U64 {
     return (Count(rand()) << 32) | Count(rand());
   }
 
-  return value;
+  return U64(value);
 }
 
 // Advances four counter depths for each of the two vectorized Philox channels.

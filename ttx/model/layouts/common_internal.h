@@ -7,10 +7,10 @@
 #include "ttx/concept/layout.h"
 
 perimortem_bool ttx_layout_entries_fit(
-    const ttx_layout* source,
-    const ttx_layout* target);
+    const struct ttx_layout* source,
+    const struct ttx_layout* target);
 perimortem_bool ttx_layout_entry_fits(
-    const ttx_abstract* source,
-    const ttx_abstract* target);
+    const struct ttx_abstract* source,
+    const struct ttx_abstract* target);
 
 #endif

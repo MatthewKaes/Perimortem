@@ -10,10 +10,11 @@ using namespace Perimortem;
 extern "C" const Core::Object<>::Descriptor
     TTX_DESC_Perimortem_2eGraphics__Sprite__Sprite __attribute__((weak));
 
-const Core::Object<>::Descriptor Graphics::Sprite::descriptor(
-    sizeof(Payload),
-    alignof(Payload),
-    Graphics::Sprite::finalize);
+const Core::Object<>::Descriptor Graphics::Sprite::descriptor{
+    .size = sizeof(Payload),
+    .alignment = alignof(Payload),
+    .finalize = Graphics::Sprite::finalize,
+};
 
 Graphics::Sprite::Sprite() : object(Core::Object<>::create(descriptor)) {
   new (object.get_payload(), Core::Placement::Construct) Payload();

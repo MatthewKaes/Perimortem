@@ -3,8 +3,21 @@
 
 #pragma once
 
+#include "perimortem/core/perimortem.h"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/static/vector.hpp"
+
+// Input is the fixed C carrier published to generated code for one frame. It
+// mirrors an immutable Perimortem snapshot without exposing the platform
+// events that produced it.
+struct perimortem_system_input {
+  uint64_t current[3];
+  uint64_t changed[3];
+  float pointer[2];
+  float pointer_delta[2];
+  float scroll[2];
+  perimortem_bool pointer_active;
+};
 
 namespace Perimortem::System {
 
@@ -304,5 +317,25 @@ class Input {
 // this ceiling makes accidental state duplication visible during review.
 static_assert(Input::key_count <= 192);
 static_assert(sizeof(Input) <= 80);
+static_assert(sizeof(perimortem_system_input) == sizeof(Input));
+static_assert(alignof(perimortem_system_input) == alignof(Input));
+
+// The application runtime publishes once after collecting a frame. Generated
+// code reads that value through the C boundary, so every query during the frame
+// observes the same snapshot even when native events continue arriving.
+auto create_input(const Input& input) -> perimortem_system_input;
+auto publish_input(const Input& input) -> void;
 
 }  // namespace Perimortem::System
+
+PERIMORTEM_EXTERN_C struct perimortem_system_input
+perimortem_system_input_snapshot(void);
+PERIMORTEM_EXTERN_C perimortem_bool perimortem_system_input_held(
+    struct perimortem_system_input input,
+    uint8_t key);
+PERIMORTEM_EXTERN_C perimortem_bool perimortem_system_input_pressed(
+    struct perimortem_system_input input,
+    uint8_t key);
+PERIMORTEM_EXTERN_C perimortem_bool perimortem_system_input_released(
+    struct perimortem_system_input input,
+    uint8_t key);

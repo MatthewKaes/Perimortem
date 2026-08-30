@@ -11,23 +11,23 @@
 #define TTX_CONTAINER_OF(pointer, type, member) \
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
-typedef struct copy_entries {
-  ttx_abstract_callable callable;
-  ttx_model_context* context;
+struct copy_entries {
+  struct ttx_abstract_callable callable;
+  struct ttx_model_context* context;
   perimortem_bool valid;
-} copy_entries;
+};
 
-typedef struct copy_named_entries {
-  ttx_named_abstract_callable callable;
-  ttx_model_context* context;
+struct copy_named_entries {
+  struct ttx_named_abstract_callable callable;
+  struct ttx_model_context* context;
   perimortem_bool valid;
-} copy_named_entries;
+};
 
 static void copy_entry(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* entry) {
-  copy_entries* copy =
-      TTX_CONTAINER_OF(callable, copy_entries, callable);
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* entry) {
+  struct copy_entries* copy =
+      TTX_CONTAINER_OF(callable, struct copy_entries, callable);
   if (copy->context->entry_count ==
       copy->context->storage.entry_capacity) {
     copy->valid = PERIMORTEM_FALSE;
@@ -36,19 +36,19 @@ static void copy_entry(
   copy->context->storage.entries[copy->context->entry_count++] = entry;
 }
 
-static const ttx_abstract_callable_operations copy_operations = {
+static const struct ttx_abstract_callable_operations copy_operations = {
     .call = copy_entry,
 };
 
 static void copy_named_entry(
-    ttx_named_abstract_callable* callable,
-    perimortem_bytes name,
-    const ttx_abstract* entry) {
-  copy_named_entries* copy =
-      TTX_CONTAINER_OF(callable, copy_named_entries, callable);
-  ttx_model_context* context = copy->context;
+    struct ttx_named_abstract_callable* callable,
+    struct perimortem_bytes name,
+    const struct ttx_abstract* entry) {
+  struct copy_named_entries* copy =
+      TTX_CONTAINER_OF(callable, struct copy_named_entries, callable);
+  struct ttx_model_context* context = copy->context;
   perimortem_count index;
-  perimortem_bytes retained;
+  struct perimortem_bytes retained;
   if (context->entry_count == context->storage.entry_capacity ||
       context->name_count == context->storage.name_capacity ||
       name.size > context->storage.name_byte_capacity -
@@ -67,28 +67,28 @@ static void copy_named_entry(
   context->storage.names[context->name_count++] = retained;
 }
 
-static const ttx_named_abstract_callable_operations named_copy_operations = {
+static const struct ttx_named_abstract_callable_operations named_copy_operations = {
     .call = copy_named_entry,
 };
 
-static const ttx_pack* pack(
-    ttx_context* base,
-    const ttx_layout* layout) {
-  ttx_model_context* self =
-      TTX_CONTAINER_OF(base, ttx_model_context, context);
-  ttx_named_layout_view named;
+static const struct ttx_pack* pack(
+    struct ttx_context* base,
+    const struct ttx_layout* layout) {
+  struct ttx_model_context* self =
+      TTX_CONTAINER_OF(base, struct ttx_model_context, context);
+  struct ttx_named_layout_view named;
   perimortem_count pack_index;
   perimortem_count entry_start;
   perimortem_count name_start;
   perimortem_count byte_start;
-  ttx_model_pack* selected;
+  struct ttx_model_pack* selected;
 
-  copy_entries entry_copy = {
+  struct copy_entries entry_copy = {
       .callable = {.operations = &copy_operations},
       .context = self,
       .valid = PERIMORTEM_TRUE,
   };
-  copy_named_entries named_copy = {
+  struct copy_named_entries named_copy = {
       .callable = {.operations = &named_copy_operations},
       .context = self,
       .valid = PERIMORTEM_TRUE,
@@ -138,13 +138,13 @@ static const ttx_pack* pack(
   return &selected->pack;
 }
 
-static const ttx_context_operations operations = {
+static const struct ttx_context_operations operations = {
     .pack = pack,
 };
 
 void ttx_model_context_initialize(
-    ttx_model_context* context,
-    ttx_model_context_storage storage) {
+    struct ttx_model_context* context,
+    struct ttx_model_context_storage storage) {
   context->context.operations = &operations;
   context->storage = storage;
   context->pack_count = 0;

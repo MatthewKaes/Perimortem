@@ -9,22 +9,22 @@
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
 static void visit(
-    const ttx_documentation* base,
-    ttx_bytes_callable* visitor) {
-  const ttx_merged_documentation* self =
-      TTX_CONTAINER_OF(base, const ttx_merged_documentation, documentation);
+    const struct ttx_documentation* base,
+    struct ttx_bytes_callable* visitor) {
+  const struct ttx_merged_documentation* self =
+      TTX_CONTAINER_OF(base, const struct ttx_merged_documentation, documentation);
   ttx_documentation_visit(self->first, visitor);
   ttx_documentation_visit(self->second, visitor);
 }
 
-static const ttx_documentation_operations operations = {
+static const struct ttx_documentation_operations operations = {
     .visit = visit,
 };
 
 void ttx_merged_documentation_initialize(
-    ttx_merged_documentation* documentation,
-    const ttx_documentation* first,
-    const ttx_documentation* second) {
+    struct ttx_merged_documentation* documentation,
+    const struct ttx_documentation* first,
+    const struct ttx_documentation* second) {
   documentation->documentation.operations = &operations;
   documentation->first = first;
   documentation->second = second;

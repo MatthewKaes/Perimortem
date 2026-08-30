@@ -8,7 +8,7 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/model/fold_call.h"
+#include "tetrodotoxin/library/language/model/invocation.h"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "ttx/bootstrap/concept/constant.hpp"
 #include "ttx/bootstrap/concept/none.hpp"
@@ -607,30 +607,34 @@ auto Language::Access::Call::evaluate_fold()
     return Core::Option<Language::Model::Pack&>();
   }
 
-  ttx_library_fold_call_view foldable;
-  if (!ttx_library_fold_call_prove(selected->get_abi(), &foldable)) {
+  ttx_library_invocation_view invocable;
+  if (!ttx_library_invocation_prove(selected->get_abi(), &invocable)) {
     return Core::Option<Language::Model::Pack&>();
   }
 
-  Core::Option<const Language::Model::Pack&> folded_receiver;
+  Core::Option<Language::Model::Pack&> folded_receiver;
   if (selected->declares_self()) {
-    auto value = query_folded_pack(receiver);
+    auto value = query_folded_pack(domain, receiver);
     if (!value) {
       return Core::Option<Language::Model::Pack&>();
     }
     folded_receiver = *value;
   }
 
-  const ttx_abstract* answer = ttx_library_fold_call(
-      &foldable, folded_receiver ? folded_receiver->get_abi() : nullptr,
-      arguments.get_abi());
-  const Abstract& result = Abstract::from_abi(answer);
-  if (!Ttx::Concept::Constant::prove(result)) {
+  auto folded_arguments = query_folded_pack(domain, arguments);
+  if (!folded_arguments) {
     return Core::Option<Language::Model::Pack&>();
   }
-  auto pack = Model::Pack::from(const_cast<Abstract&>(result));
-  return pack ? Core::Option<Model::Pack&>(*pack)
-              : Core::Option<Model::Pack&>();
+
+  const ttx_pack* answer = ttx_library_invoke(
+      &invocable, folded_receiver ? folded_receiver->get_abi() : nullptr,
+      folded_arguments->get_abi());
+  if (!answer) {
+    return Core::Option<Language::Model::Pack&>();
+  }
+
+  auto& result = const_cast<Model::Pack&>(Model::Pack::from_abi(answer));
+  return query_folded_pack(domain, result);
 }
 
 auto Language::Access::Call::get_callable() const

@@ -860,3 +860,18 @@ auto Formats::Png::encode(const Image& image) -> Dynamic::Bytes {
   output.resize(write_position);
   return output;
 }
+
+// Option over one nonnull authored Object uses the invalid null handle as its
+// absent state. A successful result transfers one Image reservation directly
+// into the generated caller.
+extern "C" auto perimortem_graphics_png_decode(perimortem_bytes source)
+    -> U8* {
+  Image image = Formats::Png::decode(View::Bytes(source.data, source.size));
+  if (!image.is_drawable()) {
+    return nullptr;
+  }
+
+  Object<> object = image.get_object();
+  object.retain();
+  return object.get_payload();
+}

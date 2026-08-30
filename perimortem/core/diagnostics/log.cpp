@@ -3,6 +3,8 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "perimortem/core/perimortem.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -341,4 +343,13 @@ auto Diagnostics::Log::fatal(View::Bytes message, const Source& location)
 
 auto Diagnostics::Log::flush() -> void {
   thread_writer.flush();
+}
+
+extern "C" auto print(perimortem_bytes data) -> void {
+  fflush(stdout);
+  constexpr View::Bytes debug_text = "[DEBUG] "_view;
+  constexpr View::Bytes end_line = "\n"_view;
+  fwrite(debug_text.get_data(), 1, debug_text.get_size(), stdout);
+  fwrite(data.data, 1, data.size, stdout);
+  fwrite(end_line.get_data(), 1, end_line.get_size(), stdout);
 }

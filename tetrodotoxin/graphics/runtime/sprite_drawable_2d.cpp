@@ -36,7 +36,7 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
       projection->program == nullptr || instance.is_empty()) {
     return {};
   }
-  Count instance_size = instance.get_descriptor().get_size();
+  Count instance_size = instance.get_descriptor().size;
   if (projection->parameters_offset > instance_size ||
       projection->parameters_size >
           instance_size - projection->parameters_offset) {

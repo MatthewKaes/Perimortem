@@ -11,10 +11,11 @@ using namespace Perimortem;
 extern "C" const Core::Object<>::Descriptor
     TTX_DESC_Perimortem_2eGraphics__Image__Image __attribute__((weak));
 
-const Core::Object<>::Descriptor Graphics::Image::descriptor(
-    sizeof(Payload),
-    alignof(Payload),
-    Graphics::Image::finalize);
+const Core::Object<>::Descriptor Graphics::Image::descriptor{
+    .size = sizeof(Payload),
+    .alignment = alignof(Payload),
+    .finalize = Graphics::Image::finalize,
+};
 
 static auto create_pixels(
     const Memory::Dynamic::Vector<Graphics::Pixel>& source,

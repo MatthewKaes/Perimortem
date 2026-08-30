@@ -3,6 +3,6 @@
 
 #include "ttx/concept/pack.h"
 
-const ttx_layout* ttx_pack_layout(const ttx_pack* pack) {
+const struct ttx_layout* ttx_pack_layout(const struct ttx_pack* pack) {
   return pack->operations->layout(pack);
 }

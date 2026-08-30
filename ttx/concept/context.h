@@ -6,17 +6,19 @@
 
 #include "ttx/concept/pack.h"
 
-typedef struct ttx_context ttx_context;
-typedef struct ttx_context_operations {
-  const ttx_pack* (*pack)(ttx_context* self, const ttx_layout* layout);
-} ttx_context_operations;
-
-struct ttx_context {
-  const ttx_context_operations* operations;
+struct ttx_context;
+struct ttx_context_operations {
+  const struct ttx_pack* (*pack)(
+      struct ttx_context* self,
+      const struct ttx_layout* layout);
 };
 
-PERIMORTEM_EXTERN_C const ttx_pack* ttx_context_pack(
-    ttx_context* context,
-    const ttx_layout* layout);
+struct ttx_context {
+  const struct ttx_context_operations* operations;
+};
+
+PERIMORTEM_EXTERN_C const struct ttx_pack* ttx_context_pack(
+    struct ttx_context* context,
+    const struct ttx_layout* layout);
 
 #endif

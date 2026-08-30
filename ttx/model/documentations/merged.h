@@ -6,15 +6,15 @@
 
 #include "ttx/concept/documentation.h"
 
-typedef struct ttx_merged_documentation {
-  ttx_documentation documentation;
-  const ttx_documentation* first;
-  const ttx_documentation* second;
-} ttx_merged_documentation;
+struct ttx_merged_documentation {
+  struct ttx_documentation documentation;
+  const struct ttx_documentation* first;
+  const struct ttx_documentation* second;
+};
 
 PERIMORTEM_EXTERN_C void ttx_merged_documentation_initialize(
-    ttx_merged_documentation* documentation,
-    const ttx_documentation* first,
-    const ttx_documentation* second);
+    struct ttx_merged_documentation* documentation,
+    const struct ttx_documentation* first,
+    const struct ttx_documentation* second);
 
 #endif

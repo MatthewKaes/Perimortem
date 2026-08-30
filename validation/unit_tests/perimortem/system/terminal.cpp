@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/system/terminal.hpp"
+#include "perimortem/system/terminal.h"
 
 #include "validation/unit_test.hpp"
 
@@ -10,10 +10,12 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
+#include "perimortem/core/object.h"
+
+#include "perimortem/memory/dynamic/bytes.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
-using namespace Perimortem::System;
 using namespace Validation;
 
 static Harness SystemTerminal = {
@@ -98,6 +100,22 @@ static auto matches(const Option<Dynamic::Bytes>& result, View::Bytes expected)
       });
 }
 
+static auto borrow(View::Bytes bytes) -> perimortem_bytes {
+  return perimortem_bytes{
+      .data = bytes.get_data(),
+      .size = bytes.get_size(),
+  };
+}
+
+static auto matches(perimortem_terminal_line& result, View::Bytes expected)
+    -> Bool {
+  Bool same = result.present &&
+              perimortem_bytes_equal(result.value, borrow(expected));
+  perimortem_core_object_release(const_cast<U8*>(result.value.data));
+  result = {};
+  return same;
+}
+
 static auto close_stream(FILE* stream) -> void {
   if (stream != nullptr) {
     fclose(stream);
@@ -115,9 +133,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, blank_line) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
   EXPECT(matches(line, ""_view));
 
   close_stream(input);
@@ -135,10 +153,10 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, immediate_eof) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
-  EXPECT(!line);
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
+  EXPECT(!line.present);
 
   close_stream(input);
   close_stream(output);
@@ -157,9 +175,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, crlf_and_zero_bytes) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
   EXPECT(matches(line, expected));
 
   close_stream(input);
@@ -177,9 +195,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, final_line_at_eof) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
   EXPECT(matches(line, "final\r"_view));
 
   close_stream(input);
@@ -202,9 +220,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, long_line) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
   EXPECT(matches(line, source.slice(0, line_size)));
 
   close_stream(input);
@@ -222,19 +240,19 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, sequential_lines) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> first;
-  Option<Dynamic::Bytes> second;
-  Option<Dynamic::Bytes> third;
-  Option<Dynamic::Bytes> fourth;
-  first = terminal.read_line();
-  second = terminal.read_line();
-  third = terminal.read_line();
-  fourth = terminal.read_line();
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line first;
+  perimortem_terminal_line second;
+  perimortem_terminal_line third;
+  perimortem_terminal_line fourth;
+  first = perimortem_terminal_read_line(&terminal);
+  second = perimortem_terminal_read_line(&terminal);
+  third = perimortem_terminal_read_line(&terminal);
+  fourth = perimortem_terminal_read_line(&terminal);
   EXPECT(matches(first, "one"_view));
   EXPECT(matches(second, ""_view));
   EXPECT(matches(third, "two"_view));
-  EXPECT(!fourth);
+  EXPECT(!fourth.present);
 
   close_stream(input);
   close_stream(output);
@@ -251,10 +269,10 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, read_failure) {
     return;
   }
 
-  Terminal terminal(*input, *output);
-  Option<Dynamic::Bytes> line;
-  line = terminal.read_line();
-  EXPECT(!line);
+  perimortem_terminal terminal = {.input = input, .output = output};
+  perimortem_terminal_line line;
+  line = perimortem_terminal_read_line(&terminal);
+  EXPECT(!line.present);
   EXPECT(ferror(input) != 0);
 
   close_stream(input);
@@ -274,10 +292,10 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, exact_output) {
     return;
   }
 
-  Terminal terminal(*input, *output);
+  perimortem_terminal terminal = {.input = input, .output = output};
   Bool written;
   Option<Dynamic::Bytes> contents;
-  written = terminal.write_line(source);
+  written = perimortem_terminal_write_line(&terminal, borrow(source));
   contents = read_stream(*output);
   EXPECT(written);
   EXPECT(matches(contents, expected));
@@ -297,10 +315,10 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, blank_output) {
     return;
   }
 
-  Terminal terminal(*input, *output);
+  perimortem_terminal terminal = {.input = input, .output = output};
   Bool written;
   Option<Dynamic::Bytes> contents;
-  written = terminal.write_line(View::Bytes());
+  written = perimortem_terminal_write_line(&terminal, borrow(View::Bytes()));
   contents = read_stream(*output);
   EXPECT(written);
   EXPECT(matches(contents, "\n"_view));
@@ -324,9 +342,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, short_write) {
   buffering = setvbuf(output, nullptr, _IONBF, 0);
   EXPECT_EQ(buffering, S32(0));
 
-  Terminal terminal(*input, *output);
+  perimortem_terminal terminal = {.input = input, .output = output};
   Bool written;
-  written = terminal.write_line("content"_view);
+  written = perimortem_terminal_write_line(&terminal, borrow("content"_view));
   EXPECT(!written);
 
   close_stream(input);
@@ -348,9 +366,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, newline_failure) {
   buffering = setvbuf(output, nullptr, _IONBF, 0);
   EXPECT_EQ(buffering, S32(0));
 
-  Terminal terminal(*input, *output);
+  perimortem_terminal terminal = {.input = input, .output = output};
   Bool written;
-  written = terminal.write_line(View::Bytes());
+  written = perimortem_terminal_write_line(&terminal, borrow(View::Bytes()));
   EXPECT(!written);
 
   close_stream(input);
@@ -373,9 +391,9 @@ PERIMORTEM_UNIT_TEST(SystemTerminal, flush_failure) {
   buffering = setvbuf(output, Data::cast<char>(buffer.get_data()), _IOFBF, 128);
   EXPECT_EQ(buffering, S32(0));
 
-  Terminal terminal(*input, *output);
+  perimortem_terminal terminal = {.input = input, .output = output};
   Bool written;
-  written = terminal.write_line("content"_view);
+  written = perimortem_terminal_write_line(&terminal, borrow("content"_view));
   EXPECT(!written);
 
   close_stream(input);

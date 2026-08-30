@@ -6,13 +6,13 @@
 
 #include "ttx/concept/layout.h"
 
-typedef struct ttx_value_layout {
-  ttx_layout layout;
-  const ttx_abstract* value;
-} ttx_value_layout;
+struct ttx_value_layout {
+  struct ttx_layout layout;
+  const struct ttx_abstract* value;
+};
 
 PERIMORTEM_EXTERN_C void ttx_value_layout_initialize(
-    ttx_value_layout* layout,
-    const ttx_abstract* value);
+    struct ttx_value_layout* layout,
+    const struct ttx_abstract* value);
 
 #endif

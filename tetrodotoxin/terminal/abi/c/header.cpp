@@ -12,7 +12,7 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "perimortem/abi/core/object.hpp"
+#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -813,9 +813,9 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
 
   output << "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n"_view;
   if (uses_objects) {
-    output << "void "_view << Perimortem::Abi::Core::object_retain_symbol
+    output << "void "_view << Perimortem::Core::object_retain_symbol
            << "(void *value);\nvoid "_view
-           << Perimortem::Abi::Core::object_release_symbol
+           << Perimortem::Core::object_release_symbol
            << "(void *value);\n"_view;
   }
 

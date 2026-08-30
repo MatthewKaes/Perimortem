@@ -31,10 +31,11 @@ class SubmissionResource {
   static const Core::Object<>::Descriptor descriptor;
 };
 
-const Core::Object<>::Descriptor SubmissionResource::descriptor(
-    sizeof(U8),
-    alignof(U8),
-    SubmissionResource::finalize);
+const Core::Object<>::Descriptor SubmissionResource::descriptor{
+    .size = sizeof(U8),
+    .alignment = alignof(U8),
+    .finalize = SubmissionResource::finalize,
+};
 
 auto SubmissionResource::create(U8 value) -> Core::Object<> {
   Core::Object<> object = Core::Object<>::create(descriptor);
@@ -90,10 +91,11 @@ class SubmissionNode {
   Core::Object<> resource;
 };
 
-const Core::Object<>::Descriptor SubmissionNode::object_descriptor(
-    sizeof(SubmissionNode),
-    alignof(SubmissionNode),
-    SubmissionNode::finalize);
+const Core::Object<>::Descriptor SubmissionNode::object_descriptor{
+    .size = sizeof(SubmissionNode),
+    .alignment = alignof(SubmissionNode),
+    .finalize = SubmissionNode::finalize,
+};
 
 const Placement2D SubmissionNode::placement(
     nullptr,

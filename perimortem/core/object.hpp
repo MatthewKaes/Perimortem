@@ -3,12 +3,33 @@
 
 #pragma once
 
+#include "perimortem/core/object.h"
+#include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
 #include "perimortem/core/bibliotheca.hpp"
 #include "perimortem/core/data.hpp"
 
 namespace Perimortem::Core {
+
+inline constexpr View::Bytes object_allocate_symbol =
+    "perimortem_core_object_allocate"_view;
+inline constexpr View::Bytes object_allocate_buffer_symbol =
+    "perimortem_core_object_allocate_buffer"_view;
+inline constexpr View::Bytes object_retain_symbol =
+    "perimortem_core_object_retain"_view;
+inline constexpr View::Bytes object_release_symbol =
+    "perimortem_core_object_release"_view;
+inline constexpr View::Bytes object_capacity_symbol =
+    "perimortem_core_object_capacity"_view;
+inline constexpr View::Bytes object_clone_symbol =
+    "perimortem_core_object_clone"_view;
+inline constexpr View::Bytes object_reservations_symbol =
+    "perimortem_core_object_reservations"_view;
+inline constexpr View::Bytes object_reserve_symbol =
+    "perimortem_core_object_reserve"_view;
+inline constexpr View::Bytes object_finalize_trivial_symbol =
+    "perimortem_core_object_finalize_trivial"_view;
 
 // Object<void> is the erased one word carrier shared by C++ and generated
 // code. It deliberately performs no automatic lifetime work because compiler
@@ -20,21 +41,7 @@ template <>
 class Object<void> {
  public:
   using Finalizer = void (*)(U8*);
-
-  class Descriptor {
-   public:
-    constexpr Descriptor(Count size, Count alignment, Finalizer finalizer)
-        : size(size), alignment(alignment), finalizer(finalizer) {}
-
-    constexpr auto get_size() const -> Count { return size; }
-    constexpr auto get_alignment() const -> Count { return alignment; }
-    constexpr auto get_finalizer() const -> Finalizer { return finalizer; }
-
-   private:
-    Count size;
-    Count alignment;
-    Finalizer finalizer;
-  };
+  using Descriptor = perimortem_object_descriptor;
 
   constexpr Object() = default;
   explicit constexpr Object(U8* payload) : payload(payload) {}
@@ -175,7 +182,10 @@ class Object {
   }
 
   inline static constexpr Object<>::Descriptor buffer_descriptor{
-    sizeof(value_type), alignof(value_type), destroy_buffer};
+    .size = sizeof(value_type),
+    .alignment = alignof(value_type),
+    .finalize = destroy_buffer,
+  };
 
   Object<> storage;
 };

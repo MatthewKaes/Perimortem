@@ -6,15 +6,15 @@
 
 #include "ttx/concept/layout.h"
 
-typedef struct ttx_fluid_layout {
-  ttx_layout layout;
-  const ttx_abstract* const* entries;
+struct ttx_fluid_layout {
+  struct ttx_layout layout;
+  const struct ttx_abstract* const* entries;
   perimortem_count count;
-} ttx_fluid_layout;
+};
 
 PERIMORTEM_EXTERN_C void ttx_fluid_layout_initialize(
-    ttx_fluid_layout* layout,
-    const ttx_abstract* const* entries,
+    struct ttx_fluid_layout* layout,
+    const struct ttx_abstract* const* entries,
     perimortem_count count);
 
 #endif

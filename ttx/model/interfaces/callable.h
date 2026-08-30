@@ -7,7 +7,7 @@
 #include "ttx/model/callable.h"
 
 PERIMORTEM_EXTERN_C ttx_interface_relation ttx_callable_negotiate(
-    const ttx_abstract* requirement,
-    const ttx_abstract* candidate);
+    const struct ttx_abstract* requirement,
+    const struct ttx_abstract* candidate);
 
 #endif

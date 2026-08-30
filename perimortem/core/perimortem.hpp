@@ -38,6 +38,8 @@
 
 #pragma once
 
+#include "perimortem/core/perimortem.h"
+
 // Since Perimortem is exception free the header provides a macro to propagate
 // failures up the stack with a slightly less verbose syntax. It's mostly used
 // with `Option` but it can be used anywhere a default constructed object is the

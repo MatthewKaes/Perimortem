@@ -11,50 +11,50 @@
 #define TTX_CONTAINER_OF(pointer, type, member) \
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
-typedef struct count_entries {
-  ttx_abstract_callable callable;
+struct count_entries {
+  struct ttx_abstract_callable callable;
   perimortem_count count;
-} count_entries;
+};
 
 static void count_entry(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* abstract) {
-  count_entries* counter =
-      TTX_CONTAINER_OF(callable, count_entries, callable);
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* abstract) {
+  struct count_entries* counter =
+      TTX_CONTAINER_OF(callable, struct count_entries, callable);
   (void)abstract;
   ++counter->count;
 }
 
-static const ttx_abstract_callable_operations count_operations = {
+static const struct ttx_abstract_callable_operations count_operations = {
     .call = count_entry,
 };
 
-typedef struct select_entry {
-  ttx_abstract_callable callable;
+struct select_entry {
+  struct ttx_abstract_callable callable;
   perimortem_count requested;
   perimortem_count current;
-  const ttx_abstract* selected;
-} select_entry;
+  const struct ttx_abstract* selected;
+};
 
 static void select_current(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* abstract) {
-  select_entry* selection =
-      TTX_CONTAINER_OF(callable, select_entry, callable);
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* abstract) {
+  struct select_entry* selection =
+      TTX_CONTAINER_OF(callable, struct select_entry, callable);
   if (selection->current == selection->requested) {
     selection->selected = abstract;
   }
   ++selection->current;
 }
 
-static const ttx_abstract_callable_operations select_operations = {
+static const struct ttx_abstract_callable_operations select_operations = {
     .call = select_current,
 };
 
-static const ttx_abstract* fitting_identity(const ttx_abstract* abstract) {
-  ttx_type_view type;
-  ttx_addressable_view addressable;
-  const ttx_abstract* represented;
+static const struct ttx_abstract* fitting_identity(const struct ttx_abstract* abstract) {
+  struct ttx_type_view type;
+  struct ttx_addressable_view addressable;
+  const struct ttx_abstract* represented;
 
   if (ttx_type_prove(abstract, &type)) {
     return abstract;
@@ -70,15 +70,15 @@ static const ttx_abstract* fitting_identity(const ttx_abstract* abstract) {
 }
 
 perimortem_bool ttx_layout_entry_fits(
-    const ttx_abstract* source,
-    const ttx_abstract* target) {
+    const struct ttx_abstract* source,
+    const struct ttx_abstract* target) {
   return fitting_identity(source) == fitting_identity(target)
              ? PERIMORTEM_TRUE
              : PERIMORTEM_FALSE;
 }
 
-static perimortem_count entry_count(const ttx_layout* layout) {
-  count_entries counter = {
+static perimortem_count entry_count(const struct ttx_layout* layout) {
+  struct count_entries counter = {
       .callable = {.operations = &count_operations},
       .count = 0,
   };
@@ -86,10 +86,10 @@ static perimortem_count entry_count(const ttx_layout* layout) {
   return counter.count;
 }
 
-static const ttx_abstract* entry_at(
-    const ttx_layout* layout,
+static const struct ttx_abstract* entry_at(
+    const struct ttx_layout* layout,
     perimortem_count index) {
-  select_entry selection = {
+  struct select_entry selection = {
       .callable = {.operations = &select_operations},
       .requested = index,
       .current = 0,
@@ -100,8 +100,8 @@ static const ttx_abstract* entry_at(
 }
 
 perimortem_bool ttx_layout_entries_fit(
-    const ttx_layout* source,
-    const ttx_layout* target) {
+    const struct ttx_layout* source,
+    const struct ttx_layout* target) {
   perimortem_count source_count = entry_count(source);
   perimortem_count target_count = entry_count(target);
   perimortem_count index;
@@ -110,8 +110,8 @@ perimortem_bool ttx_layout_entries_fit(
     return PERIMORTEM_FALSE;
   }
   for (index = 0; index < source_count; ++index) {
-    const ttx_abstract* source_entry = entry_at(source, index);
-    const ttx_abstract* target_entry = entry_at(target, index);
+    const struct ttx_abstract* source_entry = entry_at(source, index);
+    const struct ttx_abstract* target_entry = entry_at(target, index);
     if (source_entry == 0 || target_entry == 0 ||
         !ttx_layout_entry_fits(source_entry, target_entry)) {
       return PERIMORTEM_FALSE;

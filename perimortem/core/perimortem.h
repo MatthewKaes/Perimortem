@@ -1,8 +1,8 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#ifndef PERIMORTEM_ABI_C_CORE_H
-#define PERIMORTEM_ABI_C_CORE_H
+#ifndef PERIMORTEM_CORE_PERIMORTEM_H
+#define PERIMORTEM_CORE_PERIMORTEM_H
 
 #include <stdint.h>
 
@@ -20,14 +20,14 @@ enum {
   PERIMORTEM_TRUE = 1,
 };
 
-typedef struct perimortem_bytes {
+struct perimortem_bytes {
   const uint8_t* data;
   perimortem_count size;
-} perimortem_bytes;
+};
 
 static inline perimortem_bool perimortem_bytes_equal(
-    perimortem_bytes left,
-    perimortem_bytes right) {
+    struct perimortem_bytes left,
+    struct perimortem_bytes right) {
   perimortem_count index;
   if (left.size != right.size) {
     return PERIMORTEM_FALSE;

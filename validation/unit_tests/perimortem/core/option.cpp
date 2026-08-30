@@ -7,7 +7,7 @@
 
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/abi/core/option.hpp"
+#include "perimortem/system/terminal.h"
 
 using namespace Perimortem::Core;
 using namespace Validation;
@@ -52,12 +52,16 @@ static auto create_stack_value(Count& destructions) -> Option<StackValue> {
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, abi_carrier) {
-  auto absent = Perimortem::Abi::Core::Option<U64>::create();
-  auto present = Perimortem::Abi::Core::Option<U64>::create(U64(42));
+  const U8 value = 42;
+  perimortem_terminal_line absent = {};
+  perimortem_terminal_line present = {
+      .value = {.data = &value, .size = 1},
+      .present = PERIMORTEM_TRUE,
+  };
 
-  EXPECT(!absent);
-  EXPECT(present);
-  EXPECT_EQ(*present, U64(42));
+  EXPECT(!absent.present);
+  EXPECT(present.present);
+  EXPECT_EQ(present.value.data[0], U8(42));
 }
 
 PERIMORTEM_UNIT_TEST(CoreOption, visits_none) {

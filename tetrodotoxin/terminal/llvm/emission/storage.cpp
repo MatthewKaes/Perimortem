@@ -15,7 +15,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
-#include "perimortem/abi/core/object.hpp"
+#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/terminal/llvm/emission/storage.hpp"

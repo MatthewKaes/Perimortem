@@ -12,7 +12,6 @@
 #include "perimortem/system/input.hpp"
 #include "perimortem/system/window.hpp"
 
-#include "perimortem/abi/system/input.hpp"
 #include "perimortem/vulkan/pipelines.hpp"
 #include "perimortem/vulkan/renderer.hpp"
 #include "tetrodotoxin/graphics/runtime/compiled_children_2d.hpp"
@@ -93,7 +92,7 @@ auto Runtime::Application::Runner::run(const Product& product) -> int {
       break;
     }
 
-    Abi::System::publish_input(window.get_input());
+    System::publish_input(window.get_input());
     if (window.get_input().is_pressed(System::Input::Key::Escape)) {
       session.stop();
       break;

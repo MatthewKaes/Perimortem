@@ -7,7 +7,7 @@
 #include "ttx/model/pack.h"
 
 void ttx_model_pack_initialize(
-    ttx_model_pack* pack,
-    const ttx_layout* layout);
+    struct ttx_model_pack* pack,
+    const struct ttx_layout* layout);
 
 #endif

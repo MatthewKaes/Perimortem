@@ -3,7 +3,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
-def c_header(name, header):
+def c_header(name, header, deps = ["//ttx:ttx"]):
     cc_library(
         name = "c_header_" + name,
         srcs = ["c/header.c"],
@@ -14,5 +14,5 @@ def c_header(name, header):
             "-Werror",
             "-DTTX_HEADER=\\\"" + header + "\\\"",
         ],
-        deps = ["//ttx:ttx"],
+        deps = deps,
     )

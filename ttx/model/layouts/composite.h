@@ -6,15 +6,15 @@
 
 #include "ttx/concept/layout.h"
 
-typedef struct ttx_composite_layout {
-  ttx_layout layout;
-  const ttx_layout* first;
-  const ttx_layout* second;
-} ttx_composite_layout;
+struct ttx_composite_layout {
+  struct ttx_layout layout;
+  const struct ttx_layout* first;
+  const struct ttx_layout* second;
+};
 
 PERIMORTEM_EXTERN_C void ttx_composite_layout_initialize(
-    ttx_composite_layout* layout,
-    const ttx_layout* first,
-    const ttx_layout* second);
+    struct ttx_composite_layout* layout,
+    const struct ttx_layout* first,
+    const struct ttx_layout* second);
 
 #endif

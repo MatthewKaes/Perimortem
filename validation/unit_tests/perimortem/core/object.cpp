@@ -10,7 +10,7 @@
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/record.hpp"
 
-#include "perimortem/abi/core/object.hpp"
+#include "perimortem/core/object.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Validation;
@@ -43,16 +43,20 @@ static auto finalize_native_object(U8*) -> void {
 }
 
 static constexpr Perimortem::Core::Object<>::Descriptor
-    native_descriptor(sizeof(U64), alignof(U64), finalize_native_object);
+    native_descriptor{
+        .size = sizeof(U64),
+        .alignment = alignof(U64),
+        .finalize = finalize_native_object,
+    };
 
 PERIMORTEM_UNIT_TEST(CoreObject, native_surface) {
   native_finalizations = 0;
   U8* object = perimortem_core_object_allocate(&native_descriptor);
   const Perimortem::Core::Object<>::Descriptor& descriptor =
       Perimortem::Core::Object<>(object).get_descriptor();
-  EXPECT_EQ(descriptor.get_size(), Count(sizeof(U64)));
-  EXPECT_EQ(descriptor.get_alignment(), Count(alignof(U64)));
-  EXPECT(descriptor.get_finalizer() == finalize_native_object);
+  EXPECT_EQ(descriptor.size, Count(sizeof(U64)));
+  EXPECT_EQ(descriptor.alignment, Count(alignof(U64)));
+  EXPECT(descriptor.finalize == finalize_native_object);
   perimortem_core_object_retain(object);
   perimortem_core_object_release(object);
   EXPECT_EQ(native_finalizations, Count(0));

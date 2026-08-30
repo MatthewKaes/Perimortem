@@ -6,21 +6,22 @@
 
 #include "ttx/concept/abstract.h"
 
-typedef struct ttx_addressable_operations {
-  ttx_interface_operations interface;
-  const ttx_abstract* (*type)(const ttx_abstract* identity);
-} ttx_addressable_operations;
+struct ttx_addressable_operations {
+  struct ttx_interface_operations interface;
+  const struct ttx_abstract* (*type)(const struct ttx_abstract* identity);
+};
 
-typedef struct ttx_addressable_view {
-  const ttx_abstract* identity;
-  const ttx_addressable_operations* operations;
-} ttx_addressable_view;
+struct ttx_addressable_view {
+  const struct ttx_abstract* identity;
+  const struct ttx_addressable_operations* operations;
+};
 
-PERIMORTEM_EXTERN_C const ttx_abstract* ttx_addressable_requirement(void);
+PERIMORTEM_EXTERN_C const struct ttx_abstract*
+    ttx_addressable_requirement(void);
 PERIMORTEM_EXTERN_C perimortem_bool ttx_addressable_prove(
-    const ttx_abstract* candidate,
-    ttx_addressable_view* view);
-PERIMORTEM_EXTERN_C const ttx_abstract* ttx_addressable_type(
-    const ttx_addressable_view* addressable);
+    const struct ttx_abstract* candidate,
+    struct ttx_addressable_view* view);
+PERIMORTEM_EXTERN_C const struct ttx_abstract* ttx_addressable_type(
+    const struct ttx_addressable_view* addressable);
 
 #endif

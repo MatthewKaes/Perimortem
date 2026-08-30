@@ -18,9 +18,8 @@ language eventually becomes. It is the small place where independently owned
 meaning can meet.
 
 The public graph and model contracts are C17 typed handles and immutable
-operation tables. C++ Dialects currently use the explicit `ttx/bootstrap/`
-bridge while moving onto those handles; that bootstrap surface is not a second
-TTX contract and may not introduce semantics absent from the C ABI.
+operation tables. Concrete Dialects compose and retain those handles directly;
+there is no parallel C++ contract, bootstrap bridge, or second semantic model.
 
 [Tetrodotoxin](../tetrodotoxin/README.md) brings those objects together in one
 Workspace. TTX remains small enough to be used by another host, but its clearest

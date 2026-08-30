@@ -6,11 +6,11 @@
 
 #include "ttx/concept/abstract.h"
 
-typedef struct ttx_model_requirement {
-  ttx_abstract abstract;
-  perimortem_bytes name;
-} ttx_model_requirement;
+struct ttx_model_requirement {
+  struct ttx_abstract abstract;
+  struct perimortem_bytes name;
+};
 
-extern const ttx_abstract_operations ttx_model_requirement_operations;
+extern const struct ttx_abstract_operations ttx_model_requirement_operations;
 
 #endif

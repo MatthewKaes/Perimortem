@@ -6,9 +6,9 @@
 
 #include "ttx/concept/pack.h"
 
-typedef struct ttx_model_pack {
-  ttx_pack pack;
-  const ttx_layout* layout;
-} ttx_model_pack;
+struct ttx_model_pack {
+  struct ttx_pack pack;
+  const struct ttx_layout* layout;
+};
 
 #endif

@@ -10,44 +10,44 @@
 #define TTX_CONTAINER_OF(pointer, type, member) \
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
-typedef struct termination_frame termination_frame;
+struct termination_frame;
 struct termination_frame {
-  const ttx_abstract* type;
-  const termination_frame* parent;
+  const struct ttx_abstract* type;
+  const struct termination_frame* parent;
 };
 
-typedef struct termination_visitor {
-  ttx_abstract_callable callable;
-  const termination_frame* frame;
+struct termination_visitor {
+  struct ttx_abstract_callable callable;
+  const struct termination_frame* frame;
   perimortem_count layout_count;
   perimortem_bool valid;
-} termination_visitor;
+};
 
-typedef struct layout_counter {
-  ttx_abstract_callable callable;
+struct layout_counter {
+  struct ttx_abstract_callable callable;
   perimortem_count count;
-} layout_counter;
+};
 
 static void count_entry(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* entry) {
-  layout_counter* counter =
-      TTX_CONTAINER_OF(callable, layout_counter, callable);
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* entry) {
+  struct layout_counter* counter =
+      TTX_CONTAINER_OF(callable, struct layout_counter, callable);
   (void)entry;
   ++counter->count;
 }
 
-static const ttx_abstract_callable_operations counter_operations = {
+static const struct ttx_abstract_callable_operations counter_operations = {
     .call = count_entry,
 };
 
 static perimortem_bool terminates(
-    const ttx_type_view* type,
-    const termination_frame* parent);
+    const struct ttx_type_view* type,
+    const struct termination_frame* parent);
 
 static perimortem_bool active(
-    const termination_frame* frame,
-    const ttx_abstract* type) {
+    const struct termination_frame* frame,
+    const struct ttx_abstract* type) {
   while (frame != 0) {
     if (frame->type == type) {
       return PERIMORTEM_TRUE;
@@ -57,10 +57,10 @@ static perimortem_bool active(
   return PERIMORTEM_FALSE;
 }
 
-static const ttx_abstract* entry_type(const ttx_abstract* entry) {
-  ttx_type_view type;
-  ttx_addressable_view addressable;
-  const ttx_abstract* selected;
+static const struct ttx_abstract* entry_type(const struct ttx_abstract* entry) {
+  struct ttx_type_view type;
+  struct ttx_addressable_view addressable;
+  const struct ttx_abstract* selected;
 
   if (ttx_type_prove(entry, &type)) {
     return entry;
@@ -73,12 +73,12 @@ static const ttx_abstract* entry_type(const ttx_abstract* entry) {
 }
 
 static void visit_entry(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* entry) {
-  termination_visitor* visitor =
-      TTX_CONTAINER_OF(callable, termination_visitor, callable);
-  const ttx_abstract* selected;
-  ttx_type_view type;
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* entry) {
+  struct termination_visitor* visitor =
+      TTX_CONTAINER_OF(callable, struct termination_visitor, callable);
+  const struct ttx_abstract* selected;
+  struct ttx_type_view type;
 
   if (!visitor->valid) {
     return;
@@ -99,23 +99,23 @@ static void visit_entry(
   }
 }
 
-static const ttx_abstract_callable_operations visitor_operations = {
+static const struct ttx_abstract_callable_operations visitor_operations = {
     .call = visit_entry,
 };
 
 static perimortem_bool terminates(
-    const ttx_type_view* type,
-    const termination_frame* parent) {
-  const ttx_layout* layout = ttx_type_layout(type);
-  layout_counter counter = {
+    const struct ttx_type_view* type,
+    const struct termination_frame* parent) {
+  const struct ttx_layout* layout = ttx_type_layout(type);
+  struct layout_counter counter = {
       .callable = {.operations = &counter_operations},
       .count = 0,
   };
-  termination_frame frame = {
+  struct termination_frame frame = {
       .type = type->identity,
       .parent = parent,
   };
-  termination_visitor visitor = {
+  struct termination_visitor visitor = {
       .callable = {.operations = &visitor_operations},
       .frame = &frame,
       .layout_count = 0,
@@ -132,6 +132,6 @@ static perimortem_bool terminates(
   return visitor.valid;
 }
 
-perimortem_bool ttx_type_layout_terminates(const ttx_type_view* type) {
+perimortem_bool ttx_type_layout_terminates(const struct ttx_type_view* type) {
   return terminates(type, 0);
 }

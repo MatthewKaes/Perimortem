@@ -39,7 +39,7 @@ cc_library(
         "-Werror",
     ],
     deps = [
-        "//perimortem:abi_core",
+        "//perimortem:core",
     ],
 )
 
@@ -99,7 +99,7 @@ cc_library(
     deps = [
         ":concept",
         ":model",
-        "//perimortem:abi_core",
+        "//perimortem:core",
     ],
 )
 

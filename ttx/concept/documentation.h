@@ -6,19 +6,22 @@
 
 #include "ttx/concept/callable.h"
 
-typedef struct ttx_documentation ttx_documentation;
-typedef struct ttx_documentation_operations {
-  void (*visit)(const ttx_documentation* self, ttx_bytes_callable* visitor);
-} ttx_documentation_operations;
+struct ttx_documentation;
+struct ttx_documentation_operations {
+  void (*visit)(
+      const struct ttx_documentation* self,
+      struct ttx_bytes_callable* visitor);
+};
 
 struct ttx_documentation {
-  const ttx_documentation_operations* operations;
+  const struct ttx_documentation_operations* operations;
 };
 
 PERIMORTEM_EXTERN_C void ttx_documentation_visit(
-    const ttx_documentation* documentation,
-    ttx_bytes_callable* visitor);
+    const struct ttx_documentation* documentation,
+    struct ttx_bytes_callable* visitor);
 
-PERIMORTEM_EXTERN_C const ttx_documentation* ttx_documentation_empty(void);
+PERIMORTEM_EXTERN_C const struct ttx_documentation*
+    ttx_documentation_empty(void);
 
 #endif

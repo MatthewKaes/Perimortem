@@ -11,10 +11,10 @@
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
 static void visit(
-    const ttx_layout* base,
-    ttx_abstract_callable* visitor) {
-  const ttx_fluid_layout* self =
-      TTX_CONTAINER_OF(base, const ttx_fluid_layout, layout);
+    const struct ttx_layout* base,
+    struct ttx_abstract_callable* visitor) {
+  const struct ttx_fluid_layout* self =
+      TTX_CONTAINER_OF(base, const struct ttx_fluid_layout, layout);
   perimortem_count index;
   for (index = 0; index < self->count; ++index) {
     ttx_abstract_callable_call(visitor, self->entries[index]);
@@ -22,19 +22,19 @@ static void visit(
 }
 
 static perimortem_bool fits(
-    const ttx_layout* self,
-    const ttx_layout* target) {
+    const struct ttx_layout* self,
+    const struct ttx_layout* target) {
   return ttx_layout_entries_fit(self, target);
 }
 
-static const ttx_layout_operations operations = {
+static const struct ttx_layout_operations operations = {
     .visit = visit,
     .fits = fits,
 };
 
 void ttx_fluid_layout_initialize(
-    ttx_fluid_layout* layout,
-    const ttx_abstract* const* entries,
+    struct ttx_fluid_layout* layout,
+    const struct ttx_abstract* const* entries,
     perimortem_count count) {
   layout->layout.operations = &operations;
   layout->layout.named = 0;

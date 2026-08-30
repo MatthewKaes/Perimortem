@@ -398,10 +398,11 @@ state behind its typed handle. Every borrowed identity remains valid only for
 the operation and graph lifetime established by that owner.
 
 Every public TTX header is a self contained C17 header. Abstract, Layout, Pack,
-Context, Interface, and each category expose typed handles whose first field is
-their immutable operation table. A concrete owner composes the operation tables
-for the categories it proves. It does not acquire category meaning from a C++
-base class or a registry.
+Context, and Callable handles begin with their immutable operation table.
+Interface and category views instead borrow the exact candidate Abstract beside
+the operations that prove the requested relation. A concrete owner composes the
+operation tables for the categories it proves. It does not acquire category
+meaning from a C++ base class or a registry.
 
 Stateful visitation uses a typed Callable handle. The Callable operation
 receives that same handle as its self value, so its concrete owner can recover

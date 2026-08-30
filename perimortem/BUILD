@@ -13,7 +13,6 @@ cc_library(
     name = "perimortem",
     includes = ["."],
     deps = [
-        ":abi",
         ":compression",
         ":core",
         ":graphics",
@@ -29,71 +28,11 @@ cc_library(
 cc_library(
     name = "headless",
     deps = [
-        ":abi",
-        ":serialization",
-    ],
-)
-
-cc_library(
-    name = "abi_core",
-    srcs = glob(["abi/core/*.cpp"]) + ["abi/log.cpp"],
-    hdrs = glob([
-        "abi/c/*.h",
-        "abi/core/*.hpp",
-    ]),
-    copts = ["-Wreturn-type-c-linkage"],
-    includes = ["."],
-    deps = [
-        ":core",
-    ],
-)
-
-cc_library(
-    name = "abi_memory",
-    hdrs = glob(["abi/memory/**/*.hpp"]),
-    includes = ["."],
-    deps = [
-        ":core",
-        ":memory",
-    ],
-)
-
-cc_library(
-    name = "abi_graphics",
-    srcs = glob(["abi/graphics/**/*.cpp"]),
-    hdrs = [],
-    copts = ["-Wreturn-type-c-linkage"],
-    includes = ["."],
-    deps = [
-        ":abi_core",
         ":core",
         ":graphics",
-    ],
-)
-
-cc_library(
-    name = "abi_system",
-    srcs = glob(["abi/system/*.cpp"]),
-    hdrs = glob(["abi/system/*.hpp"]),
-    copts = ["-Wreturn-type-c-linkage"],
-    includes = ["."],
-    deps = [
-        ":abi_core",
-        ":abi_memory",
-        ":core",
-        ":math",
         ":memory",
+        ":serialization",
         ":system",
-    ],
-)
-
-cc_library(
-    name = "abi",
-    deps = [
-        ":abi_core",
-        ":abi_graphics",
-        ":abi_memory",
-        ":abi_system",
     ],
 )
 
@@ -102,6 +41,7 @@ cc_library(
     srcs = [
         "core/algorithm/search.cpp",
         "core/bibliotheca.cpp",
+        "core/cleanup.cpp",
         "core/diagnostics/log.cpp",
         "core/diagnostics/source.cpp",
         "core/implementation.cpp",
@@ -125,6 +65,7 @@ cc_library(
         "core/diagnostics/*.hpp",
         "core/thread/*.hpp",
         "core/*.hpp",
+        "core/*.h",
     ]),
     includes = ["."],
 )
@@ -190,11 +131,13 @@ cc_library(
 cc_library(
     name = "system",
     srcs = glob([
+        "system/*.c",
         "system/*.cpp",
     ]),
     hdrs = glob(
         [
             "system/*.hpp",
+            "system/*.h",
         ],
         exclude = [
             "system/window.hpp",

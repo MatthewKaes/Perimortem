@@ -4,56 +4,60 @@
 #ifndef TTX_CONCEPT_CALLABLE_H
 #define TTX_CONCEPT_CALLABLE_H
 
-#include "perimortem/abi/c/core.h"
+#include "perimortem/core/perimortem.h"
 
-typedef struct ttx_abstract ttx_abstract;
+struct ttx_abstract;
 
-typedef struct ttx_abstract_callable ttx_abstract_callable;
-typedef struct ttx_abstract_callable_operations {
-  void (*call)(ttx_abstract_callable* self, const ttx_abstract* abstract);
-} ttx_abstract_callable_operations;
+struct ttx_abstract_callable;
+struct ttx_abstract_callable_operations {
+  void (*call)(
+      struct ttx_abstract_callable* self,
+      const struct ttx_abstract* abstract);
+};
 
 struct ttx_abstract_callable {
-  const ttx_abstract_callable_operations* operations;
+  const struct ttx_abstract_callable_operations* operations;
 };
 
-typedef struct ttx_named_abstract_callable ttx_named_abstract_callable;
-typedef struct ttx_named_abstract_callable_operations {
+struct ttx_named_abstract_callable;
+struct ttx_named_abstract_callable_operations {
   void (*call)(
-      ttx_named_abstract_callable* self,
-      perimortem_bytes name,
-      const ttx_abstract* abstract);
-} ttx_named_abstract_callable_operations;
+      struct ttx_named_abstract_callable* self,
+      struct perimortem_bytes name,
+      const struct ttx_abstract* abstract);
+};
 
 struct ttx_named_abstract_callable {
-  const ttx_named_abstract_callable_operations* operations;
+  const struct ttx_named_abstract_callable_operations* operations;
 };
 
-typedef struct ttx_bytes_callable ttx_bytes_callable;
-typedef struct ttx_bytes_callable_operations {
-  void (*call)(ttx_bytes_callable* self, perimortem_bytes bytes);
-} ttx_bytes_callable_operations;
+struct ttx_bytes_callable;
+struct ttx_bytes_callable_operations {
+  void (*call)(
+      struct ttx_bytes_callable* self,
+      struct perimortem_bytes bytes);
+};
 
 struct ttx_bytes_callable {
-  const ttx_bytes_callable_operations* operations;
+  const struct ttx_bytes_callable_operations* operations;
 };
 
 static inline void ttx_abstract_callable_call(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* abstract) {
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* abstract) {
   callable->operations->call(callable, abstract);
 }
 
 static inline void ttx_named_abstract_callable_call(
-    ttx_named_abstract_callable* callable,
-    perimortem_bytes name,
-    const ttx_abstract* abstract) {
+    struct ttx_named_abstract_callable* callable,
+    struct perimortem_bytes name,
+    const struct ttx_abstract* abstract) {
   callable->operations->call(callable, name, abstract);
 }
 
 static inline void ttx_bytes_callable_call(
-    ttx_bytes_callable* callable,
-    perimortem_bytes bytes) {
+    struct ttx_bytes_callable* callable,
+    struct perimortem_bytes bytes) {
   callable->operations->call(callable, bytes);
 }
 

@@ -12,7 +12,6 @@ cc_library(
     srcs = glob(["**/*.cpp"]),
     hdrs = glob(["**/*.hpp"]),
     deps = [
-        "//perimortem:abi_system",
         "//perimortem:core",
         "//perimortem:graphics",
         "//perimortem:memory",

@@ -33,7 +33,11 @@ static Count second_releases = 0;
 static auto finalize_session_object(U8*) -> void {}
 
 static const Core::Object<>::Descriptor
-    session_object_descriptor(sizeof(U8), alignof(U8), finalize_session_object);
+    session_object_descriptor{
+        .size = sizeof(U8),
+        .alignment = alignof(U8),
+        .finalize = finalize_session_object,
+    };
 
 static auto construct_session_object() -> void* {
   return Core::Object<>::create(session_object_descriptor).get_payload();

@@ -6,15 +6,15 @@
 
 #include "ttx/concept/documentation.h"
 
-typedef struct ttx_block_documentation {
-  ttx_documentation documentation;
-  const perimortem_bytes* lines;
+struct ttx_block_documentation {
+  struct ttx_documentation documentation;
+  const struct perimortem_bytes* lines;
   perimortem_count count;
-} ttx_block_documentation;
+};
 
 PERIMORTEM_EXTERN_C void ttx_block_documentation_initialize(
-    ttx_block_documentation* documentation,
-    const perimortem_bytes* lines,
+    struct ttx_block_documentation* documentation,
+    const struct perimortem_bytes* lines,
     perimortem_count count);
 
 #endif

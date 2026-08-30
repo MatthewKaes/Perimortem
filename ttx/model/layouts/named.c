@@ -10,32 +10,32 @@
 #define TTX_CONTAINER_OF(pointer, type, member) \
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
-typedef struct entry_selection {
-  ttx_abstract_callable callable;
+struct entry_selection {
+  struct ttx_abstract_callable callable;
   perimortem_count requested;
   perimortem_count current;
-  const ttx_abstract* selected;
-} entry_selection;
+  const struct ttx_abstract* selected;
+};
 
 static void select_entry(
-    ttx_abstract_callable* callable,
-    const ttx_abstract* entry) {
-  entry_selection* selection =
-      TTX_CONTAINER_OF(callable, entry_selection, callable);
+    struct ttx_abstract_callable* callable,
+    const struct ttx_abstract* entry) {
+  struct entry_selection* selection =
+      TTX_CONTAINER_OF(callable, struct entry_selection, callable);
   if (selection->current == selection->requested) {
     selection->selected = entry;
   }
   ++selection->current;
 }
 
-static const ttx_abstract_callable_operations selection_operations = {
+static const struct ttx_abstract_callable_operations selection_operations = {
     .call = select_entry,
 };
 
-static const ttx_abstract* entry_at(
-    const ttx_layout* layout,
+static const struct ttx_abstract* entry_at(
+    const struct ttx_layout* layout,
     perimortem_count index) {
-  entry_selection selection = {
+  struct entry_selection selection = {
       .callable = {.operations = &selection_operations},
       .requested = index,
       .current = 0,
@@ -46,49 +46,49 @@ static const ttx_abstract* entry_at(
 }
 
 static void visit(
-    const ttx_layout* base,
-    ttx_abstract_callable* visitor) {
-  const ttx_named_layout* self =
-      TTX_CONTAINER_OF(base, const ttx_named_layout, layout);
+    const struct ttx_layout* base,
+    struct ttx_abstract_callable* visitor) {
+  const struct ttx_named_layout* self =
+      TTX_CONTAINER_OF(base, const struct ttx_named_layout, layout);
   ttx_layout_visit(self->source, visitor);
 }
 
-typedef struct duplicate_name {
-  ttx_named_abstract_callable callable;
-  perimortem_bytes requested;
+struct duplicate_name {
+  struct ttx_named_abstract_callable callable;
+  struct perimortem_bytes requested;
   perimortem_count matches;
-} duplicate_name;
+};
 
 static void count_name(
-    ttx_named_abstract_callable* callable,
-    perimortem_bytes name,
-    const ttx_abstract* entry) {
-  duplicate_name* duplicate =
-      TTX_CONTAINER_OF(callable, duplicate_name, callable);
+    struct ttx_named_abstract_callable* callable,
+    struct perimortem_bytes name,
+    const struct ttx_abstract* entry) {
+  struct duplicate_name* duplicate =
+      TTX_CONTAINER_OF(callable, struct duplicate_name, callable);
   (void)entry;
   if (perimortem_bytes_equal(duplicate->requested, name)) {
     ++duplicate->matches;
   }
 }
 
-static const ttx_named_abstract_callable_operations duplicate_operations = {
+static const struct ttx_named_abstract_callable_operations duplicate_operations = {
     .call = count_name,
 };
 
-typedef struct validate_names {
-  ttx_named_abstract_callable callable;
-  const ttx_named_layout_view* view;
+struct validate_names {
+  struct ttx_named_abstract_callable callable;
+  const struct ttx_named_layout_view* view;
   perimortem_count count;
   perimortem_bool valid;
-} validate_names;
+};
 
 static void validate_name(
-    ttx_named_abstract_callable* callable,
-    perimortem_bytes name,
-    const ttx_abstract* entry) {
-  validate_names* validation =
-      TTX_CONTAINER_OF(callable, validate_names, callable);
-  duplicate_name duplicate = {
+    struct ttx_named_abstract_callable* callable,
+    struct perimortem_bytes name,
+    const struct ttx_abstract* entry) {
+  struct validate_names* validation =
+      TTX_CONTAINER_OF(callable, struct validate_names, callable);
+  struct duplicate_name duplicate = {
       .callable = {.operations = &duplicate_operations},
       .requested = name,
       .matches = 0,
@@ -105,14 +105,14 @@ static void validate_name(
   }
 }
 
-static const ttx_named_abstract_callable_operations validation_operations = {
+static const struct ttx_named_abstract_callable_operations validation_operations = {
     .call = validate_name,
 };
 
 static perimortem_bool has_valid_names(
-    const ttx_named_layout_view* view,
+    const struct ttx_named_layout_view* view,
     perimortem_count* count) {
-  validate_names validation = {
+  struct validate_names validation = {
       .callable = {.operations = &validation_operations},
       .view = view,
       .count = 0,
@@ -123,36 +123,36 @@ static perimortem_bool has_valid_names(
   return validation.valid;
 }
 
-typedef struct matching_entry {
-  ttx_named_abstract_callable callable;
-  perimortem_bytes name;
-  const ttx_abstract* source;
+struct matching_entry {
+  struct ttx_named_abstract_callable callable;
+  struct perimortem_bytes name;
+  const struct ttx_abstract* source;
   perimortem_count matches;
-} matching_entry;
+};
 
 static void match_entry(
-    ttx_named_abstract_callable* callable,
-    perimortem_bytes name,
-    const ttx_abstract* entry) {
-  matching_entry* matching =
-      TTX_CONTAINER_OF(callable, matching_entry, callable);
+    struct ttx_named_abstract_callable* callable,
+    struct perimortem_bytes name,
+    const struct ttx_abstract* entry) {
+  struct matching_entry* matching =
+      TTX_CONTAINER_OF(callable, struct matching_entry, callable);
   if (perimortem_bytes_equal(matching->name, name) &&
       ttx_layout_entry_fits(matching->source, entry)) {
     ++matching->matches;
   }
 }
 
-static const ttx_named_abstract_callable_operations matching_operations = {
+static const struct ttx_named_abstract_callable_operations matching_operations = {
     .call = match_entry,
 };
 
 static perimortem_bool fits(
-    const ttx_layout* base,
-    const ttx_layout* target) {
-  const ttx_named_layout* source =
-      TTX_CONTAINER_OF(base, const ttx_named_layout, layout);
-  ttx_named_layout_view source_view;
-  ttx_named_layout_view target_view;
+    const struct ttx_layout* base,
+    const struct ttx_layout* target) {
+  const struct ttx_named_layout* source =
+      TTX_CONTAINER_OF(base, const struct ttx_named_layout, layout);
+  struct ttx_named_layout_view source_view;
+  struct ttx_named_layout_view target_view;
   perimortem_count source_index;
   perimortem_count source_count;
   perimortem_count target_count;
@@ -165,7 +165,7 @@ static perimortem_bool fits(
     return PERIMORTEM_FALSE;
   }
   for (source_index = 0; source_index < source->count; ++source_index) {
-    matching_entry matching = {
+    struct matching_entry matching = {
         .callable = {.operations = &matching_operations},
         .name = source->names[source_index],
         .source = entry_at(source->source, source_index),
@@ -180,13 +180,13 @@ static perimortem_bool fits(
 }
 
 static void visit_named(
-    const ttx_layout* base,
-    ttx_named_abstract_callable* visitor) {
-  const ttx_named_layout* layout =
-      TTX_CONTAINER_OF(base, const ttx_named_layout, layout);
+    const struct ttx_layout* base,
+    struct ttx_named_abstract_callable* visitor) {
+  const struct ttx_named_layout* layout =
+      TTX_CONTAINER_OF(base, const struct ttx_named_layout, layout);
   perimortem_count index;
   for (index = 0; index < layout->count; ++index) {
-    const ttx_abstract* entry = entry_at(layout->source, index);
+    const struct ttx_abstract* entry = entry_at(layout->source, index);
     if (entry != 0) {
       ttx_named_abstract_callable_call(
           visitor, layout->names[index], entry);
@@ -194,19 +194,19 @@ static void visit_named(
   }
 }
 
-static const ttx_named_layout_operations named_operations = {
+static const struct ttx_named_layout_operations named_operations = {
     .visit = visit_named,
 };
 
-static const ttx_layout_operations operations = {
+static const struct ttx_layout_operations operations = {
     .visit = visit,
     .fits = fits,
 };
 
 void ttx_named_layout_initialize(
-    ttx_named_layout* layout,
-    const ttx_layout* source,
-    const perimortem_bytes* names,
+    struct ttx_named_layout* layout,
+    const struct ttx_layout* source,
+    const struct perimortem_bytes* names,
     perimortem_count count) {
   layout->layout.operations = &operations;
   layout->layout.named = &named_operations;
@@ -216,8 +216,8 @@ void ttx_named_layout_initialize(
 }
 
 perimortem_bool ttx_named_layout_prove(
-    const ttx_layout* layout,
-    ttx_named_layout_view* named_view) {
+    const struct ttx_layout* layout,
+    struct ttx_named_layout_view* named_view) {
   if (layout->named == 0) {
     return PERIMORTEM_FALSE;
   }
@@ -227,7 +227,7 @@ perimortem_bool ttx_named_layout_prove(
 }
 
 void ttx_named_layout_visit(
-    const ttx_named_layout_view* layout,
-    ttx_named_abstract_callable* visitor) {
+    const struct ttx_named_layout_view* layout,
+    struct ttx_named_abstract_callable* visitor) {
   layout->operations->visit(layout->layout, visitor);
 }

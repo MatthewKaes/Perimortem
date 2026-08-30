@@ -3,42 +3,42 @@
 
 #include "ttx/model/requirement_internal.h"
 
-static perimortem_bytes name(const ttx_abstract* self) {
-  return ((const ttx_model_requirement*)self)->name;
+static struct perimortem_bytes name(const struct ttx_abstract* self) {
+  return ((const struct ttx_model_requirement*)self)->name;
 }
 
-static const ttx_documentation* documentation(const ttx_abstract* self) {
+static const struct ttx_documentation* documentation(const struct ttx_abstract* self) {
   (void)self;
   return ttx_documentation_empty();
 }
 
-static const ttx_abstract* identity(const ttx_abstract* self) {
+static const struct ttx_abstract* identity(const struct ttx_abstract* self) {
   return self;
 }
 
-static const ttx_abstract* type(const ttx_abstract* self) {
+static const struct ttx_abstract* type(const struct ttx_abstract* self) {
   (void)self;
   return ttx_none();
 }
 
-static const ttx_abstract* resolve_concept(
-    const ttx_abstract* self,
-    perimortem_bytes name) {
+static const struct ttx_abstract* resolve_concept(
+    const struct ttx_abstract* self,
+    struct perimortem_bytes name) {
   (void)self;
   (void)name;
   return ttx_unknown();
 }
 
 static void visit_concepts(
-    const ttx_abstract* self,
-    ttx_named_abstract_callable* visitor) {
+    const struct ttx_abstract* self,
+    struct ttx_named_abstract_callable* visitor) {
   (void)self;
   (void)visitor;
 }
 
-static ttx_interface interface(
-    const ttx_abstract* self,
-    const ttx_abstract* requirement) {
+static struct ttx_interface interface(
+    const struct ttx_abstract* self,
+    const struct ttx_abstract* requirement) {
   return requirement == ttx_abstract_requirement()
              ? ttx_interface_satisfied(
                    requirement,
@@ -47,7 +47,7 @@ static ttx_interface interface(
              : ttx_interface_rejected(requirement, self);
 }
 
-const ttx_abstract_operations ttx_model_requirement_operations = {
+const struct ttx_abstract_operations ttx_model_requirement_operations = {
     .name = name,
     .documentation = documentation,
     .resolve = identity,

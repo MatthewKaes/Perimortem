@@ -3,8 +3,8 @@
 
 #include "ttx/concept/context.h"
 
-const ttx_pack* ttx_context_pack(
-    ttx_context* context,
-    const ttx_layout* layout) {
+const struct ttx_pack* ttx_context_pack(
+    struct ttx_context* context,
+    const struct ttx_layout* layout) {
   return context->operations->pack(context, layout);
 }

@@ -9,22 +9,22 @@
   ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
 
 static void visit(
-    const ttx_documentation* base,
-    ttx_bytes_callable* visitor) {
-  const ttx_comment_documentation* self =
-      TTX_CONTAINER_OF(base, const ttx_comment_documentation, documentation);
+    const struct ttx_documentation* base,
+    struct ttx_bytes_callable* visitor) {
+  const struct ttx_comment_documentation* self =
+      TTX_CONTAINER_OF(base, const struct ttx_comment_documentation, documentation);
   if (self->line.size != 0) {
     ttx_bytes_callable_call(visitor, self->line);
   }
 }
 
-static const ttx_documentation_operations operations = {
+static const struct ttx_documentation_operations operations = {
     .visit = visit,
 };
 
 void ttx_comment_documentation_initialize(
-    ttx_comment_documentation* documentation,
-    perimortem_bytes line) {
+    struct ttx_comment_documentation* documentation,
+    struct perimortem_bytes line) {
   documentation->documentation.operations = &operations;
   documentation->line = line;
 }

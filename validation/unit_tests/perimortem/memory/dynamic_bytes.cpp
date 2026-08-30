@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
-#include "perimortem/abi/memory/dynamic/bytes.hpp"
+#include "perimortem/core/perimortem.h"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -74,12 +74,9 @@ PERIMORTEM_UNIT_TEST(DynamicBytes, reset_releases_once) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicBytes, two_word_carrier) {
-  static_assert(__is_trivial(Perimortem::Abi::Memory::Dynamic::Bytes));
-  static_assert(__is_standard_layout(Perimortem::Abi::Memory::Dynamic::Bytes));
+  static_assert(__is_trivial(perimortem_bytes));
+  static_assert(__is_standard_layout(perimortem_bytes));
 
-  EXPECT_EQ(
-      sizeof(Perimortem::Abi::Memory::Dynamic::Bytes),
-      sizeof(U8*) + sizeof(Count));
-  EXPECT_EQ(
-      sizeof(Dynamic::Bytes), sizeof(Perimortem::Abi::Memory::Dynamic::Bytes));
+  EXPECT_EQ(sizeof(perimortem_bytes), sizeof(U8*) + sizeof(Count));
+  EXPECT_EQ(sizeof(Dynamic::Bytes), sizeof(perimortem_bytes));
 }

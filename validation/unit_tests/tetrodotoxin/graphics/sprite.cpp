@@ -36,10 +36,11 @@ static auto finalize_parameters(U8* payload) -> void {
   Data::cast<SpriteParameters>(payload)->~SpriteParameters();
 }
 
-static const Object<>::Descriptor parameter_descriptor(
-    sizeof(SpriteParameters),
-    alignof(SpriteParameters),
-    finalize_parameters);
+static const Object<>::Descriptor parameter_descriptor{
+    .size = sizeof(SpriteParameters),
+    .alignment = alignof(SpriteParameters),
+    .finalize = finalize_parameters,
+};
 
 static constexpr Perimortem::Graphics::Projection::Resource sprite_resources[] =
     {

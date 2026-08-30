@@ -4,14 +4,14 @@
 #include "ttx/model/interfaces/callable.h"
 
 ttx_interface_relation ttx_callable_negotiate(
-    const ttx_abstract* requirement,
-    const ttx_abstract* candidate) {
-  ttx_callable_view required;
-  ttx_callable_view supplied;
-  const ttx_layout* required_parameters;
-  const ttx_layout* supplied_parameters;
-  const ttx_layout* required_results;
-  const ttx_layout* supplied_results;
+    const struct ttx_abstract* requirement,
+    const struct ttx_abstract* candidate) {
+  struct ttx_callable_view required;
+  struct ttx_callable_view supplied;
+  const struct ttx_layout* required_parameters;
+  const struct ttx_layout* supplied_parameters;
+  const struct ttx_layout* required_results;
+  const struct ttx_layout* supplied_results;
 
   requirement = ttx_abstract_resolve(requirement);
   candidate = ttx_abstract_resolve(candidate);

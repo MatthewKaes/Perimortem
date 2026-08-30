@@ -14,7 +14,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "perimortem/abi/core/object.hpp"
+#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
@@ -1062,7 +1062,7 @@ auto Llvm::Module::Carriers::retain(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Abi::Core::object_retain_symbol), &signature),
+            llvm_text(Perimortem::Core::object_retain_symbol), &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Implementation) {
     llvm::Value& object = *builder.CreateExtractValue(&native_value, U32(0));
@@ -1079,7 +1079,7 @@ auto Llvm::Module::Carriers::retain(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Abi::Core::object_retain_symbol), &signature),
+            llvm_text(Perimortem::Core::object_retain_symbol), &signature),
         {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
     if (is_object(*carrier.element)) {
@@ -1220,7 +1220,7 @@ auto Llvm::Module::Carriers::release(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Abi::Core::object_release_symbol),
+            llvm_text(Perimortem::Core::object_release_symbol),
             &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Implementation) {
@@ -1238,7 +1238,7 @@ auto Llvm::Module::Carriers::release(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Abi::Core::object_release_symbol),
+            llvm_text(Perimortem::Core::object_release_symbol),
             &signature),
         {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
@@ -1813,7 +1813,7 @@ auto Llvm::Module::Carriers::get_object_descriptor(
           get_module(*target)
               .getOrInsertFunction(
                   llvm_text(
-                      Perimortem::Abi::Core::object_finalize_trivial_symbol),
+                      Perimortem::Core::object_finalize_trivial_symbol),
                   &finalizer_type)
               .getCallee());
       llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
@@ -1939,7 +1939,7 @@ auto Llvm::Module::Carriers::construct(
   llvm::IRBuilder<>& builder = get_builder(*native_body);
   llvm::Value& payload = *builder.CreateCall(
       get_module(*target).getOrInsertFunction(
-          llvm_text(Perimortem::Abi::Core::object_allocate_symbol), &signature),
+          llvm_text(Perimortem::Core::object_allocate_symbol), &signature),
       {llvm::unwrap(*descriptor)}, "object");
   for (Count index = 0; index < carrier.fields->get_size(); index++) {
     auto field_type = select_field_type(*carrier.fields, index);

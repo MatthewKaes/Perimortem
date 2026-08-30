@@ -6,14 +6,14 @@
 
 #include "ttx/concept/abstract.h"
 
-typedef struct ttx_unknown_view {
-  const ttx_abstract* identity;
-  const ttx_abstract_operations* operations;
-} ttx_unknown_view;
+struct ttx_unknown_view {
+  const struct ttx_abstract* identity;
+  const struct ttx_abstract_operations* operations;
+};
 
-PERIMORTEM_EXTERN_C const ttx_abstract* ttx_unknown_requirement(void);
+PERIMORTEM_EXTERN_C const struct ttx_abstract* ttx_unknown_requirement(void);
 PERIMORTEM_EXTERN_C perimortem_bool ttx_unknown_prove(
-    const ttx_abstract* candidate,
-    ttx_unknown_view* view);
+    const struct ttx_abstract* candidate,
+    struct ttx_unknown_view* view);
 
 #endif

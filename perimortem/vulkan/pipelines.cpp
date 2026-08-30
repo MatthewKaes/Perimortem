@@ -32,20 +32,23 @@ static auto supports_unit_quad(const Vulkan::Description::Program& description)
       inputs.get_data()[1].stride == sizeof(UnitQuadVertex));
 }
 
-const Core::Object<>::Descriptor Vulkan::Pipelines::cache_descriptor(
-    sizeof(TextureCacheEntry),
-    alignof(TextureCacheEntry),
-    Pipelines::finalize_cache);
+const Core::Object<>::Descriptor Vulkan::Pipelines::cache_descriptor{
+    .size = sizeof(TextureCacheEntry),
+    .alignment = alignof(TextureCacheEntry),
+    .finalize = Pipelines::finalize_cache,
+};
 
-const Core::Object<>::Descriptor Vulkan::Pipelines::image_cache_descriptor(
-    sizeof(ImageCacheEntry),
-    alignof(ImageCacheEntry),
-    Pipelines::finalize_image_cache);
+const Core::Object<>::Descriptor Vulkan::Pipelines::image_cache_descriptor{
+    .size = sizeof(ImageCacheEntry),
+    .alignment = alignof(ImageCacheEntry),
+    .finalize = Pipelines::finalize_image_cache,
+};
 
-const Core::Object<>::Descriptor Vulkan::Pipelines::realization_descriptor(
-    sizeof(Realization),
-    alignof(Realization),
-    Pipelines::finalize_realization);
+const Core::Object<>::Descriptor Vulkan::Pipelines::realization_descriptor{
+    .size = sizeof(Realization),
+    .alignment = alignof(Realization),
+    .finalize = Pipelines::finalize_realization,
+};
 
 Vulkan::Pipelines::Pipelines(
     const Context& context,

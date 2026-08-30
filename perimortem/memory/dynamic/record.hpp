@@ -61,7 +61,10 @@ class Record {
   }
 
   inline static constexpr Core::Object<>::Descriptor descriptor{
-    sizeof(value_type), alignof(value_type), destroy};
+      .size = sizeof(value_type),
+      .alignment = alignof(value_type),
+      .finalize = destroy,
+  };
 
   Core::Object<> object;
 };

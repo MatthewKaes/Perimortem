@@ -34,8 +34,11 @@ static auto one_pixel_image() -> Image {
 
 static auto finalize_shader(U8*) -> void {}
 
-static const Object<>::Descriptor
-    shader_descriptor(sizeof(R32) * 4, alignof(R32), finalize_shader);
+static const Object<>::Descriptor shader_descriptor{
+    .size = sizeof(R32) * 4,
+    .alignment = alignof(R32),
+    .finalize = finalize_shader,
+};
 
 alignas(U32) static constexpr U32 graphics_program[] = {0x07230203};
 

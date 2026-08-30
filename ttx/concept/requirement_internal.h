@@ -6,17 +6,17 @@
 
 #include "ttx/concept/abstract.h"
 
-typedef struct ttx_requirement {
-  ttx_abstract abstract;
-  perimortem_bytes name;
-} ttx_requirement;
+struct ttx_requirement {
+  struct ttx_abstract abstract;
+  struct perimortem_bytes name;
+};
 
-extern const ttx_abstract_operations ttx_requirement_operations;
+extern const struct ttx_abstract_operations ttx_requirement_operations;
 
 perimortem_bool ttx_requirement_prove(
-    const ttx_abstract* requirement,
-    const ttx_abstract* candidate,
-    const ttx_abstract** identity,
-    const ttx_abstract_operations** operations);
+    const struct ttx_abstract* requirement,
+    const struct ttx_abstract* candidate,
+    const struct ttx_abstract** identity,
+    const struct ttx_abstract_operations** operations);
 
 #endif
