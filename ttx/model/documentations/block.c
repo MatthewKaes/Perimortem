@@ -6,13 +6,13 @@
 #include <stddef.h>
 
 #define TTX_CONTAINER_OF(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
+  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 static void visit(
     const struct ttx_documentation* base,
     struct ttx_bytes_callable* visitor) {
-  const struct ttx_block_documentation* self =
-      TTX_CONTAINER_OF(base, const struct ttx_block_documentation, documentation);
+  const struct ttx_block_documentation* self = TTX_CONTAINER_OF(
+      base, const struct ttx_block_documentation, documentation);
   perimortem_count index;
   for (index = 0; index < self->count; ++index) {
     ttx_bytes_callable_call(visitor, self->lines[index]);
@@ -20,7 +20,7 @@ static void visit(
 }
 
 static const struct ttx_documentation_operations operations = {
-    .visit = visit,
+  .visit = visit,
 };
 
 void ttx_block_documentation_initialize(

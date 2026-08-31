@@ -5,7 +5,7 @@
 
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -131,7 +131,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
    public:
     ProbeKey(Count home, Count id) : home(home), id(id) {}
 
-    // Tests can build exact probe chains because Core::Hash delegates to this
+    // Tests can build exact probe chains because Set delegates to this
     // hook for custom key types.
     constexpr auto hash() const -> U64 { return home; }
     constexpr auto operator==(const ProbeKey& rhs) const -> Bool {
@@ -143,7 +143,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, remove_displacements) {
     Count id = 0;
   };
 
-  EXPECT_EQ(Hash(ProbeKey(3, 99)).get_value(), 3);
+  EXPECT_EQ(ProbeKey(3, 99).hash(), U64(3));
 
   {
     Dynamic::Set<ProbeKey> values(8);
@@ -230,7 +230,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, pointer_keys) {
     StableObjectKey(const StableObject* object) : object(object) {}
 
     auto hash() const -> U64 {
-      return Hash(U64(reinterpret_cast<CppSize>(object))).get_value();
+      return perimortem_hash_u64(U64(reinterpret_cast<CppSize>(object)));
     }
 
     constexpr auto operator==(const StableObjectKey& rhs) const -> Bool {
@@ -301,7 +301,7 @@ PERIMORTEM_UNIT_TEST(DynamicSet, reuse) {
 }
 
 PERIMORTEM_UNIT_TEST(DynamicSet, leak_test) {
-  auto pre_test_memory = Bibliotheca::allocated_memory();
+  auto pre_test_memory = perimortem_bibliotheca_allocated_memory();
 
   {
     Dynamic::Set<Dynamic::Bytes> memory_intensive;
@@ -335,6 +335,6 @@ PERIMORTEM_UNIT_TEST(DynamicSet, leak_test) {
     ASSERT(!first.contains("old block"_view));
   }
 
-  auto post_test_memory = Bibliotheca::allocated_memory();
+  auto post_test_memory = perimortem_bibliotheca_allocated_memory();
   EXPECT_EQ(pre_test_memory, post_test_memory);
 }

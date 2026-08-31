@@ -15,7 +15,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
-#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/terminal/llvm/emission/control_flow.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
@@ -451,7 +450,7 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
   if (!start || !end || (!range && !data)) {
     return False;
   }
-  // A resource-owning Fixed input must outlive every iteration. Transfer that
+  // A Fixed input that owns resources must outlive every iteration. Transfer
   // value to loop storage, then clear receiver and evaluation temporaries once
   // in the preheader instead of emitting their cleanup inside the body.
   if (!native_body.clear_temporary_cleanup()) {

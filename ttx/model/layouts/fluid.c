@@ -8,7 +8,7 @@
 #include "ttx/model/layouts/common_internal.h"
 
 #define TTX_CONTAINER_OF(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
+  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 static void visit(
     const struct ttx_layout* base,
@@ -28,8 +28,9 @@ static perimortem_bool fits(
 }
 
 static const struct ttx_layout_operations operations = {
-    .visit = visit,
-    .fits = fits,
+  .visit = visit,
+  .fits = fits,
+  .interface = ttx_layout_interface_rejected,
 };
 
 void ttx_fluid_layout_initialize(
@@ -37,7 +38,6 @@ void ttx_fluid_layout_initialize(
     const struct ttx_abstract* const* entries,
     perimortem_count count) {
   layout->layout.operations = &operations;
-  layout->layout.named = 0;
   layout->entries = entries;
   layout->count = count;
 }

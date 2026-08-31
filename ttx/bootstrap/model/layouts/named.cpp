@@ -30,8 +30,23 @@ auto Layouts::Named::visit_named_abi(
 }
 
 const ttx_named_layout_operations Layouts::Named::named_operations = {
+  .interface = {.requirement = ttx_named_layout_requirement},
   .visit = visit_named_abi,
 };
+
+auto Layouts::Named::negotiate_interface(
+    const ttx_layout_interface_requirement* requirement) const
+    -> ttx_layout_interface {
+  if (requirement != ttx_named_layout_requirement()) {
+    return Concept::Layout::negotiate_interface(requirement);
+  }
+
+  return {
+    .layout = get_abi(),
+    .requirement = requirement,
+    .operations = &named_operations.interface,
+  };
+}
 
 static auto get_slot_name(const Concept::Layout& layout, Count index)
     -> Option<View::Bytes> {

@@ -6,6 +6,10 @@
 
 #include "ttx/concept/abstract.h"
 
+// Constant proves that one Abstract is a complete immutable fact for its graph
+// lifetime. Derived work may reuse an answer while its current inputs are the
+// same exact Constant identities, but a live route is asked again because the
+// route itself did not become immutable.
 struct ttx_constant_view {
   const struct ttx_abstract* identity;
   const struct ttx_abstract_operations* operations;

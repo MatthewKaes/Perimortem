@@ -12,12 +12,12 @@
 
 namespace Ttx::Concept {
 
-// Layout describes one target-neutral semantic shape. Concrete Layouts own
+// Layout describes one target neutral semantic shape. Concrete Layouts own
 // composition and fitting while every entry continues to name its real graph
 // producer.
 class Layout {
  public:
-  constexpr Layout() : abi{&abi_operations, nullptr} {}
+  constexpr Layout() : abi{&abi_operations} {}
   enum class Errors : U8 {
     IndexOutOfBounds,
     SizeMismatch,
@@ -63,12 +63,13 @@ class Layout {
   constexpr auto get_abi() const -> const ttx_layout* { return &abi; }
   static auto from_abi(const ttx_layout* layout) -> const Layout&;
 
- protected:
-  constexpr auto expose_named(const ttx_named_layout_operations* operations)
-      -> void {
-    abi.named = operations;
+  virtual auto negotiate_interface(
+      const ttx_layout_interface_requirement* requirement) const
+      -> ttx_layout_interface {
+    return ttx_layout_interface_rejected(get_abi(), requirement);
   }
 
+ protected:
   constexpr auto has_target_segment(const Layout& target, Count target_offset)
       const -> Bool {
     return target_offset <= target.get_size() &&
@@ -81,6 +82,10 @@ class Layout {
       ttx_abstract_callable* visitor) -> void;
   static auto fits_abi(const ttx_layout* source, const ttx_layout* target)
       -> perimortem_bool;
+  static auto interface_abi(
+      const ttx_layout* layout,
+      const ttx_layout_interface_requirement* requirement)
+      -> ttx_layout_interface;
   static const ttx_layout_operations abi_operations;
 
   ttx_layout abi;

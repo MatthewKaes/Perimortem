@@ -6,8 +6,6 @@
 #include "validation/process/child.hpp"
 #include "validation/unit_test.hpp"
 
-#include "perimortem/core/object.hpp"
-
 #include "tetrodotoxin/runtime/application/runner.hpp"
 
 using namespace Perimortem;
@@ -32,15 +30,14 @@ static Count second_releases = 0;
 
 static auto finalize_session_object(U8*) -> void {}
 
-static const Core::Object<>::Descriptor
-    session_object_descriptor{
-        .size = sizeof(U8),
-        .alignment = alignof(U8),
-        .finalize = finalize_session_object,
-    };
+static const perimortem_object_descriptor session_object_descriptor{
+  .size = sizeof(U8),
+  .alignment = alignof(U8),
+  .finalize = finalize_session_object,
+};
 
 static auto construct_session_object() -> void* {
-  return Core::Object<>::create(session_object_descriptor).get_payload();
+  return perimortem_core_object_allocate(&session_object_descriptor);
 }
 
 static auto prepare_first(void**) -> void {

@@ -8,7 +8,7 @@
 #include "ttx/concept/none.h"
 
 #define TTX_CONTAINER_OF(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
+  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 static struct perimortem_bytes name(const struct ttx_abstract* base) {
   const struct ttx_layout_addressable* self =
@@ -16,7 +16,8 @@ static struct perimortem_bytes name(const struct ttx_abstract* base) {
   return self->name;
 }
 
-static const struct ttx_documentation* documentation(const struct ttx_abstract* self) {
+static const struct ttx_documentation* documentation(
+    const struct ttx_abstract* self) {
   (void)self;
   return ttx_documentation_empty();
 }
@@ -54,7 +55,8 @@ static ttx_interface_relation satisfied(
   return TTX_INTERFACE_SATISFIED;
 }
 
-static const struct ttx_abstract* addressable_type(const struct ttx_abstract* base) {
+static const struct ttx_abstract* addressable_type(
+    const struct ttx_abstract* base) {
   return type(base);
 }
 
@@ -67,21 +69,23 @@ static struct ttx_interface interface(
     return ttx_interface_satisfied(
         requirement, base, &self->addressable.interface);
   }
+
   if (requirement == ttx_abstract_requirement()) {
     return ttx_interface_satisfied(
         requirement, base, ttx_interface_marker_operations());
   }
+
   return ttx_interface_rejected(requirement, base);
 }
 
 static const struct ttx_abstract_operations abstract_operations = {
-    .name = name,
-    .documentation = documentation,
-    .resolve = identity,
-    .type = type,
-    .resolve_concept = unknown_concept,
-    .visit_concepts = no_concepts,
-    .interface = interface,
+  .name = name,
+  .documentation = documentation,
+  .resolve = identity,
+  .type = type,
+  .resolve_concept = unknown_concept,
+  .visit_concepts = no_concepts,
+  .interface = interface,
 };
 
 void ttx_layout_addressable_initialize(
@@ -89,8 +93,8 @@ void ttx_layout_addressable_initialize(
     struct perimortem_bytes addressable_name,
     const struct ttx_abstract* addressable_type_value) {
   static const struct ttx_addressable_operations operations = {
-      .interface = {.negotiate = satisfied},
-      .type = addressable_type,
+    .interface = {.negotiate = satisfied},
+    .type = addressable_type,
   };
   addressable->abstract.operations = &abstract_operations;
   addressable->name = addressable_name;

@@ -6,7 +6,11 @@
 
 #include "ttx/concept/layout.h"
 
+// Named is an optional Layout witness rather than a field in every Layout.
+// Callers prove this exact view before observing names, which keeps Value,
+// Fluid, Ranged, and future Layouts independent from naming policy.
 struct ttx_named_layout_operations {
+  struct ttx_layout_interface_operations interface;
   void (*visit)(
       const struct ttx_layout* layout,
       struct ttx_named_abstract_callable* visitor);
@@ -29,6 +33,9 @@ PERIMORTEM_EXTERN_C void ttx_named_layout_initialize(
     const struct ttx_layout* source,
     const struct perimortem_bytes* names,
     perimortem_count count);
+
+PERIMORTEM_EXTERN_C const struct ttx_layout_interface_requirement*
+    ttx_named_layout_requirement(void);
 
 PERIMORTEM_EXTERN_C perimortem_bool ttx_named_layout_prove(
     const struct ttx_layout* layout,

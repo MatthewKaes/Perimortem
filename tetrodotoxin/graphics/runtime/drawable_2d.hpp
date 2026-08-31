@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -87,15 +87,14 @@ class Drawable2D {
     S64 z_offset = 0;
   };
 
-  using ReadDrawCount = Count (*)(Perimortem::Core::Object<>);
-  using ReadDraw = Draw (*)(Perimortem::Core::Object<>, Count);
+  using ReadDrawCount = Count (*)(U8*);
+  using ReadDraw = Draw (*)(U8*, Count);
 
   constexpr Drawable2D(ReadDrawCount read_draw_count, ReadDraw read_draw)
       : read_draw_count(read_draw_count), read_draw(read_draw) {}
 
-  auto draw_count(Perimortem::Core::Object<> object) const -> Count;
-  auto draw(Perimortem::Core::Object<> object, Count index) const
-      -> Perimortem::Core::Option<Draw>;
+  auto draw_count(U8* object) const -> Count;
+  auto draw(U8* object, Count index) const -> Perimortem::Core::Option<Draw>;
 
  private:
   ReadDrawCount read_draw_count;

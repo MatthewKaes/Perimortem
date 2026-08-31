@@ -6,6 +6,10 @@
 
 #include "ttx/concept/abstract.h"
 
+// Addressable contributes only one total Type edge. Unknown carries an
+// incomplete edge and a completed Addressable reaches one exact Type with
+// value flow. Physical addresses, writability, receiver policy, and storage
+// duration stay with the language or Terminal that owns those decisions.
 struct ttx_addressable_operations {
   struct ttx_interface_operations interface;
   const struct ttx_abstract* (*type)(const struct ttx_abstract* identity);
@@ -16,8 +20,8 @@ struct ttx_addressable_view {
   const struct ttx_addressable_operations* operations;
 };
 
-PERIMORTEM_EXTERN_C const struct ttx_abstract*
-    ttx_addressable_requirement(void);
+PERIMORTEM_EXTERN_C const struct ttx_abstract* ttx_addressable_requirement(
+    void);
 PERIMORTEM_EXTERN_C perimortem_bool ttx_addressable_prove(
     const struct ttx_abstract* candidate,
     struct ttx_addressable_view* view);

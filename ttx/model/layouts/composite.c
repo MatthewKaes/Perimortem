@@ -8,7 +8,7 @@
 #include "ttx/model/layouts/common_internal.h"
 
 #define TTX_CONTAINER_OF(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
+  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 struct layout_count {
   struct ttx_abstract_callable callable;
@@ -18,19 +18,20 @@ struct layout_count {
 static void count_entry(
     struct ttx_abstract_callable* callable,
     const struct ttx_abstract* entry) {
-  struct layout_count* count = TTX_CONTAINER_OF(callable, struct layout_count, callable);
+  struct layout_count* count =
+      TTX_CONTAINER_OF(callable, struct layout_count, callable);
   (void)entry;
   ++count->count;
 }
 
 static const struct ttx_abstract_callable_operations count_operations = {
-    .call = count_entry,
+  .call = count_entry,
 };
 
 static perimortem_count count(const struct ttx_layout* layout) {
   struct layout_count result = {
-      .callable = {.operations = &count_operations},
-      .count = 0,
+    .callable = {.operations = &count_operations},
+    .count = 0,
   };
   ttx_layout_visit(layout, &result.callable);
   return result.count;
@@ -60,11 +61,13 @@ static void visit_segment_entry(
       visitor->current - visitor->offset < visitor->count) {
     ttx_abstract_callable_call(visitor->target, entry);
   }
+
   ++visitor->current;
 }
 
-static const struct ttx_abstract_callable_operations segment_visitor_operations = {
-    .call = visit_segment_entry,
+static const struct ttx_abstract_callable_operations
+    segment_visitor_operations = {
+      .call = visit_segment_entry,
 };
 
 static void visit_segment(
@@ -73,11 +76,11 @@ static void visit_segment(
   const struct segment_layout* self =
       TTX_CONTAINER_OF(base, const struct segment_layout, layout);
   struct segment_visitor selected = {
-      .callable = {.operations = &segment_visitor_operations},
-      .target = visitor,
-      .offset = self->offset,
-      .count = self->count,
-      .current = 0,
+    .callable = {.operations = &segment_visitor_operations},
+    .target = visitor,
+    .offset = self->offset,
+    .count = self->count,
+    .current = 0,
   };
   ttx_layout_visit(self->source, &selected.callable);
 }
@@ -89,8 +92,9 @@ static perimortem_bool fit_segment(
 }
 
 static const struct ttx_layout_operations segment_operations = {
-    .visit = visit_segment,
-    .fits = fit_segment,
+  .visit = visit_segment,
+  .fits = fit_segment,
+  .interface = ttx_layout_interface_rejected,
 };
 
 static struct segment_layout segment(
@@ -98,13 +102,13 @@ static struct segment_layout segment(
     perimortem_count offset,
     perimortem_count length) {
   struct segment_layout result = {
-      .layout = {
+    .layout =
+        {
           .operations = &segment_operations,
-          .named = 0,
-      },
-      .source = source,
-      .offset = offset,
-      .count = length,
+        },
+    .source = source,
+    .offset = offset,
+    .count = length,
   };
   return result;
 }
@@ -130,6 +134,7 @@ static perimortem_bool fits(
   if (count(target) != first_count + second_count) {
     return PERIMORTEM_FALSE;
   }
+
   first_target = segment(target, 0, first_count);
   second_target = segment(target, first_count, second_count);
   return ttx_layout_fits(self->first, &first_target.layout) &&
@@ -139,8 +144,9 @@ static perimortem_bool fits(
 }
 
 static const struct ttx_layout_operations operations = {
-    .visit = visit,
-    .fits = fits,
+  .visit = visit,
+  .fits = fits,
+  .interface = ttx_layout_interface_rejected,
 };
 
 void ttx_composite_layout_initialize(
@@ -148,7 +154,6 @@ void ttx_composite_layout_initialize(
     const struct ttx_layout* first,
     const struct ttx_layout* second) {
   layout->layout.operations = &operations;
-  layout->layout.named = 0;
   layout->first = first;
   layout->second = second;
 }

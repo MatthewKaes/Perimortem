@@ -6,7 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"
@@ -19,7 +19,7 @@
 
 namespace Perimortem::Vulkan {
 
-// Pipelines realizes each generated Program and draw-state pair selected by a
+// Pipelines realizes each generated Program and draw state pair selected by a
 // frame. It caches target resources by shared Image identity plus sampling
 // policy while frame Batches keep exact program selection, fixed state, and
 // parameter bytes.
@@ -70,8 +70,7 @@ class Pipelines {
   auto validate(
       Perimortem::Core::View::Vector<Perimortem::Graphics::Frame::Batch>
           batches) const -> Bool;
-  auto find_description(const U8* locator) const
-      -> const Description::Program*;
+  auto find_description(const U8* locator) const -> const Description::Program*;
   auto find_realization(
       const U8* locator,
       Perimortem::Graphics::Frame::Pipeline pipeline) -> Realization*;
@@ -79,8 +78,8 @@ class Pipelines {
       const U8* locator,
       Perimortem::Graphics::Frame::Pipeline pipeline) const
       -> const Realization*;
-  auto realize_pipeline(
-      const Perimortem::Graphics::Frame::Batch& batch) -> Realization*;
+  auto realize_pipeline(const Perimortem::Graphics::Frame::Batch& batch)
+      -> Realization*;
   auto find_image(const Perimortem::Graphics::Frame::Resource& resource)
       -> TextureImage*;
   auto realize_image(const Perimortem::Graphics::Frame::Resource& resource)
@@ -99,12 +98,9 @@ class Pipelines {
   static auto finalize_image_cache(U8* payload) -> void;
   static auto finalize_cache(U8* payload) -> void;
   static auto finalize_realization(U8* payload) -> void;
-  static auto get_image_cache_entry(Perimortem::Core::Object<> object)
-      -> ImageCacheEntry&;
-  static auto get_cache_entry(Perimortem::Core::Object<> object)
-      -> TextureCacheEntry&;
-  static auto get_realization(Perimortem::Core::Object<> object)
-      -> Realization&;
+  static auto get_image_cache_entry(U8* object) -> ImageCacheEntry&;
+  static auto get_cache_entry(U8* object) -> TextureCacheEntry&;
+  static auto get_realization(U8* object) -> Realization&;
 
   const Context& context;
   Perimortem::Core::View::Vector<Description::Program> descriptions;
@@ -112,12 +108,12 @@ class Pipelines {
   VkDescriptorSetLayout descriptor_layout = VK_NULL_HANDLE;
   VkBuffer vertex_buffer = VK_NULL_HANDLE;
   VkDeviceMemory vertex_memory = VK_NULL_HANDLE;
-  Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> realizations;
-  Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> images;
-  Perimortem::Memory::Dynamic::Vector<Perimortem::Core::Object<>> textures;
-  static const Perimortem::Core::Object<>::Descriptor image_cache_descriptor;
-  static const Perimortem::Core::Object<>::Descriptor cache_descriptor;
-  static const Perimortem::Core::Object<>::Descriptor realization_descriptor;
+  Perimortem::Memory::Dynamic::Vector<U8*> realizations;
+  Perimortem::Memory::Dynamic::Vector<U8*> images;
+  Perimortem::Memory::Dynamic::Vector<U8*> textures;
+  static const perimortem_object_descriptor image_cache_descriptor;
+  static const perimortem_object_descriptor cache_descriptor;
+  static const perimortem_object_descriptor realization_descriptor;
 };
 
 }  // namespace Perimortem::Vulkan

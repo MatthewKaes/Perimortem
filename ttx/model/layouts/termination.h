@@ -6,7 +6,7 @@
 
 #include "ttx/model/type.h"
 
-PERIMORTEM_EXTERN_C perimortem_bool ttx_type_layout_terminates(
-    const struct ttx_type_view* type);
+PERIMORTEM_EXTERN_C perimortem_bool
+    ttx_type_layout_terminates(const struct ttx_type_view* type);
 
 #endif

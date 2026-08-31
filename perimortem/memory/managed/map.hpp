@@ -3,8 +3,9 @@
 
 #pragma once
 
+#include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -240,7 +241,15 @@ class Map {
   }
 
   auto get_hash(const key_type& key) const -> U32 {
-    return U32(Core::Hash(key).get_value());
+    if constexpr (__is_pointer(key_type)) {
+      return U32(perimortem_hash_u64(U64(reinterpret_cast<CppSize>(key))));
+    } else if constexpr (__is_integral(key_type)) {
+      return U32(perimortem_hash_u64(U64(key)));
+    } else if constexpr (__is_same(key_type, Core::View::Bytes)) {
+      return U32(perimortem_hash_bytes({key.get_data(), key.get_size()}));
+    } else {
+      return U32(key.hash());
+    }
   }
 
   auto bucket_index(U32 hash) const -> Count {

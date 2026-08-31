@@ -51,7 +51,7 @@ auto Runtime::Application::Session::release_entry(Entry entry) -> void {
   }
   const Scene& scene = product.scenes[entry.descriptor];
   invoke(scene.release, &entry.object);
-  Core::Object<>(Core::Data::cast<U8>(entry.object)).release();
+  perimortem_core_object_release(Core::Data::cast<U8>(entry.object));
 }
 
 auto Runtime::Application::Session::release_stack() -> void {
@@ -176,12 +176,11 @@ auto Runtime::Application::Session::publish(void* object, const U8* signal)
   }
 }
 
-auto Runtime::Application::Session::get_active_object() const
-    -> Core::Object<> {
+auto Runtime::Application::Session::get_active_object() const -> U8* {
   return stack.get_size() == 0
-             ? Core::Object<>()
-             : Core::Object<>(Core::Data::cast<U8>(
-                   stack.get_view().get_data()[stack.get_size() - 1].object));
+             ? nullptr
+             : Core::Data::cast<U8>(
+                   stack.get_view().get_data()[stack.get_size() - 1].object);
 }
 
 auto Runtime::Application::Session::get_active_scene() const

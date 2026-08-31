@@ -83,6 +83,7 @@ perimortem_bool ttx_library_invocation_prove(
   if (!ttx_interface_accepts(&relation)) {
     return PERIMORTEM_FALSE;
   }
+
   view->identity = candidate;
   view->operations =
       (const struct ttx_library_invocation_operations*)relation.operations;

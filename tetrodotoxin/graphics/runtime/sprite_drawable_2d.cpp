@@ -16,27 +16,28 @@ auto Runtime::SpriteDrawable2D::get_runtime() -> const Drawable2D& {
   return drawable;
 }
 
-auto Runtime::SpriteDrawable2D::read_draw_count(Object<> object) -> Count {
+auto Runtime::SpriteDrawable2D::read_draw_count(U8* object) -> Count {
   auto sprite = Perimortem::Graphics::Sprite::retain(object);
   return sprite && sprite->is_drawable() ? 1 : 0;
 }
 
-auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
+auto Runtime::SpriteDrawable2D::read_draw(U8* object, Count index)
     -> Drawable2D::Draw {
   auto sprite = Perimortem::Graphics::Sprite::retain(object);
   if (!sprite || !sprite->is_drawable() || index != 0) {
     return {};
   }
 
-  const Implementation& implementation = sprite->get_material();
+  const perimortem_implementation* implementation = sprite->get_material();
   const auto* projection = Data::cast<const Perimortem::Graphics::Projection>(
-      implementation.get_projection());
-  Object<> instance = implementation.get_object();
-  if (!implementation.is_valid() || projection == nullptr ||
-      projection->program == nullptr || instance.is_empty()) {
+      implementation->projection);
+  U8* instance = implementation->object;
+  if (!perimortem_core_implementation_is_valid(implementation) ||
+      projection == nullptr || projection->program == nullptr ||
+      instance == nullptr) {
     return {};
   }
-  Count instance_size = instance.get_descriptor().size;
+  Count instance_size = perimortem_core_object_descriptor(instance)->size;
   if (projection->parameters_offset > instance_size ||
       projection->parameters_size >
           instance_size - projection->parameters_offset) {
@@ -44,7 +45,7 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
   }
   Perimortem::Memory::Dynamic::Bytes inputs(
       View::Bytes(
-          instance.get_payload() + projection->parameters_offset,
+          instance + projection->parameters_offset,
           projection->parameters_size));
   Perimortem::Memory::Dynamic::Vector<Perimortem::Graphics::Frame::Resource>
       resources;
@@ -67,7 +68,7 @@ auto Runtime::SpriteDrawable2D::read_draw(Object<> object, Count index)
         return {};
       }
       texture = Data::cast<const Perimortem::Graphics::Texture2D>(
-          instance.get_payload() + projected.offset);
+          instance + projected.offset);
       break;
     }
     if (texture == nullptr || !texture->is_drawable()) {

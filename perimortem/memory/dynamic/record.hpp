@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -15,23 +15,28 @@ template <typename value_type>
 class Record {
  public:
   template <typename... arg_types>
-  Record(arg_types&&... args) : object(Core::Object<>::create(descriptor)) {
-    new (object.get_payload(), Core::Placement::Construct)
+  Record(arg_types&&... args)
+      : object(perimortem_core_object_allocate(&descriptor)) {
+    new (object, Core::Placement::Construct)
         value_type(static_cast<arg_types&&>(args)...);
   }
 
-  Record(Record& rhs) : object(rhs.object) { object.retain(); }
-  Record(const Record& rhs) : object(rhs.object) { object.retain(); }
+  Record(Record& rhs) : object(rhs.object) {
+    perimortem_core_object_retain(object);
+  }
+  Record(const Record& rhs) : object(rhs.object) {
+    perimortem_core_object_retain(object);
+  }
   Record(Record&& rhs) : Record(rhs) {}
 
   auto operator=(const Record& rhs) -> Record& {
-    if (object.get_payload() == rhs.object.get_payload()) {
+    if (object == rhs.object) {
       return *this;
     }
 
-    object.release();
+    perimortem_core_object_release(object);
     object = rhs.object;
-    object.retain();
+    perimortem_core_object_retain(object);
     return *this;
   }
 
@@ -44,7 +49,7 @@ class Record {
     return *this;
   }
 
-  ~Record() { object.release(); }
+  ~Record() { perimortem_core_object_release(object); }
 
   constexpr auto operator->() -> value_type* { return get_value(); }
   constexpr auto operator->() const -> const value_type* { return get_value(); }
@@ -57,18 +62,18 @@ class Record {
   }
 
   constexpr auto get_value() const -> value_type* {
-    return Core::Data::cast<value_type>(object.get_payload());
+    return Core::Data::cast<value_type>(object);
   }
 
-  inline static constexpr Core::Object<>::Descriptor descriptor{
-      .size = sizeof(value_type),
-      .alignment = alignof(value_type),
-      .finalize = destroy,
+  inline static constexpr perimortem_object_descriptor descriptor{
+    .size = sizeof(value_type),
+    .alignment = alignof(value_type),
+    .finalize = destroy,
   };
 
-  Core::Object<> object;
+  U8* object = nullptr;
 };
 
-static_assert(sizeof(Record<U8>) == sizeof(Core::Object<>));
+static_assert(sizeof(Record<U8>) == sizeof(U8*));
 
 }  // namespace Perimortem::Memory::Dynamic

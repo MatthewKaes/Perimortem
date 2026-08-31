@@ -2,8 +2,6 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "perimortem/graphics/image.hpp"
-#include "perimortem/graphics/sampler_2d.hpp"
-#include "perimortem/graphics/texture_2d.hpp"
 
 #include "validation/unit_test.hpp"
 
@@ -11,6 +9,8 @@
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/graphics/frame/resource.hpp"
+#include "perimortem/graphics/sampler_2d.hpp"
+#include "perimortem/graphics/texture_2d.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Graphics;
@@ -41,34 +41,22 @@ PERIMORTEM_UNIT_TEST(GraphicsImage, texture_values_share_one_image) {
   Image image(Data::take(pixels), 2, 1);
   Texture2D wrapped(
       image,
-      Sampler2D(
-          Sampler2D::Addressing::Wrap, Sampler2D::Filtering::Linear));
+      Sampler2D(Sampler2D::Addressing::Wrap, Sampler2D::Filtering::Linear));
   Texture2D clamped(
       image,
-      Sampler2D(
-          Sampler2D::Addressing::Clamp, Sampler2D::Filtering::Nearest));
+      Sampler2D(Sampler2D::Addressing::Clamp, Sampler2D::Filtering::Nearest));
 
-  EXPECT_EQ(
-      wrapped.get_image().get_object().get_payload(),
-      clamped.get_image().get_object().get_payload());
+  EXPECT_EQ(wrapped.get_image().get_object(), clamped.get_image().get_object());
+  EXPECT(wrapped.get_sampler().get_addressing() == Sampler2D::Addressing::Wrap);
   EXPECT(
-      wrapped.get_sampler().get_addressing() ==
-      Sampler2D::Addressing::Wrap);
+      clamped.get_sampler().get_addressing() == Sampler2D::Addressing::Clamp);
+  EXPECT(wrapped.get_sampler().get_filtering() == Sampler2D::Filtering::Linear);
   EXPECT(
-      clamped.get_sampler().get_addressing() ==
-      Sampler2D::Addressing::Clamp);
-  EXPECT(
-      wrapped.get_sampler().get_filtering() ==
-      Sampler2D::Filtering::Linear);
-  EXPECT(
-      clamped.get_sampler().get_filtering() ==
-      Sampler2D::Filtering::Nearest);
+      clamped.get_sampler().get_filtering() == Sampler2D::Filtering::Nearest);
 
   auto wrapped_resource = Frame::Resource::retain_texture(wrapped);
   auto clamped_resource = Frame::Resource::retain_texture(clamped);
-  EXPECT_EQ(
-      wrapped_resource.get_object().get_payload(),
-      clamped_resource.get_object().get_payload());
+  EXPECT_EQ(wrapped_resource.get_object(), clamped_resource.get_object());
   EXPECT_NOT(wrapped_resource.matches(clamped_resource));
   EXPECT_EQ(wrapped_resource.get_reservations(), Count(5));
 }

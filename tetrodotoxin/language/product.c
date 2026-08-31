@@ -11,14 +11,15 @@ static const uint8_t product_name[] = "Product";
 
 static struct perimortem_bytes name(const struct ttx_abstract* self) {
   struct perimortem_bytes value = {
-      .data = product_name,
-      .size = sizeof(product_name) - 1,
+    .data = product_name,
+    .size = sizeof(product_name) - 1,
   };
   (void)self;
   return value;
 }
 
-static const struct ttx_documentation* documentation(const struct ttx_abstract* self) {
+static const struct ttx_documentation* documentation(
+    const struct ttx_abstract* self) {
   (void)self;
   return ttx_documentation_empty();
 }
@@ -54,17 +55,17 @@ static struct ttx_interface interface(
 }
 
 static const struct ttx_abstract_operations operations = {
-    .name = name,
-    .documentation = documentation,
-    .resolve = identity,
-    .type = type,
-    .resolve_concept = concept,
-    .visit_concepts = concepts,
-    .interface = interface,
+  .name = name,
+  .documentation = documentation,
+  .resolve = identity,
+  .type = type,
+  .resolve_concept = concept,
+  .visit_concepts = concepts,
+  .interface = interface,
 };
 
 static const struct product_requirement requirement = {
-    .abstract = {.operations = &operations},
+  .abstract = {.operations = &operations},
 };
 
 const struct ttx_abstract* tetrodotoxin_product_requirement(void) {
@@ -74,11 +75,12 @@ const struct ttx_abstract* tetrodotoxin_product_requirement(void) {
 perimortem_bool tetrodotoxin_product_prove(
     const struct ttx_abstract* candidate,
     struct tetrodotoxin_product_view* view) {
-  struct ttx_interface relation = ttx_abstract_interface(
-      candidate, tetrodotoxin_product_requirement());
+  struct ttx_interface relation =
+      ttx_abstract_interface(candidate, tetrodotoxin_product_requirement());
   if (!ttx_interface_accepts(&relation)) {
     return PERIMORTEM_FALSE;
   }
+
   view->identity = candidate;
   view->operations =
       (const struct tetrodotoxin_product_operations*)relation.operations;

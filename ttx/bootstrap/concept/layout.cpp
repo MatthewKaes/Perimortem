@@ -34,7 +34,15 @@ auto Layout::fits_abi(const ttx_layout* source, const ttx_layout* target)
                                                  : PERIMORTEM_FALSE;
 }
 
+auto Layout::interface_abi(
+    const ttx_layout* layout,
+    const ttx_layout_interface_requirement* requirement)
+    -> ttx_layout_interface {
+  return from_abi(layout).negotiate_interface(requirement);
+}
+
 const ttx_layout_operations Layout::abi_operations = {
   .visit = visit_abi,
   .fits = fits_abi,
+  .interface = interface_abi,
 };

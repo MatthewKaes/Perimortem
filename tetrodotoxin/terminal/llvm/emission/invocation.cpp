@@ -15,8 +15,8 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
-#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/terminal/abi/runtime_symbols.h"
 #include "tetrodotoxin/terminal/llvm/emission/invocation.hpp"
 #include "tetrodotoxin/terminal/llvm/emission/storage.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
@@ -26,6 +26,11 @@
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
 using namespace Tetrodotoxin::Library;
+
+static auto runtime_symbol(perimortem_bytes symbol) -> llvm::StringRef {
+  return llvm::StringRef(
+      reinterpret_cast<const char*>(symbol.data), symbol.size);
+}
 
 // Arithmetic validates exact carriers before choosing signed, unsigned, or
 
@@ -526,10 +531,8 @@ static auto object_capacity_value(
       *llvm::FunctionType::get(&count, {&pointer}, false);
   llvm::IRBuilder<>& builder =
       *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
-  llvm::StringRef symbol(
-      reinterpret_cast<const char*>(
-          Perimortem::Core::object_capacity_symbol.get_data()),
-      Perimortem::Core::object_capacity_symbol.get_size());
+  llvm::StringRef symbol =
+      runtime_symbol(tetrodotoxin_terminal_abi_object_capacity_symbol);
   llvm::Value& bytes = *builder.CreateCall(
       module.getOrInsertFunction(symbol, &signature), {llvm::unwrap(receiver)},
       "object.bytes");
@@ -585,10 +588,8 @@ auto Llvm::Emission::Invocation::object_is_shared(
       *llvm::FunctionType::get(&count, {&pointer}, false);
   llvm::IRBuilder<>& builder =
       *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
-  llvm::StringRef symbol(
-      reinterpret_cast<const char*>(
-          Perimortem::Core::object_reservations_symbol.get_data()),
-      Perimortem::Core::object_reservations_symbol.get_size());
+  llvm::StringRef symbol =
+      runtime_symbol(tetrodotoxin_terminal_abi_object_reservations_symbol);
   llvm::Value& reservations = *builder.CreateCall(
       module.getOrInsertFunction(symbol, &signature), {llvm::unwrap(receiver)},
       "object.reservations");
@@ -642,10 +643,8 @@ auto Llvm::Emission::Invocation::object_clone(
       *llvm::FunctionType::get(&pointer, {&pointer, &pointer, &count}, false);
   llvm::IRBuilder<>& builder =
       *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
-  llvm::StringRef symbol(
-      reinterpret_cast<const char*>(
-          Perimortem::Core::object_clone_symbol.get_data()),
-      Perimortem::Core::object_clone_symbol.get_size());
+  llvm::StringRef symbol =
+      runtime_symbol(tetrodotoxin_terminal_abi_object_clone_symbol);
   llvm::Value& size = *llvm::ConstantInt::get(&count, *element_size);
   llvm::Value& cloned = *builder.CreateCall(
       module.getOrInsertFunction(symbol, &signature),
@@ -727,10 +726,8 @@ static auto reserve_object(
       false);
   llvm::IRBuilder<>& builder =
       *reinterpret_cast<llvm::IRBuilder<>*>(body.get_builder());
-  llvm::StringRef symbol(
-      reinterpret_cast<const char*>(
-          Perimortem::Core::object_reserve_symbol.get_data()),
-      Perimortem::Core::object_reserve_symbol.get_size());
+  llvm::StringRef symbol =
+      runtime_symbol(tetrodotoxin_terminal_abi_object_reserve_symbol);
   llvm::Value& size = *llvm::ConstantInt::get(&native_count, *element_size);
   llvm::Value& selected = *builder.CreateCall(
       module.getOrInsertFunction(symbol, &signature),

@@ -15,9 +15,8 @@ class SpriteDrawable2D {
   static auto get_runtime() -> const Drawable2D&;
 
  private:
-  static auto read_draw_count(Perimortem::Core::Object<> object) -> Count;
-  static auto read_draw(Perimortem::Core::Object<> object, Count index)
-      -> Drawable2D::Draw;
+  static auto read_draw_count(U8* object) -> Count;
+  static auto read_draw(U8* object, Count index) -> Drawable2D::Draw;
 };
 
 }  // namespace Tetrodotoxin::Graphics::Runtime

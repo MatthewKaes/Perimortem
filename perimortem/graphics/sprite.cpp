@@ -7,38 +7,39 @@
 
 using namespace Perimortem;
 
-extern "C" const Core::Object<>::Descriptor
+extern "C" const perimortem_object_descriptor
     TTX_DESC_Perimortem_2eGraphics__Sprite__Sprite __attribute__((weak));
 
-const Core::Object<>::Descriptor Graphics::Sprite::descriptor{
-    .size = sizeof(Payload),
-    .alignment = alignof(Payload),
-    .finalize = Graphics::Sprite::finalize,
+const perimortem_object_descriptor Graphics::Sprite::descriptor{
+  .size = sizeof(Payload),
+  .alignment = alignof(Payload),
+  .finalize = Graphics::Sprite::finalize,
 };
 
-Graphics::Sprite::Sprite() : object(Core::Object<>::create(descriptor)) {
-  new (object.get_payload(), Core::Placement::Construct) Payload();
+Graphics::Sprite::Sprite()
+    : object(perimortem_core_object_allocate(&descriptor)) {
+  new (object, Core::Placement::Construct) Payload();
 }
 
 Graphics::Sprite::Sprite(const Sprite& source) : object(source.object) {
-  object.retain();
+  perimortem_core_object_retain(object);
 }
 
 Graphics::Sprite::Sprite(Sprite&& source) : object(source.object) {
-  source.object = Core::Object<>();
+  source.object = nullptr;
 }
 
 Graphics::Sprite::~Sprite() {
-  object.release();
+  perimortem_core_object_release(object);
 }
 
 auto Graphics::Sprite::operator=(const Sprite& source) -> Sprite& {
-  if (object.get_payload() == source.object.get_payload()) {
+  if (object == source.object) {
     return *this;
   }
 
-  source.object.retain();
-  object.release();
+  perimortem_core_object_retain(source.object);
+  perimortem_core_object_release(object);
   object = source.object;
   return *this;
 }
@@ -48,9 +49,9 @@ auto Graphics::Sprite::operator=(Sprite&& source) -> Sprite& {
     return *this;
   }
 
-  object.release();
+  perimortem_core_object_release(object);
   object = source.object;
-  source.object = Core::Object<>();
+  source.object = nullptr;
   return *this;
 }
 
@@ -62,13 +63,14 @@ auto Graphics::Sprite::set_texture(const Texture2D& texture) -> void {
   get_payload().texture = texture;
 }
 
-auto Graphics::Sprite::get_material() const -> const Core::Implementation& {
-  return get_payload().material;
+auto Graphics::Sprite::get_material() const
+    -> const perimortem_implementation* {
+  return &get_payload().material;
 }
 
-auto Graphics::Sprite::set_material(const Core::Implementation& material)
+auto Graphics::Sprite::set_material(perimortem_implementation* material)
     -> void {
-  get_payload().material = material;
+  perimortem_core_implementation_move(&get_payload().material, material);
 }
 
 auto Graphics::Sprite::get_size() const -> Size2D {
@@ -107,29 +109,32 @@ auto Graphics::Sprite::is_drawable() const -> Bool {
   const Payload& payload = get_payload();
   return payload.visible && payload.size.width != 0 &&
          payload.size.height != 0 && payload.texture.is_drawable() &&
-         payload.material.is_valid();
+         perimortem_core_implementation_is_valid(&payload.material);
 }
 
-auto Graphics::Sprite::retain(Core::Object<> object) -> Core::Option<Sprite> {
-  BAIL_IF(object.is_empty());
-  const Core::Object<>::Descriptor* generated =
+auto Graphics::Sprite::retain(U8* object) -> Core::Option<Sprite> {
+  BAIL_IF(object == nullptr);
+  const perimortem_object_descriptor* generated =
       &TTX_DESC_Perimortem_2eGraphics__Sprite__Sprite;
-  const Core::Object<>::Descriptor& selected = object.get_descriptor();
+  const perimortem_object_descriptor* selected =
+      perimortem_core_object_descriptor(object);
   BAIL_IF(
-      &selected != &Sprite::descriptor &&
-      (generated == nullptr || &selected != generated));
-  object.retain();
+      selected != &Sprite::descriptor &&
+      (generated == nullptr || selected != generated));
+  perimortem_core_object_retain(object);
   return Sprite(object);
 }
 
 auto Graphics::Sprite::finalize(U8* payload) -> void {
-  Core::Data::cast<Payload>(payload)->~Payload();
+  Payload* selected = Core::Data::cast<Payload>(payload);
+  perimortem_core_implementation_release(&selected->material);
+  selected->~Payload();
 }
 
 auto Graphics::Sprite::get_payload() -> Payload& {
-  return *Core::Data::cast<Payload>(object.get_payload());
+  return *Core::Data::cast<Payload>(object);
 }
 
 auto Graphics::Sprite::get_payload() const -> const Payload& {
-  return *Core::Data::cast<const Payload>(object.get_payload());
+  return *Core::Data::cast<const Payload>(object);
 }

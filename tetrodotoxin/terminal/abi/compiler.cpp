@@ -235,6 +235,31 @@ static auto requests_native_interface(const Function& function) -> Bool {
   return False;
 }
 
+static auto contains_export(
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports,
+    const Model::Callable& callable) -> Bool {
+  for (const Tetrodotoxin::Terminal::Abi::Export& exported : exports) {
+    if (&exported.get_callable() == &callable) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
+static auto contains_publication(
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication> publications,
+    const Ttx::Concept::Abstract& semantic) -> Bool {
+  for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
+       publications) {
+    if (&publication.get_semantic() == &semantic) {
+      return True;
+    }
+  }
+
+  return False;
+}
+
 static auto collect_type(
     Memory::Allocator::Arena& arena,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
@@ -266,6 +291,10 @@ static auto collect_type(
           (Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
                function->get_definition()) ||
            requests_native_interface(*function))) {
+        if (contains_export(exports.get_view(), *function)) {
+          continue;
+        }
+
         auto symbol = select_symbol(
             arena, *function, unit, errors, source_path, source_text);
         if (!symbol) {
@@ -282,7 +311,8 @@ static auto collect_type(
       if (field && unit.is_package_member() &&
           field->get_writability() == Writability::Full &&
           Tetrodotoxin::Terminal::Abi::is_publicly_reachable(
-              field->get_definition())) {
+              field->get_definition()) &&
+          !contains_publication(publications.get_view(), *field)) {
         Tetrodotoxin::Terminal::Abi::Symbol symbol(
             arena, *field, Tetrodotoxin::Terminal::Abi::Symbol::Kind::Address,
             unit);
@@ -297,7 +327,8 @@ static auto collect_type(
   if (structure && unit.is_package_member() &&
       !structure->get_layout().is_empty() &&
       structure->is_externally_reachable(*structure) &&
-      structure->has_initialization_provider()) {
+      structure->has_initialization_provider() &&
+      !contains_publication(publications.get_view(), *structure)) {
     Tetrodotoxin::Terminal::Abi::Symbol symbol(
         arena, *structure,
         Tetrodotoxin::Terminal::Abi::Symbol::Kind::Construction, unit);
@@ -396,9 +427,10 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile(
 
   Tetrodotoxin::Terminal::Abi::Representation::Type types;
   auto c_header = Tetrodotoxin::Terminal::Abi::C::Header::create(
-      arena, types, monograph, unit, exports.get_view(), roots);
+      arena, types, monograph, unit, exports.get_view(),
+      publications.get_view(), roots);
   auto cpp_header = Tetrodotoxin::Terminal::Abi::Cpp::Header::create(
-      arena, types, unit, exports.get_view());
+      arena, types, unit, exports.get_view(), publications.get_view());
   if (!c_header || !cpp_header) {
     return {};
   }

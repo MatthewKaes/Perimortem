@@ -16,8 +16,8 @@ struct tetrodotoxin_product_view {
   const struct tetrodotoxin_product_operations* operations;
 };
 
-PERIMORTEM_EXTERN_C const struct ttx_abstract*
-    tetrodotoxin_product_requirement(void);
+PERIMORTEM_EXTERN_C const struct ttx_abstract* tetrodotoxin_product_requirement(
+    void);
 PERIMORTEM_EXTERN_C perimortem_bool tetrodotoxin_product_prove(
     const struct ttx_abstract* candidate,
     struct tetrodotoxin_product_view* view);

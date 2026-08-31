@@ -9,6 +9,7 @@
 
 #include "ttx/concept/none.h"
 #include "ttx/concept/unknown.h"
+#include "ttx/model/callable.h"
 #include "ttx/model/context.h"
 #include "ttx/model/layouts/addressable.h"
 #include "ttx/model/layouts/composite.h"
@@ -51,6 +52,18 @@ _Static_assert(
     offsetof(struct ttx_context, operations) == 0,
     "Context starts with its operation table");
 _Static_assert(
+    offsetof(struct ttx_type_operations, interface) == 0,
+    "Type operations start with Interface proof");
+_Static_assert(
+    offsetof(struct ttx_addressable_operations, interface) == 0,
+    "Addressable operations start with Interface proof");
+_Static_assert(
+    offsetof(struct ttx_callable_operations, interface) == 0,
+    "Callable operations start with Interface proof");
+_Static_assert(
+    offsetof(struct ttx_named_layout_operations, interface) == 0,
+    "Named Layout operations start with Interface proof");
+_Static_assert(
     offsetof(struct ttx_abstract_callable, operations) == 0,
     "Abstract Callable starts with its operation table");
 _Static_assert(
@@ -92,6 +105,7 @@ static const struct ttx_abstract* unknown_concept(
       perimortem_bytes_equal(type->concept_name, name)) {
     return type->concept_target;
   }
+
   return ttx_unknown();
 }
 
@@ -127,10 +141,12 @@ static struct ttx_interface type_interface(
   if (requirement == ttx_type_requirement()) {
     return ttx_interface_satisfied(requirement, base, &self->type.interface);
   }
+
   if (requirement == ttx_abstract_requirement()) {
     return ttx_interface_satisfied(
         requirement, base, ttx_interface_marker_operations());
   }
+
   return ttx_interface_rejected(requirement, base);
 }
 
@@ -180,6 +196,7 @@ static void capture_named(
     capture->first_name = name;
     capture->first_entry = entry;
   }
+
   ++capture->count;
 }
 
@@ -227,6 +244,7 @@ int main(void) {
   struct ttx_ranged_layout ranged;
   struct ttx_named_layout named_source;
   struct ttx_named_layout named_target;
+  struct ttx_layout_interface layout_interface;
   struct ttx_composite_layout composite;
   struct ttx_layout_addressable first_slot;
   struct ttx_layout_addressable second_slot;
@@ -264,6 +282,7 @@ int main(void) {
       ttx_constant_prove(ttx_unknown(), &constant)) {
     return 1;
   }
+
   ttx_abstract_visit_concepts(&left.abstract, &capture.callable);
   if (capture.count != 1 || capture.first_entry != &right.abstract ||
       !perimortem_bytes_equal(capture.first_name, left.concept_name) ||
@@ -273,6 +292,7 @@ int main(void) {
           ttx_unknown()) {
     return 2;
   }
+
   right.concept_name =
       (struct perimortem_bytes){fold_name, sizeof(fold_name) - 1};
   right.concept_target = ttx_none();
@@ -291,6 +311,7 @@ int main(void) {
           &constant)) {
     return 3;
   }
+
   capture.count = 0;
   capture.first_entry = 0;
   capture.first_name = (struct perimortem_bytes){0, 0};
@@ -313,9 +334,22 @@ int main(void) {
   target_names[1] = source_names[0];
   ttx_named_layout_initialize(&named_source, &source.layout, source_names, 2);
   ttx_named_layout_initialize(&named_target, &target.layout, target_names, 2);
+  layout_interface = ttx_layout_negotiate_interface(
+      &source.layout, ttx_named_layout_requirement());
+  if (ttx_layout_interface_accepts(&layout_interface)) {
+    return 5;
+  }
+
+  layout_interface = ttx_layout_negotiate_interface(
+      &named_source.layout, ttx_named_layout_requirement());
+  if (!ttx_layout_interface_accepts(&layout_interface)) {
+    return 5;
+  }
+
   if (!ttx_layout_fits(&named_source.layout, &named_target.layout)) {
     return 5;
   }
+
   ttx_fluid_layout_initialize(&empty, 0, 0);
   ttx_ranged_layout_initialize(&ranged, &left.abstract, 2);
   repeated_entries[0] = &left.abstract;
@@ -325,6 +359,7 @@ int main(void) {
       !ttx_layout_fits(&ranged.layout, &repeated.layout)) {
     return 6;
   }
+
   ttx_layout_addressable_initialize(
       &first_slot, source_names[0], &left.abstract);
   ttx_layout_addressable_initialize(
@@ -364,12 +399,14 @@ int main(void) {
   if (snapshot == 0) {
     return 9;
   }
+
   source_entries[0] = &right.abstract;
   source_names[0] = source_names[1];
   if (!ttx_layout_fits(ttx_pack_layout(snapshot), &named_target.layout) ||
       !ttx_named_layout_prove(ttx_pack_layout(snapshot), &snapshot_named)) {
     return 10;
   }
+
   ttx_named_layout_visit(&snapshot_named, &capture.callable);
   if (capture.count != 2 || capture.first_entry != &left.abstract ||
       !perimortem_bytes_equal(

@@ -6,7 +6,7 @@
 #include "validation/unit_test.hpp"
 
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 
@@ -24,22 +24,22 @@ static Count finalized_resources = 0;
 
 class SubmissionResource {
  public:
-  static auto create(U8 value) -> Core::Object<>;
+  static auto create(U8 value) -> U8*;
 
  private:
   static auto finalize(U8*) -> void;
-  static const Core::Object<>::Descriptor descriptor;
+  static const perimortem_object_descriptor descriptor;
 };
 
-const Core::Object<>::Descriptor SubmissionResource::descriptor{
-    .size = sizeof(U8),
-    .alignment = alignof(U8),
-    .finalize = SubmissionResource::finalize,
+const perimortem_object_descriptor SubmissionResource::descriptor{
+  .size = sizeof(U8),
+  .alignment = alignof(U8),
+  .finalize = SubmissionResource::finalize,
 };
 
-auto SubmissionResource::create(U8 value) -> Core::Object<> {
-  Core::Object<> object = Core::Object<>::create(descriptor);
-  *object.get_payload() = value;
+auto SubmissionResource::create(U8 value) -> U8* {
+  U8* object = perimortem_core_object_allocate(&descriptor);
+  *object = value;
   return object;
 }
 
@@ -49,14 +49,14 @@ auto SubmissionResource::finalize(U8*) -> void {
 
 class SubmissionNode {
  public:
-  static auto create() -> Core::Object<>;
-  static auto get(Core::Object<> object) -> SubmissionNode&;
+  static auto create() -> U8*;
+  static auto get(U8* object) -> SubmissionNode&;
 
   ~SubmissionNode();
 
-  auto add_child(Core::Object<> child) -> Bool;
+  auto add_child(U8* child) -> Bool;
   auto clear_children() -> void;
-  auto set_resource(Core::Object<> selected) -> void;
+  auto set_resource(U8* selected) -> void;
 
   Transform transform;
   Bool visible = True;
@@ -73,28 +73,24 @@ class SubmissionNode {
 
  private:
   static auto finalize(U8* payload) -> void;
-  static auto read_placement(const U8* context, Core::Object<> object)
+  static auto read_placement(const U8* context, U8* object)
       -> Placement2D::Placement;
-  static auto read_child_count(const U8* context, Core::Object<> object)
+  static auto read_child_count(const U8* context, U8* object) -> Count;
+  static auto read_child(const U8* context, U8* object, Count index, U8** child)
       -> Count;
-  static auto read_child(
-      const U8* context,
-      Core::Object<> object,
-      Count index,
-      Core::Object<>* child) -> Count;
-  static auto read_draw_count(Core::Object<> object) -> Count;
-  static auto read_draw(Core::Object<> object, Count index) -> Drawable2D::Draw;
+  static auto read_draw_count(U8* object) -> Count;
+  static auto read_draw(U8* object, Count index) -> Drawable2D::Draw;
 
-  static const Core::Object<>::Descriptor object_descriptor;
-  Core::Object<> retained_children[4];
+  static const perimortem_object_descriptor object_descriptor;
+  U8* retained_children[4] = {};
   Count retained_child_count = 0;
-  Core::Object<> resource;
+  U8* resource = nullptr;
 };
 
-const Core::Object<>::Descriptor SubmissionNode::object_descriptor{
-    .size = sizeof(SubmissionNode),
-    .alignment = alignof(SubmissionNode),
-    .finalize = SubmissionNode::finalize,
+const perimortem_object_descriptor SubmissionNode::object_descriptor{
+  .size = sizeof(SubmissionNode),
+  .alignment = alignof(SubmissionNode),
+  .finalize = SubmissionNode::finalize,
 };
 
 const Placement2D SubmissionNode::placement(
@@ -126,39 +122,39 @@ auto SubmissionNode::drawables() -> Core::View::Vector<const Drawable2D*> {
   return values;
 }
 
-auto SubmissionNode::create() -> Core::Object<> {
-  Core::Object<> object = Core::Object<>::create(object_descriptor);
-  new (object.get_payload(), Core::Placement::Construct) SubmissionNode();
+auto SubmissionNode::create() -> U8* {
+  U8* object = perimortem_core_object_allocate(&object_descriptor);
+  new (object, Core::Placement::Construct) SubmissionNode();
   return object;
 }
 
-auto SubmissionNode::get(Core::Object<> object) -> SubmissionNode& {
-  return *Core::Data::cast<SubmissionNode>(object.get_payload());
+auto SubmissionNode::get(U8* object) -> SubmissionNode& {
+  return *Core::Data::cast<SubmissionNode>(object);
 }
 
 SubmissionNode::~SubmissionNode() {
   clear_children();
-  resource.release();
+  perimortem_core_object_release(resource);
 }
 
-auto SubmissionNode::add_child(Core::Object<> child) -> Bool {
-  BAIL_IF(child.is_empty() || retained_child_count == 4);
-  child.retain();
+auto SubmissionNode::add_child(U8* child) -> Bool {
+  BAIL_IF(child == nullptr || retained_child_count == 4);
+  perimortem_core_object_retain(child);
   retained_children[retained_child_count++] = child;
   return True;
 }
 
 auto SubmissionNode::clear_children() -> void {
   for (Count index = 0; index < retained_child_count; index++) {
-    retained_children[index].release();
-    retained_children[index] = Core::Object<>();
+    perimortem_core_object_release(retained_children[index]);
+    retained_children[index] = nullptr;
   }
   retained_child_count = 0;
 }
 
-auto SubmissionNode::set_resource(Core::Object<> selected) -> void {
-  selected.retain();
-  resource.release();
+auto SubmissionNode::set_resource(U8* selected) -> void {
+  perimortem_core_object_retain(selected);
+  perimortem_core_object_release(resource);
   resource = selected;
 }
 
@@ -166,22 +162,18 @@ auto SubmissionNode::finalize(U8* payload) -> void {
   Core::Data::cast<SubmissionNode>(payload)->~SubmissionNode();
 }
 
-auto SubmissionNode::read_placement(const U8*, Core::Object<> object)
+auto SubmissionNode::read_placement(const U8*, U8* object)
     -> Placement2D::Placement {
   const SubmissionNode& node = get(object);
   return Placement2D::Placement(node.transform, node.visible, node.z_index);
 }
 
-auto SubmissionNode::read_child_count(const U8*, Core::Object<> object)
-    -> Count {
+auto SubmissionNode::read_child_count(const U8*, U8* object) -> Count {
   return get(object).retained_child_count;
 }
 
-auto SubmissionNode::read_child(
-    const U8*,
-    Core::Object<> object,
-    Count index,
-    Core::Object<>* child) -> Count {
+auto SubmissionNode::read_child(const U8*, U8* object, Count index, U8** child)
+    -> Count {
   const SubmissionNode& node = get(object);
   if (child == nullptr || index >= node.retained_child_count) {
     return Count(-1);
@@ -190,15 +182,14 @@ auto SubmissionNode::read_child(
   return 0;
 }
 
-auto SubmissionNode::read_draw_count(Core::Object<> object) -> Count {
+auto SubmissionNode::read_draw_count(U8* object) -> Count {
   return get(object).draw_count;
 }
 
-auto SubmissionNode::read_draw(Core::Object<> object, Count index)
-    -> Drawable2D::Draw {
+auto SubmissionNode::read_draw(U8* object, Count index) -> Drawable2D::Draw {
   const SubmissionNode& node = get(object);
   Memory::Dynamic::Vector<Resource> resources;
-  if (!node.resource.is_empty()) {
+  if (node.resource != nullptr) {
     resources.emplace(Resource(node.resource));
   }
   Memory::Dynamic::Bytes inputs(node.inputs.get_view());
@@ -213,7 +204,7 @@ auto SubmissionNode::read_draw(Core::Object<> object, Count index)
       6, -S64(index));
 }
 
-static auto submit(Core::Object<> root) -> Core::Option<PassUI> {
+static auto submit(U8* root) -> Core::Option<PassUI> {
   return PassUI::create(
       root, SubmissionNode::children, SubmissionNode::placements(),
       SubmissionNode::child_capabilities(), SubmissionNode::drawables());
@@ -221,10 +212,10 @@ static auto submit(Core::Object<> root) -> Core::Option<PassUI> {
 
 PERIMORTEM_UNIT_TEST(GraphicsSubmission, stabilizes_native_frame) {
   finalized_resources = 0;
-  Core::Object<> resource = SubmissionResource::create(0x5A);
-  Core::Object<> root = SubmissionNode::create();
-  Core::Object<> back = SubmissionNode::create();
-  Core::Object<> front = SubmissionNode::create();
+  U8* resource = SubmissionResource::create(0x5A);
+  U8* root = SubmissionNode::create();
+  U8* back = SubmissionNode::create();
+  U8* front = SubmissionNode::create();
   SubmissionNode& back_node = SubmissionNode::get(back);
   SubmissionNode& front_node = SubmissionNode::get(front);
   ASSERT(SubmissionNode::get(root).add_child(front));
@@ -270,14 +261,14 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, stabilizes_native_frame) {
     back_node.inputs = "changed"_view;
     back_node.set_resource({});
     front_node.set_resource({});
-    resource.release();
-    resource = Core::Object<>();
-    back.release();
-    back = Core::Object<>();
-    front.release();
-    front = Core::Object<>();
-    root.release();
-    root = Core::Object<>();
+    perimortem_core_object_release(resource);
+    resource = nullptr;
+    perimortem_core_object_release(back);
+    back = nullptr;
+    perimortem_core_object_release(front);
+    front = nullptr;
+    perimortem_core_object_release(root);
+    root = nullptr;
 
     EXPECT_EQ(back_batch.get_inputs(), "back"_view);
     ASSERT_EQ(back_batch.get_resources().get_size(), Count(1));
@@ -289,9 +280,9 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, stabilizes_native_frame) {
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsSubmission, preserves_equal_order) {
-  Core::Object<> root = SubmissionNode::create();
-  Core::Object<> first = SubmissionNode::create();
-  Core::Object<> second = SubmissionNode::create();
+  U8* root = SubmissionNode::create();
+  U8* first = SubmissionNode::create();
+  U8* second = SubmissionNode::create();
   SubmissionNode::get(first).draw_count = 1;
   SubmissionNode::get(first).z_index = 3;
   SubmissionNode::get(first).inputs = "first"_view;
@@ -309,13 +300,13 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, preserves_equal_order) {
   EXPECT_EQ(batches.get_data()[1].get_inputs(), "second"_view);
   EXPECT_EQ(batches.get_data()[0].get_authored_order(), Count(0));
   EXPECT_EQ(batches.get_data()[1].get_authored_order(), Count(1));
-  first.release();
-  second.release();
-  root.release();
+  perimortem_core_object_release(first);
+  perimortem_core_object_release(second);
+  perimortem_core_object_release(root);
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsSubmission, rejects_visible_cycle) {
-  Core::Object<> root = SubmissionNode::create();
+  U8* root = SubmissionNode::create();
   SubmissionNode& node = SubmissionNode::get(root);
   ASSERT(node.add_child(root));
   EXPECT_NOT(submit(root));
@@ -324,13 +315,13 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, rejects_visible_cycle) {
   ASSERT(hidden);
   EXPECT(hidden->get_batches().is_empty());
   node.clear_children();
-  root.release();
+  perimortem_core_object_release(root);
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsSubmission, scales_draw_order) {
   constexpr Count draw_count = 100000;
-  Core::Object<> root = SubmissionNode::create();
-  Core::Object<> child = SubmissionNode::create();
+  U8* root = SubmissionNode::create();
+  U8* child = SubmissionNode::create();
   SubmissionNode::get(child).draw_count = draw_count;
   SubmissionNode::get(child).z_index = S64(draw_count);
   ASSERT(SubmissionNode::get(root).add_child(child));
@@ -340,6 +331,6 @@ PERIMORTEM_UNIT_TEST(GraphicsSubmission, scales_draw_order) {
   ASSERT_EQ(batches.get_size(), draw_count);
   EXPECT_EQ(batches.get_data()[0].get_z_index(), S64(1));
   EXPECT_EQ(batches.get_data()[draw_count - 1].get_z_index(), S64(draw_count));
-  child.release();
-  root.release();
+  perimortem_core_object_release(child);
+  perimortem_core_object_release(root);
 }

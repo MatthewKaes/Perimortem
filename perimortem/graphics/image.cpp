@@ -8,36 +8,50 @@
 
 using namespace Perimortem;
 
-extern "C" const Core::Object<>::Descriptor
+extern "C" const perimortem_object_descriptor
     TTX_DESC_Perimortem_2eGraphics__Image__Image __attribute__((weak));
 
-const Core::Object<>::Descriptor Graphics::Image::descriptor{
-    .size = sizeof(Payload),
-    .alignment = alignof(Payload),
-    .finalize = Graphics::Image::finalize,
+const perimortem_object_descriptor Graphics::Image::descriptor{
+  .size = sizeof(Payload),
+  .alignment = alignof(Payload),
+  .finalize = Graphics::Image::finalize,
 };
 
-static auto create_pixels(
+const perimortem_object_descriptor Graphics::Image::pixel_descriptor{
+  .size = sizeof(Pixel),
+  .alignment = alignof(Pixel),
+  .finalize = perimortem_core_object_finalize_trivial,
+};
+
+auto Graphics::Image::create_pixels(
     const Memory::Dynamic::Vector<Graphics::Pixel>& source,
-    Count count) -> Core::Object<Graphics::Pixel> {
-  Core::Object<Graphics::Pixel> pixels(count);
-  auto target = pixels.get_access();
+    Count count) -> U8* {
+  if (count == 0) {
+    return nullptr;
+  }
+  U8* pixels = perimortem_core_object_allocate_buffer(
+      &Graphics::Image::pixel_descriptor, count, sizeof(Graphics::Pixel));
+  Graphics::Pixel* target = Core::Data::cast<Graphics::Pixel>(pixels);
   Count retained = Core::Math::min(source.get_size(), count);
-  for (Count index = 0; index < retained; index++) {
-    target.get_data()[index] = source[index];
+  for (Count index = 0; index < count; index++) {
+    target[index] = index < retained ? source[index] : Graphics::Pixel();
   }
 
   return pixels;
 }
 
-Graphics::Image::Image() : object(Core::Object<>::create(descriptor)) {
-  new (object.get_payload(), Core::Placement::Construct) Payload();
+Graphics::Image::Image()
+    : object(perimortem_core_object_allocate(&descriptor)) {
+  new (object, Core::Placement::Construct) Payload();
 }
 
 Graphics::Image::Image(U32 width, U32 height) : Image() {
   Payload& payload = get_payload();
-  payload.pixels = Core::Object<Pixel>(Count(width) * Count(height));
   payload.pixel_count = Count(width) * Count(height);
+  if (payload.pixel_count != 0) {
+    payload.pixels = perimortem_core_object_allocate_buffer(
+        &pixel_descriptor, payload.pixel_count, sizeof(Pixel));
+  }
   payload.size_pixels = {width, height};
 }
 
@@ -53,24 +67,24 @@ Graphics::Image::Image(
 }
 
 Graphics::Image::Image(const Image& source) : object(source.object) {
-  object.retain();
+  perimortem_core_object_retain(object);
 }
 
 Graphics::Image::Image(Image&& source) : object(source.object) {
-  source.object = Core::Object<>();
+  source.object = nullptr;
 }
 
 Graphics::Image::~Image() {
-  object.release();
+  perimortem_core_object_release(object);
 }
 
 auto Graphics::Image::operator=(const Image& source) -> Image& {
-  if (object.get_payload() == source.object.get_payload()) {
+  if (object == source.object) {
     return *this;
   }
 
-  source.object.retain();
-  object.release();
+  perimortem_core_object_retain(source.object);
+  perimortem_core_object_release(object);
   object = source.object;
   return *this;
 }
@@ -80,9 +94,9 @@ auto Graphics::Image::operator=(Image&& source) -> Image& {
     return *this;
   }
 
-  object.release();
+  perimortem_core_object_release(object);
   object = source.object;
-  source.object = Core::Object<>();
+  source.object = nullptr;
   return *this;
 }
 
@@ -100,7 +114,8 @@ auto Graphics::Image::get_size_pixels() const -> Size2D {
 
 auto Graphics::Image::get_pixels() const -> Core::View::Vector<Pixel> {
   const Payload& payload = get_payload();
-  return payload.pixels.get_view().slice(0, payload.pixel_count);
+  return Core::View::Vector<Pixel>(
+      Core::Data::cast<Pixel>(payload.pixels), payload.pixel_count);
 }
 
 auto Graphics::Image::get_pixel(S32 x, S32 y) const -> Pixel {
@@ -110,8 +125,8 @@ auto Graphics::Image::get_pixel(S32 x, S32 y) const -> Pixel {
     return Pixel();
   }
 
-  return payload.pixels.get_view()
-      .get_data()[Count(y) * Count(payload.size_pixels.width) + Count(x)];
+  return Core::Data::cast<Pixel>(
+      payload.pixels)[Count(y) * Count(payload.size_pixels.width) + Count(x)];
 }
 
 auto Graphics::Image::is_drawable() const -> Bool {
@@ -119,30 +134,33 @@ auto Graphics::Image::is_drawable() const -> Bool {
   return payload.size_pixels.width != 0 && payload.size_pixels.height != 0 &&
          payload.pixel_count ==
              Count(payload.size_pixels.width) * payload.size_pixels.height &&
-         payload.pixels.get_capacity() >= payload.pixel_count;
+         perimortem_core_object_capacity(payload.pixels) >=
+             payload.pixel_count * sizeof(Pixel);
 }
 
-auto Graphics::Image::retain(Core::Object<> object)
-    -> Core::Option<Image> {
-  BAIL_IF(object.is_empty());
-  const Core::Object<>::Descriptor* generated =
+auto Graphics::Image::retain(U8* object) -> Core::Option<Image> {
+  BAIL_IF(object == nullptr);
+  const perimortem_object_descriptor* generated =
       &TTX_DESC_Perimortem_2eGraphics__Image__Image;
-  const Core::Object<>::Descriptor& selected = object.get_descriptor();
+  const perimortem_object_descriptor* selected =
+      perimortem_core_object_descriptor(object);
   BAIL_IF(
-      &selected != &descriptor &&
-      (generated == nullptr || &selected != generated));
-  object.retain();
+      selected != &descriptor &&
+      (generated == nullptr || selected != generated));
+  perimortem_core_object_retain(object);
   return Image(object);
 }
 
 auto Graphics::Image::finalize(U8* payload) -> void {
-  Core::Data::cast<Payload>(payload)->~Payload();
+  Payload* selected = Core::Data::cast<Payload>(payload);
+  perimortem_core_object_release(selected->pixels);
+  selected->~Payload();
 }
 
 auto Graphics::Image::get_payload() -> Payload& {
-  return *Core::Data::cast<Payload>(object.get_payload());
+  return *Core::Data::cast<Payload>(object);
 }
 
 auto Graphics::Image::get_payload() const -> const Payload& {
-  return *Core::Data::cast<const Payload>(object.get_payload());
+  return *Core::Data::cast<const Payload>(object);
 }

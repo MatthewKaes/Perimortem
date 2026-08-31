@@ -40,12 +40,13 @@ cc_library(
     name = "core",
     srcs = [
         "core/algorithm/search.cpp",
-        "core/bibliotheca.cpp",
-        "core/cleanup.cpp",
+        "core/bibliotheca.c",
         "core/diagnostics/log.cpp",
+        "core/diagnostics/fatal.c",
         "core/diagnostics/source.cpp",
-        "core/implementation.cpp",
-        "core/object.cpp",
+        "core/hash.c",
+        "core/implementation.c",
+        "core/object.c",
         "core/reader/binary.cpp",
         "core/reader/serial.cpp",
         "core/reader/textual.cpp",
@@ -63,11 +64,13 @@ cc_library(
         "core/reader/*.hpp",
         "core/writer/*.hpp",
         "core/diagnostics/*.hpp",
+        "core/diagnostics/*.h",
         "core/thread/*.hpp",
         "core/*.hpp",
         "core/*.h",
     ]),
     includes = ["."],
+    linkopts = ["-lpthread"],
 )
 
 cc_library(
@@ -93,6 +96,7 @@ cc_library(
     name = "memory",
     srcs = glob(
         [
+            "memory/*.c",
             "memory/allocator/*.cpp",
             "memory/dynamic/*.cpp",
             "memory/managed/*.cpp",
@@ -100,6 +104,7 @@ cc_library(
         allow_empty = True,
     ),
     hdrs = glob([
+        "memory/*.h",
         "memory/allocator/*.hpp",
         "memory/dynamic/*.hpp",
         "memory/managed/*.hpp",

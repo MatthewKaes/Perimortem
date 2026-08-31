@@ -6,6 +6,9 @@
 
 #include "ttx/concept/constant.h"
 
+// None is the Constant that proves completed absence. It remains distinct from
+// Unknown so a consumer can cache a settled negative fact without mistaking an
+// incomplete graph for a permanent answer.
 struct ttx_none_view {
   const struct ttx_abstract* identity;
   const struct ttx_abstract_operations* operations;

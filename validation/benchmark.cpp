@@ -15,7 +15,7 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/sort.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/time.hpp"
@@ -162,7 +162,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
   total_start = Time::now();
   while (sample_count < max_sample_count) {
     harness.setup();
-    Count allocs_before = Bibliotheca::check_out_requests();
+    Count allocs_before = perimortem_bibliotheca_check_out_requests();
     Benchmark::start_time();
 
     // Run the benchmark body.
@@ -174,7 +174,7 @@ static auto run_samples(const Harness& harness, Benchmark::BenchmarkFunc func)
     }
 
     // Grab the number of allocations and tear down the test.
-    Count allocs_after = Bibliotheca::check_out_requests();
+    Count allocs_after = perimortem_bibliotheca_check_out_requests();
     harness.teardown();
 
     time_samples[sample_count++] =

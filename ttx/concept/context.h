@@ -8,9 +8,8 @@
 
 struct ttx_context;
 struct ttx_context_operations {
-  const struct ttx_pack* (*pack)(
-      struct ttx_context* self,
-      const struct ttx_layout* layout);
+  const struct ttx_pack* (
+      *pack)(struct ttx_context* self, const struct ttx_layout* layout);
 };
 
 struct ttx_context {

@@ -33,14 +33,15 @@ int main(void) {
   if (!decoded) {
     return 2;
   }
+
   ttx_perimortem_graphics_Image image = decoded;
 
   ttx_perimortem_graphics_Image_View_5bPixel_5d pixels =
       TTX_FUNC_Perimortem_2eGraphics__Image__Image__get_5fpixels_self(&image);
   int result = 0;
   if (pixels.size != 1 || pixels.data[0].red != 0xff ||
-      pixels.data[0].green != 0x00 ||
-      pixels.data[0].blue != 0x00 || pixels.data[0].alpha != 0xff) {
+      pixels.data[0].green != 0x00 || pixels.data[0].blue != 0x00 ||
+      pixels.data[0].alpha != 0xff) {
     result = 3;
   }
 
@@ -58,9 +59,8 @@ int main(void) {
   }
 
   ttx_perimortem_math_Vec2D outside = {2.0f, 2.0f};
-  sampled =
-      TTX_FUNC_Perimortem_2eGraphics__Texture2D__Texture2D__sample_self(
-          &texture, outside);
+  sampled = TTX_FUNC_Perimortem_2eGraphics__Texture2D__Texture2D__sample_self(
+      &texture, outside);
   if (sampled.x != 0.0f || sampled.y != 0.0f || sampled.z != 0.0f ||
       sampled.w != 0.0f) {
     result = 5;

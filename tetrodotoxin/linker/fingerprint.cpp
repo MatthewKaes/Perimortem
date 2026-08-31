@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/linker/fingerprint.hpp"
 
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/null_terminated.hpp"
 #include "perimortem/core/perimortem.hpp"
 
@@ -14,7 +14,8 @@ using namespace Perimortem::Core;
 
 auto Tetrodotoxin::Linker::Fingerprint::create(Core::View::Bytes description)
     -> Fingerprint {
-  return Fingerprint(Core::Hash(description).get_value());
+  return Fingerprint(
+      perimortem_hash_bytes({description.get_data(), description.get_size()}));
 }
 
 auto Tetrodotoxin::Linker::Fingerprint::parse(Core::View::Bytes text)

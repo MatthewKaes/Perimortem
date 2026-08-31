@@ -3,8 +3,8 @@
 //
 #include <stddef.h>
 
-#include "Perimortem.System/1.0/c_abi.h"
 #include "Perimortem.Memory/1.0/c_abi.h"
+#include "Perimortem.System/1.0/c_abi.h"
 
 _Static_assert(
     sizeof(ttx_perimortem_memory_Dynamic_Bytes) == 16,

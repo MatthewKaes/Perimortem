@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "perimortem/core/implementation.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/implementation.h"
+#include "perimortem/core/object.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/graphics/size_2d.hpp"
@@ -28,8 +28,8 @@ class Sprite {
 
   auto get_texture() const -> const Texture2D&;
   auto set_texture(const Texture2D& texture) -> void;
-  auto get_material() const -> const Core::Implementation&;
-  auto set_material(const Core::Implementation& material) -> void;
+  auto get_material() const -> const perimortem_implementation*;
+  auto set_material(perimortem_implementation* material) -> void;
   auto get_size() const -> Size2D;
   auto set_size(Size2D size) -> void;
   auto get_transform() const -> Transform2D;
@@ -41,17 +41,17 @@ class Sprite {
   auto is_drawable() const -> Bool;
   // Frame collection borrows this carrier and retains the real Sprite rather
   // than manufacturing a second runtime node.
-  constexpr auto get_object() const -> Core::Object<> { return object; }
+  constexpr auto get_object() const -> U8* { return object; }
 
   // Retains this exact native Sprite after validating an erased Object carrier.
   // Runtime traversal keeps the carrier intact, so this conversion never
   // guesses ownership or allocator provenance from a payload address.
-  static auto retain(Core::Object<> object) -> Core::Option<Sprite>;
+  static auto retain(U8* object) -> Core::Option<Sprite>;
 
  private:
   class Payload {
    public:
-    Core::Implementation material;
+    perimortem_implementation material = {};
     Transform2D transform;
     Bool visible = True;
     S64 z_index = 0;
@@ -66,13 +66,13 @@ class Sprite {
   static_assert(__builtin_offsetof(Payload, size) == 88);
   static_assert(sizeof(Payload) == 96);
 
-  explicit Sprite(Core::Object<> object) : object(object) {}
+  explicit Sprite(U8* object) : object(object) {}
   static auto finalize(U8* payload) -> void;
   auto get_payload() -> Payload&;
   auto get_payload() const -> const Payload&;
 
-  static const Core::Object<>::Descriptor descriptor;
-  Core::Object<> object;
+  static const perimortem_object_descriptor descriptor;
+  U8* object = nullptr;
 };
 
 static_assert(sizeof(Sprite) == sizeof(U8*));

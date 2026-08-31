@@ -3,19 +3,19 @@
 
 #pragma once
 
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 
 #include "perimortem/graphics/sampler_2d.hpp"
 #include "perimortem/graphics/texture_2d.hpp"
 
 namespace Perimortem::Graphics::Frame {
 
-// Resource keeps one worker-local Image identity and its sampling value alive
+// Resource keeps one worker local Image identity and its sampling value alive
 // for the immutable frame that references them.
 class Resource {
  public:
   Resource() = default;
-  explicit Resource(Perimortem::Core::Object<> object);
+  explicit Resource(U8* object);
   static auto retain_texture(const Perimortem::Graphics::Texture2D& texture)
       -> Resource;
   Resource(const Resource& source);
@@ -25,21 +25,18 @@ class Resource {
   auto operator=(const Resource& source) -> Resource&;
   auto operator=(Resource&& source) -> Resource&;
 
-  constexpr auto is_empty() const -> Bool { return object.is_empty(); }
-  constexpr auto get_object() const -> Perimortem::Core::Object<> {
-    return object;
-  }
+  constexpr auto is_empty() const -> Bool { return object == nullptr; }
+  constexpr auto get_object() const -> U8* { return object; }
   constexpr auto get_sampler() const -> Perimortem::Graphics::Sampler2D {
     return sampler;
   }
   constexpr auto matches(const Resource& other) const -> Bool {
-    return object.get_payload() == other.object.get_payload() &&
-           sampler == other.sampler;
+    return object == other.object && sampler == other.sampler;
   }
   auto get_reservations() const -> Count;
 
  private:
-  Perimortem::Core::Object<> object;
+  U8* object = nullptr;
   Perimortem::Graphics::Sampler2D sampler;
 };
 

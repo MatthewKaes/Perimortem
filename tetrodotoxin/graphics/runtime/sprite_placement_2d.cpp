@@ -13,7 +13,7 @@ auto Runtime::SpritePlacement2D::get_runtime() -> const Placement2D& {
   return placement;
 }
 
-auto Runtime::SpritePlacement2D::read(const U8*, Object<> object)
+auto Runtime::SpritePlacement2D::read(const U8*, U8* object)
     -> Placement2D::Placement {
   auto sprite = Perimortem::Graphics::Sprite::retain(object);
   if (!sprite) {

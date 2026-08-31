@@ -19,6 +19,7 @@ ttx_interface_relation ttx_callable_negotiate(
       !ttx_callable_prove(candidate, &supplied)) {
     return TTX_INTERFACE_REJECTED;
   }
+
   required_parameters = ttx_callable_parameters(&required);
   supplied_parameters = ttx_callable_parameters(&supplied);
   required_results = ttx_callable_results(&required);
@@ -28,6 +29,7 @@ ttx_interface_relation ttx_callable_negotiate(
       !ttx_layout_fits(supplied_results, required_results)) {
     return TTX_INTERFACE_REJECTED;
   }
+
   return ttx_layout_fits(required_results, supplied_results)
              ? TTX_INTERFACE_EQUIVALENT
              : TTX_INTERFACE_SATISFIED;

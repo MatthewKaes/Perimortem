@@ -11,14 +11,49 @@ load("//validation:c_headers.bzl", "c_header")
 package(default_visibility = ["//visibility:public"])
 
 c_header(
+    "perimortem_bibliotheca",
+    "perimortem/core/bibliotheca.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
     "perimortem_core",
     "perimortem/core/perimortem.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_fatal",
+    "perimortem/core/diagnostics/fatal.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_hash",
+    "perimortem/core/hash.h",
+    deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_implementation",
+    "perimortem/core/implementation.h",
     deps = ["//perimortem:core"],
 )
 c_header(
     "perimortem_object",
     "perimortem/core/object.h",
     deps = ["//perimortem:core"],
+)
+c_header(
+    "perimortem_buffer",
+    "perimortem/memory/buffer.h",
+    deps = ["//perimortem:memory"],
+)
+c_header(
+    "perimortem_aligned_buffer",
+    "perimortem/memory/aligned_buffer.h",
+    deps = ["//perimortem:memory"],
+)
+c_header(
+    "perimortem_hash_index",
+    "perimortem/memory/hash_index.h",
+    deps = ["//perimortem:memory"],
 )
 c_header(
     "perimortem_terminal",
@@ -66,7 +101,14 @@ c_header("type", "ttx/model/type.h")
 cc_library(
     name = "c_ttx_headers",
     deps = [
+        ":c_header_perimortem_bibliotheca",
+        ":c_header_perimortem_aligned_buffer",
+        ":c_header_perimortem_buffer",
         ":c_header_perimortem_core",
+        ":c_header_perimortem_fatal",
+        ":c_header_perimortem_hash",
+        ":c_header_perimortem_implementation",
+        ":c_header_perimortem_hash_index",
         ":c_header_perimortem_object",
         ":c_header_perimortem_terminal",
         ":c_header_abstract",
@@ -140,6 +182,7 @@ ttx_source(
 ttx_source(
     name = "native_dependency",
     src = "data/ttx/package_native/provider/package.ttx",
+    generate_cxx = True,
 )
 
 ttx_source(

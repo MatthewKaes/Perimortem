@@ -24,14 +24,12 @@ class CompiledChildren2D {
   constexpr auto get_children() const -> const Children2D& { return children; }
 
  private:
-  static auto read_child_count(
-      const U8* context,
-      Perimortem::Core::Object<> object) -> Count;
+  static auto read_child_count(const U8* context, U8* object) -> Count;
   static auto read_selected_child(
       const U8* context,
-      Perimortem::Core::Object<> object,
+      U8* object,
       Count index,
-      Perimortem::Core::Object<>* child) -> Count;
+      U8** child) -> Count;
 
   Count retained_child_count;
   ReadChild retained_read_child;

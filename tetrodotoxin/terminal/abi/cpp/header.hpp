@@ -10,6 +10,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/terminal/abi/export.hpp"
+#include "tetrodotoxin/terminal/abi/publication.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
 
@@ -25,7 +26,9 @@ class Header {
       const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
       const Tetrodotoxin::Terminal::Abi::Unit& unit,
       Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export>
-          exports) -> Perimortem::Core::Option<Header>;
+          exports,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication>
+          publications) -> Perimortem::Core::Option<Header>;
 
   constexpr auto get_header() const -> Perimortem::Core::View::Bytes {
     return header;

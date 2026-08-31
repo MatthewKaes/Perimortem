@@ -6,7 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/math.hpp"
 
 namespace Perimortem::Core::Static {
@@ -117,8 +117,8 @@ class Bytes {
     return Access::Bytes(storage.source_block, literal_size);
   }
 
-  constexpr auto hash() const -> U64 {
-    return Core::Hash(get_view()).get_value();
+  auto hash() const -> U64 {
+    return perimortem_hash_bytes({storage.source_block, literal_size});
   }
 };
 

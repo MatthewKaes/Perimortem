@@ -4,7 +4,7 @@
 #include "validation/benchmark.hpp"
 
 #include "perimortem/core/static/vector.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/perimortem.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
@@ -24,11 +24,11 @@ static Harness AllocatorBench = {
 
 template <Count alloc_size>
 static auto bibliotheca_cycle() -> void {
-  Bibliotheca::Allocation alloc;
+  struct perimortem_bibliotheca_allocation alloc;
   for (Count i = 0; i < 100; i++) {
-    alloc = Bibliotheca::check_out(alloc_size);
+    alloc = perimortem_bibliotheca_check_out(alloc_size);
     Benchmark::prevent_optimization(alloc.ptr);
-    Bibliotheca::remit(alloc.ptr);
+    perimortem_bibliotheca_remit(alloc.ptr);
   }
 }
 
@@ -57,13 +57,13 @@ template <Count frame_alloc_count, Count size_minimum, Count size_range>
 static auto frame_stability() -> void {
   Static::Vector<U8*, frame_alloc_count> ptrs;
   for (Count i = 0; i < frame_alloc_count; i++) {
-    auto alloc = Bibliotheca::check_out(
+    auto alloc = perimortem_bibliotheca_check_out(
         (Random::generate() & size_range) + size_minimum);
     ptrs[i] = alloc.ptr;
   }
 
   for (Count i = 0; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
+    perimortem_bibliotheca_remit(ptrs[i]);
   }
 
   Benchmark::prevent_optimization(ptrs[0]);
@@ -90,22 +90,22 @@ static auto frame_stability_interleaved() -> void {
 
   // Initial allocation.
   for (Count i = 0; i < window; i++) {
-    ptrs[i] =
-        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
-            .ptr;
+    ptrs[i] = perimortem_bibliotheca_check_out(
+                  (Random::generate() & size_range) + size_minimum)
+                  .ptr;
   }
 
   // Rolling exchange.
   for (Count i = window; i < frame_alloc_count; i++) {
-    ptrs[i] =
-        Bibliotheca::check_out((Random::generate() & size_range) + size_minimum)
-            .ptr;
-    Bibliotheca::remit(ptrs[i - window]);
+    ptrs[i] = perimortem_bibliotheca_check_out(
+                  (Random::generate() & size_range) + size_minimum)
+                  .ptr;
+    perimortem_bibliotheca_remit(ptrs[i - window]);
   }
 
   // Final clean up.
   for (Count i = frame_alloc_count - window; i < frame_alloc_count; i++) {
-    Bibliotheca::remit(ptrs[i]);
+    perimortem_bibliotheca_remit(ptrs[i]);
   }
 
   Benchmark::prevent_optimization(ptrs[0]);

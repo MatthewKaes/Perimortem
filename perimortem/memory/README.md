@@ -2,27 +2,32 @@
 
 Tetrodotoxin tools and the programs they generate both need fast ownership that
 can be understood at the language boundary. Perimortem Memory gives them a
-shared allocation foundation while remaining useful to ordinary C++ systems.
+shared allocation foundation through the same C ABI used by generated code.
 
-Core owns the language visible `Object<T>` value and its physical contract.
-`Abi::Core` makes that contract available to generated code.
-`Memory::Dynamic::Record<T>` builds on the same carrier for compiler and tooling
-state whose lifetime extends beyond one Arena transaction. It constructs `T` in
-the payload and lets the final Record release the carrier.
+Core owns the language visible Object carrier and its physical contract.
+Generated native products call that C surface directly. The ABI Terminal owns
+the external symbol spellings it emits, so Perimortem does not need a second
+set of C++ to C bridge classes merely to describe its own functions.
+
+`Memory::Dynamic::Record<T>` currently builds on the same carrier for compiler
+and tooling state whose lifetime extends beyond one Arena transaction. It
+constructs `T` in the payload and lets the final Record release the carrier.
+Record is a remaining C++ migration owner, not part of the Object ABI.
 
 Record remains a C++ lifetime tool rather than another language Type or Object
 representation. Generated code can rely on the Core Object descriptor and the
 control data beside each allocation, while tooling gains a convenient owner for
 longer lived state.
 
-`Core::Object<T>` is the C++ reference for Library `Object[T]`. Both use one
-empty capable word, recover element capacity from Bibliotheca, and expose the
-same writable buffer through every alias. `reserve` replaces only the selected
-handle when it must grow, `is_shared` reports another owned handle, and `clone`
-performs an explicit independent copy. The erased `Core::Object<>`
-specialization is the physical ABI carrier used by generated authored Objects
-and Record. Containers such as Dynamic Bytes may build their own copy on write
-policy from those primitives. Object does not impose one.
+The C Object handle is the physical ABI carrier used by Library `Object[T]`,
+generated authored Objects, and Record. It is one pointer whose adjacent
+Bibliotheca preface identifies the immutable runtime descriptor and current
+reservation count. A null pointer represents absence and is not an Object.
+
+Object itself does not provide typed buffer policy. Memory Buffer can grow or
+clone one fixed allocation, while owners such as Dynamic Bytes retain their own
+logical size and copy on write rules. Growing replaces only the selected handle
+because aliases continue to name their original fixed allocation.
 
 ## Worker ownership
 

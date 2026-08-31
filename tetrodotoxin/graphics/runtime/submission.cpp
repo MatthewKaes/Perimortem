@@ -11,13 +11,13 @@ using namespace Tetrodotoxin::Graphics;
 
 auto Runtime::PassUI::collect(
     Collection& collection,
-    Object<> object,
+    U8* object,
     const Placement2D* placement,
     const Children2D* children,
     const Drawable2D* drawable,
     const Perimortem::Graphics::Frame::Transform& parent,
     S64 parent_z_index) -> Bool {
-  BAIL_IF(object.is_empty());
+  BAIL_IF(object == nullptr);
   Perimortem::Graphics::Frame::Resource reservation(object);
 
   Perimortem::Graphics::Frame::Transform transform = parent;
@@ -34,9 +34,9 @@ auto Runtime::PassUI::collect(
         parent_z_index, selected->get_z_index(), &z_index));
   }
 
-  BAIL_IF(collection.path.contains(object.get_payload()));
+  BAIL_IF(collection.path.contains(object));
 
-  collection.path.insert(object.get_payload());
+  collection.path.insert(object);
   Bool complete =
       collect_draws(collection, object, drawable, transform, z_index) &&
       collect_children(collection, object, children, transform, z_index);
@@ -46,7 +46,7 @@ auto Runtime::PassUI::collect(
 
 auto Runtime::PassUI::collect_draws(
     Collection& collection,
-    Object<> object,
+    U8* object,
     const Drawable2D* drawable,
     const Perimortem::Graphics::Frame::Transform& transform,
     S64 placement_z_index) -> Bool {
@@ -72,7 +72,7 @@ auto Runtime::PassUI::collect_draws(
 
 auto Runtime::PassUI::collect_children(
     Collection& collection,
-    Object<> object,
+    U8* object,
     const Children2D* children,
     const Perimortem::Graphics::Frame::Transform& transform,
     S64 z_index) -> Bool {
@@ -100,13 +100,13 @@ auto Runtime::PassUI::collect_children(
 }
 
 auto Runtime::PassUI::create(
-    Object<> root,
+    U8* root,
     const Children2D& root_children,
     View::Vector<const Placement2D*> placements,
     View::Vector<const Children2D*> children,
     View::Vector<const Drawable2D*> drawables) -> Option<PassUI> {
   BAIL_IF(
-      root.is_empty() || placements.is_empty() ||
+      root == nullptr || placements.is_empty() ||
       placements.get_size() != children.get_size() ||
       placements.get_size() != drawables.get_size());
   Collection collection(placements, children, drawables);

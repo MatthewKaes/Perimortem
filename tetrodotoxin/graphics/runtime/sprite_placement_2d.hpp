@@ -14,8 +14,7 @@ class SpritePlacement2D {
   static auto get_runtime() -> const Placement2D&;
 
  private:
-  static auto read(const U8* context, Perimortem::Core::Object<> object)
-      -> Placement2D::Placement;
+  static auto read(const U8* context, U8* object) -> Placement2D::Placement;
 };
 
 }  // namespace Tetrodotoxin::Graphics::Runtime

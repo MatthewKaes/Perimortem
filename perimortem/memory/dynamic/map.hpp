@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/utility/pair.hpp"
@@ -92,7 +93,7 @@ class Map {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<U8>(buckets));
+    perimortem_bibliotheca_remit(Core::Data::cast<U8>(buckets));
   }
 
   auto ensure_capacity(Count items) -> void {
@@ -369,15 +370,16 @@ class Map {
     }
 
     if (old_buckets != nullptr) {
-      Core::Bibliotheca::remit(Core::Data::cast<U8>(old_buckets));
+      perimortem_bibliotheca_remit(Core::Data::cast<U8>(old_buckets));
     }
 
     size = old_size;
   }
 
   auto create_buffer(Count new_bucket_count) -> void {
-    Core::Bibliotheca::Allocation allocation =
-        Core::Bibliotheca::check_out(required_buffer_size(new_bucket_count));
+    struct perimortem_bibliotheca_allocation allocation =
+        perimortem_bibliotheca_check_out(
+            required_buffer_size(new_bucket_count));
     buckets = Core::Data::cast<U32>(allocation.ptr);
     entries = Core::Data::cast<Entry>(
         allocation.ptr + entry_offset(new_bucket_count));
@@ -405,7 +407,15 @@ class Map {
   }
 
   static auto get_hash(const key_type& key) -> U32 {
-    return U32(Core::Hash(key).get_value());
+    if constexpr (__is_pointer(key_type)) {
+      return U32(perimortem_hash_u64(U64(reinterpret_cast<CppSize>(key))));
+    } else if constexpr (__is_integral(key_type)) {
+      return U32(perimortem_hash_u64(U64(key)));
+    } else if constexpr (__is_same(key_type, Core::View::Bytes)) {
+      return U32(perimortem_hash_bytes({key.get_data(), key.get_size()}));
+    } else {
+      return U32(key.hash());
+    }
   }
 
   U32* buckets = nullptr;

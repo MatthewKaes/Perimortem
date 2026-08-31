@@ -11,11 +11,11 @@ static void visit_empty(
 }
 
 static const struct ttx_documentation_operations empty_operations = {
-    .visit = visit_empty,
+  .visit = visit_empty,
 };
 
 static const struct ttx_documentation empty_documentation = {
-    .operations = &empty_operations,
+  .operations = &empty_operations,
 };
 
 void ttx_documentation_visit(

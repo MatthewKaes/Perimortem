@@ -8,7 +8,7 @@
 #include "ttx/model/addressable.h"
 
 #define TTX_CONTAINER_OF(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer)-offsetof(type, member)))
+  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 struct termination_frame;
 struct termination_frame {
@@ -38,7 +38,7 @@ static void count_entry(
 }
 
 static const struct ttx_abstract_callable_operations counter_operations = {
-    .call = count_entry,
+  .call = count_entry,
 };
 
 static perimortem_bool terminates(
@@ -52,8 +52,10 @@ static perimortem_bool active(
     if (frame->type == type) {
       return PERIMORTEM_TRUE;
     }
+
     frame = frame->parent;
   }
+
   return PERIMORTEM_FALSE;
 }
 
@@ -65,9 +67,11 @@ static const struct ttx_abstract* entry_type(const struct ttx_abstract* entry) {
   if (ttx_type_prove(entry, &type)) {
     return entry;
   }
+
   if (ttx_addressable_prove(entry, &addressable)) {
     return ttx_addressable_type(&addressable);
   }
+
   selected = ttx_abstract_type(entry);
   return ttx_type_prove(selected, &type) ? selected : 0;
 }
@@ -83,16 +87,19 @@ static void visit_entry(
   if (!visitor->valid) {
     return;
   }
+
   selected = entry_type(entry);
   if (selected == 0) {
     visitor->valid = PERIMORTEM_FALSE;
     return;
   }
+
   if (selected == visitor->frame->type) {
-    visitor->valid = visitor->layout_count == 1 ? PERIMORTEM_TRUE
-                                                : PERIMORTEM_FALSE;
+    visitor->valid =
+        visitor->layout_count == 1 ? PERIMORTEM_TRUE : PERIMORTEM_FALSE;
     return;
   }
+
   if (active(visitor->frame, selected) || !ttx_type_prove(selected, &type) ||
       !terminates(&type, visitor->frame)) {
     visitor->valid = PERIMORTEM_FALSE;
@@ -100,7 +107,7 @@ static void visit_entry(
 }
 
 static const struct ttx_abstract_callable_operations visitor_operations = {
-    .call = visit_entry,
+  .call = visit_entry,
 };
 
 static perimortem_bool terminates(
@@ -108,18 +115,18 @@ static perimortem_bool terminates(
     const struct termination_frame* parent) {
   const struct ttx_layout* layout = ttx_type_layout(type);
   struct layout_counter counter = {
-      .callable = {.operations = &counter_operations},
-      .count = 0,
+    .callable = {.operations = &counter_operations},
+    .count = 0,
   };
   struct termination_frame frame = {
-      .type = type->identity,
-      .parent = parent,
+    .type = type->identity,
+    .parent = parent,
   };
   struct termination_visitor visitor = {
-      .callable = {.operations = &visitor_operations},
-      .frame = &frame,
-      .layout_count = 0,
-      .valid = PERIMORTEM_FALSE,
+    .callable = {.operations = &visitor_operations},
+    .frame = &frame,
+    .layout_count = 0,
+    .valid = PERIMORTEM_FALSE,
   };
 
   ttx_layout_visit(layout, &counter.callable);
@@ -128,6 +135,7 @@ static perimortem_bool terminates(
   if (!visitor.valid) {
     return PERIMORTEM_FALSE;
   }
+
   ttx_layout_visit(layout, &visitor.callable);
   return visitor.valid;
 }

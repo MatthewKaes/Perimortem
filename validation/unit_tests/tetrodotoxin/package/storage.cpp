@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #include "perimortem/core/static/bytes.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
@@ -557,7 +557,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, persistent_snapshots) {
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, releases_snapshot_values) {
-  Count memory_before = Bibliotheca::allocated_memory();
+  Count memory_before = perimortem_bibliotheca_allocated_memory();
   {
     Dynamic::Bytes contents;
     contents.append('A', 1 << 16);
@@ -567,7 +567,7 @@ PERIMORTEM_UNIT_TEST(PackageStorage, releases_snapshot_values) {
         contents));
   }
 
-  EXPECT_EQ(Bibliotheca::allocated_memory(), memory_before);
+  EXPECT_EQ(perimortem_bibliotheca_allocated_memory(), memory_before);
 }
 
 PERIMORTEM_UNIT_TEST(PackageStorage, route_rejections) {

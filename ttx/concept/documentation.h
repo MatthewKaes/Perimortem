@@ -21,7 +21,7 @@ PERIMORTEM_EXTERN_C void ttx_documentation_visit(
     const struct ttx_documentation* documentation,
     struct ttx_bytes_callable* visitor);
 
-PERIMORTEM_EXTERN_C const struct ttx_documentation*
-    ttx_documentation_empty(void);
+PERIMORTEM_EXTERN_C const struct ttx_documentation* ttx_documentation_empty(
+    void);
 
 #endif

@@ -8,6 +8,14 @@
 
 struct ttx_abstract;
 
+// Stateful visitors use a typed Callable handle instead of the usual function
+// and void pointer pair found in C callback APIs. The operation receives that
+// same handle as self, which keeps captured state recoverable without erased
+// context and maps directly to a self hosted Callable later.
+//
+// Visit operations are synchronous and retain no Callable after returning.
+// Each handle therefore needs to remain valid only for the call that receives
+// it.
 struct ttx_abstract_callable;
 struct ttx_abstract_callable_operations {
   void (*call)(
@@ -19,6 +27,8 @@ struct ttx_abstract_callable {
   const struct ttx_abstract_callable_operations* operations;
 };
 
+// Concept and named Layout visitation share this signature because both expose
+// one borrowed binary name beside one exact Abstract identity.
 struct ttx_named_abstract_callable;
 struct ttx_named_abstract_callable_operations {
   void (*call)(
@@ -31,11 +41,11 @@ struct ttx_named_abstract_callable {
   const struct ttx_named_abstract_callable_operations* operations;
 };
 
+// Byte visitation keeps serialization and presentation consumers on the same
+// typed callback model without giving raw bytes semantic identity.
 struct ttx_bytes_callable;
 struct ttx_bytes_callable_operations {
-  void (*call)(
-      struct ttx_bytes_callable* self,
-      struct perimortem_bytes bytes);
+  void (*call)(struct ttx_bytes_callable* self, struct perimortem_bytes bytes);
 };
 
 struct ttx_bytes_callable {

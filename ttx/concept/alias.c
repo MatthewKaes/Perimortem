@@ -8,8 +8,8 @@
 static const uint8_t name[] = "Alias";
 
 static const struct ttx_requirement requirement = {
-    .abstract = {.operations = &ttx_requirement_operations},
-    .name = {.data = name, .size = sizeof(name) - 1},
+  .abstract = {.operations = &ttx_requirement_operations},
+  .name = {.data = name, .size = sizeof(name) - 1},
 };
 
 const struct ttx_abstract* ttx_alias_requirement(void) {

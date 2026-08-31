@@ -8,7 +8,7 @@
 
 #include "perimortem/core/perimortem.h"
 
-// Terminal borrows its streams. The default generated-code operations use
+// Terminal borrows its streams. The default generated code operations use
 // stdin and stdout, while tests and embedding hosts may provide other streams
 // with a lifetime that covers each call.
 struct perimortem_terminal {

@@ -14,7 +14,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
@@ -34,6 +33,7 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/terminal/abi/representation/name.hpp"
+#include "tetrodotoxin/terminal/abi/runtime_symbols.h"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
@@ -42,6 +42,10 @@
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
 using namespace Tetrodotoxin::Library;
+
+static auto runtime_symbol(perimortem_bytes symbol) -> Core::View::Bytes {
+  return Core::View::Bytes(symbol.data, symbol.size);
+}
 
 static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
   return llvm::StringRef(
@@ -1062,7 +1066,9 @@ auto Llvm::Module::Carriers::retain(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Core::object_retain_symbol), &signature),
+            llvm_text(
+                runtime_symbol(tetrodotoxin_terminal_abi_object_retain_symbol)),
+            &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Implementation) {
     llvm::Value& object = *builder.CreateExtractValue(&native_value, U32(0));
@@ -1079,7 +1085,9 @@ auto Llvm::Module::Carriers::retain(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Core::object_retain_symbol), &signature),
+            llvm_text(
+                runtime_symbol(tetrodotoxin_terminal_abi_object_retain_symbol)),
+            &signature),
         {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
     if (is_object(*carrier.element)) {
@@ -1220,7 +1228,8 @@ auto Llvm::Module::Carriers::release(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Core::object_release_symbol),
+            llvm_text(runtime_symbol(
+                tetrodotoxin_terminal_abi_object_release_symbol)),
             &signature),
         {&native_value});
   } else if (carrier.kind == Kind::Implementation) {
@@ -1238,7 +1247,8 @@ auto Llvm::Module::Carriers::release(
         {llvm::PointerType::getUnqual(get_context(*target))}, false);
     builder.CreateCall(
         get_module(*target).getOrInsertFunction(
-            llvm_text(Perimortem::Core::object_release_symbol),
+            llvm_text(runtime_symbol(
+                tetrodotoxin_terminal_abi_object_release_symbol)),
             &signature),
         {&object});
   } else if (carrier.kind == Kind::Option && carrier.element) {
@@ -1812,8 +1822,8 @@ auto Llvm::Module::Carriers::get_object_descriptor(
       llvm::Constant& finalizer = *llvm::cast<llvm::Constant>(
           get_module(*target)
               .getOrInsertFunction(
-                  llvm_text(
-                      Perimortem::Core::object_finalize_trivial_symbol),
+                  llvm_text(runtime_symbol(
+                      tetrodotoxin_terminal_abi_object_finalize_trivial_symbol)),
                   &finalizer_type)
               .getCallee());
       llvm::Constant& descriptor_value = *llvm::ConstantStruct::get(
@@ -1939,7 +1949,9 @@ auto Llvm::Module::Carriers::construct(
   llvm::IRBuilder<>& builder = get_builder(*native_body);
   llvm::Value& payload = *builder.CreateCall(
       get_module(*target).getOrInsertFunction(
-          llvm_text(Perimortem::Core::object_allocate_symbol), &signature),
+          llvm_text(
+              runtime_symbol(tetrodotoxin_terminal_abi_object_allocate_symbol)),
+          &signature),
       {llvm::unwrap(*descriptor)}, "object");
   for (Count index = 0; index < carrier.fields->get_size(); index++) {
     auto field_type = select_field_type(*carrier.fields, index);

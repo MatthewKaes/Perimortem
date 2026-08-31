@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "perimortem/core/object.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/vector.hpp"
@@ -32,7 +33,7 @@ class Session {
   auto publish(void* object, const U8* signal) -> void;
 
   constexpr auto is_running() const -> Bool { return running; }
-  auto get_active_object() const -> Perimortem::Core::Object<>;
+  auto get_active_object() const -> U8*;
   auto get_active_scene() const -> Perimortem::Core::Option<const Scene&>;
 
  private:

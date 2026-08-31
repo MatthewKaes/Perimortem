@@ -5,6 +5,8 @@
 
 #include "perimortem/core/object.h"
 
+#include "perimortem/memory/buffer.h"
+
 static const struct perimortem_object_descriptor byte_descriptor = {
   .size = 1,
   .alignment = 1,
@@ -49,6 +51,7 @@ struct perimortem_terminal_line perimortem_terminal_read_line(
         perimortem_core_object_release(data);
         return absent_line();
       }
+
       break;
     }
 
@@ -94,6 +97,7 @@ perimortem_bool perimortem_terminal_write_line(
   if (fputc('\n', terminal->output) == EOF) {
     failed = PERIMORTEM_TRUE;
   }
+
   if (fflush(terminal->output) != 0) {
     failed = PERIMORTEM_TRUE;
   }

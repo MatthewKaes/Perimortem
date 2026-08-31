@@ -7,6 +7,11 @@
 #include "ttx/concept/abstract.h"
 #include "ttx/concept/layout.h"
 
+// Type adds one total semantic Layout to the original Abstract. The Interface
+// prefix lets category proof return this complete witness while preserving the
+// candidate identity. Physical size, alignment, storage, and defaults remain
+// with concrete languages and Terminals because equal Layout does not make two
+// Types identical.
 struct ttx_type_operations {
   struct ttx_interface_operations interface;
   const struct ttx_layout* (*layout)(const struct ttx_abstract* identity);

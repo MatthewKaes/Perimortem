@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 #include "perimortem/core/option.hpp"
 
 namespace Perimortem::Memory::Dynamic {
@@ -76,7 +77,8 @@ class Set {
     }
 
     destruct();
-    Core::Bibliotheca::remit(Core::Data::cast<U8>(buffer_data.bucket_buffer));
+    perimortem_bibliotheca_remit(
+        Core::Data::cast<U8>(buffer_data.bucket_buffer));
     buffer_data = BufferData();
   }
 
@@ -306,7 +308,7 @@ class Set {
     }
 
     if (current_buffer.bucket_buffer != nullptr) {
-      Core::Bibliotheca::remit(
+      perimortem_bibliotheca_remit(
           Core::Data::cast<U8>(current_buffer.bucket_buffer));
     }
 
@@ -316,8 +318,8 @@ class Set {
   static auto create_buffer(Count buckets) -> BufferData {
     BufferData new_buffer;
     new_buffer.bucket_count = buckets;
-    Core::Bibliotheca::Allocation allocation =
-        Core::Bibliotheca::check_out(required_buffer_size(buckets));
+    struct perimortem_bibliotheca_allocation allocation =
+        perimortem_bibliotheca_check_out(required_buffer_size(buckets));
     new_buffer.bucket_buffer = Core::Data::cast<U32>(allocation.ptr);
     new_buffer.slots_buffer =
         Core::Data::cast<key_type>(allocation.ptr + slot_offset(buckets));
@@ -345,7 +347,15 @@ class Set {
   }
 
   static auto get_hash(const key_type& key) -> U32 {
-    return U32(Core::Hash(key).get_value());
+    if constexpr (__is_pointer(key_type)) {
+      return U32(perimortem_hash_u64(U64(reinterpret_cast<CppSize>(key))));
+    } else if constexpr (__is_integral(key_type)) {
+      return U32(perimortem_hash_u64(U64(key)));
+    } else if constexpr (__is_same(key_type, Core::View::Bytes)) {
+      return U32(perimortem_hash_bytes({key.get_data(), key.get_size()}));
+    } else {
+      return U32(key.hash());
+    }
   }
 
   BufferData buffer_data;

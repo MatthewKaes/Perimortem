@@ -5,7 +5,6 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/object.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
 #include "perimortem/memory/dynamic/vector.hpp"

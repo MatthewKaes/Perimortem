@@ -3,11 +3,10 @@
 
 #include "perimortem/graphics/frame/resource.hpp"
 
-using namespace Perimortem::Core;
 using namespace Perimortem;
 
-Graphics::Frame::Resource::Resource(Object<> object) : object(object) {
-  object.retain();
+Graphics::Frame::Resource::Resource(U8* object) : object(object) {
+  perimortem_core_object_retain(object);
 }
 
 auto Graphics::Frame::Resource::retain_texture(
@@ -20,26 +19,26 @@ auto Graphics::Frame::Resource::retain_texture(
 
 Graphics::Frame::Resource::Resource(const Resource& source)
     : object(source.object), sampler(source.sampler) {
-  object.retain();
+  perimortem_core_object_retain(object);
 }
 
 Graphics::Frame::Resource::Resource(Resource&& source)
     : object(source.object), sampler(source.sampler) {
-  source.object = Object<>();
+  source.object = nullptr;
 }
 
 Graphics::Frame::Resource::~Resource() {
-  object.release();
+  perimortem_core_object_release(object);
 }
 
 auto Graphics::Frame::Resource::operator=(const Resource& source) -> Resource& {
-  if (object.get_payload() == source.object.get_payload()) {
+  if (object == source.object) {
     sampler = source.sampler;
     return *this;
   }
 
-  source.object.retain();
-  object.release();
+  perimortem_core_object_retain(source.object);
+  perimortem_core_object_release(object);
   object = source.object;
   sampler = source.sampler;
   return *this;
@@ -50,13 +49,13 @@ auto Graphics::Frame::Resource::operator=(Resource&& source) -> Resource& {
     return *this;
   }
 
-  object.release();
+  perimortem_core_object_release(object);
   object = source.object;
   sampler = source.sampler;
-  source.object = Object<>();
+  source.object = nullptr;
   return *this;
 }
 
 auto Graphics::Frame::Resource::get_reservations() const -> Count {
-  return object.get_reservations();
+  return perimortem_core_object_reservations(object);
 }

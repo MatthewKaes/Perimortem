@@ -6,8 +6,7 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Graphics;
 
-auto Runtime::Placement2D::placement(Object<> object) const
-    -> Option<Placement> {
-  BAIL_IF(object.is_empty() || read == nullptr);
+auto Runtime::Placement2D::placement(U8* object) const -> Option<Placement> {
+  BAIL_IF(object == nullptr || read == nullptr);
   return read(context, object);
 }

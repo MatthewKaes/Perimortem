@@ -5,6 +5,7 @@
 
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/data.hpp"
+#include "perimortem/core/hash.h"
 
 #include "perimortem/system/path.hpp"
 
@@ -43,6 +44,47 @@ static auto make_key(
   return View::Bytes(storage.get_data(), required);
 }
 
+Package::Snapshots::~Snapshots() {
+  StoredEntry* entries = Data::cast<StoredEntry>(entry_storage.data);
+  for (Count index = 0; index < entry_count; ++index) {
+    entries[index].~StoredEntry();
+  }
+
+  perimortem_hash_index_release(&entry_index);
+  perimortem_aligned_buffer_release(&entry_storage);
+}
+
+auto Package::Snapshots::ensure_capacity(Count required) -> Bool {
+  if (required <= entry_capacity) {
+    return True;
+  }
+
+  Count requested = entry_capacity == 0 ? 8 : entry_capacity * 2;
+  if (requested < required || requested > Count(-1) / sizeof(StoredEntry)) {
+    requested = required;
+  }
+  BAIL_IF(requested > Count(-1) / sizeof(StoredEntry));
+
+  perimortem_aligned_buffer replacement = {};
+  BAIL_IF(!perimortem_aligned_buffer_create(
+      requested * sizeof(StoredEntry), alignof(StoredEntry), &replacement));
+
+  StoredEntry* previous = Data::cast<StoredEntry>(entry_storage.data);
+  StoredEntry* next = Data::cast<StoredEntry>(replacement.data);
+  for (Count index = 0; index < entry_count; ++index) {
+    new (next + index, Placement::Construct) StoredEntry{
+      previous[index].key,
+      static_cast<Entry&&>(previous[index].value),
+    };
+    previous[index].~StoredEntry();
+  }
+
+  perimortem_aligned_buffer_release(&entry_storage);
+  entry_storage = replacement;
+  entry_capacity = replacement.capacity / sizeof(StoredEntry);
+  return True;
+}
+
 auto Package::Snapshots::find(
     View::Bytes package_root,
     View::Bytes logical_route) -> Option<Entry&> {
@@ -50,8 +92,19 @@ auto Package::Snapshots::find(
   auto key = make_key(storage, package_root, logical_route);
   BAIL_IF(!key);
 
-  auto selected = entries.find(*key);
-  return selected ? Option<Entry&>(selected->value) : Option<Entry&>();
+  const U64 hash = perimortem_hash_bytes({key->get_data(), key->get_size()});
+  perimortem_hash_index_match match = {};
+  StoredEntry* entries = Data::cast<StoredEntry>(entry_storage.data);
+  Bool found = perimortem_hash_index_find_first(&entry_index, hash, &match);
+  while (found) {
+    if (match.entry < entry_count && entries[match.entry].key == *key) {
+      return entries[match.entry].value;
+    }
+
+    found = perimortem_hash_index_find_next(&entry_index, hash, &match);
+  }
+
+  return {};
 }
 
 auto Package::Snapshots::create(
@@ -61,9 +114,25 @@ auto Package::Snapshots::create(
   auto key = make_key(storage, package_root, logical_route);
   BAIL_IF(!key);
 
+  auto existing = find(package_root, logical_route);
+  if (existing) {
+    return existing;
+  }
+
+  BAIL_IF(!ensure_capacity(entry_count + 1));
+
   View::Bytes retained_key = arena.proxy(*key);
-  auto entry = entries.insert(retained_key, Entry());
-  return entry ? Option<Entry&>(entry->value) : Option<Entry&>();
+  StoredEntry* entries = Data::cast<StoredEntry>(entry_storage.data);
+  new (entries + entry_count, Placement::Construct)
+      StoredEntry{retained_key, Entry()};
+  const U64 hash =
+      perimortem_hash_bytes({retained_key.get_data(), retained_key.get_size()});
+  if (!perimortem_hash_index_insert(&entry_index, hash, entry_count)) {
+    entries[entry_count].~StoredEntry();
+    return {};
+  }
+
+  return entries[entry_count++].value;
 }
 
 auto Package::Snapshots::read(

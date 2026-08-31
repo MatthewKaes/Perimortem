@@ -8,8 +8,8 @@
 static const uint8_t name[] = "Type";
 
 static const struct ttx_model_requirement requirement = {
-    .abstract = {.operations = &ttx_model_requirement_operations},
-    .name = {.data = name, .size = sizeof(name) - 1},
+  .abstract = {.operations = &ttx_model_requirement_operations},
+  .name = {.data = name, .size = sizeof(name) - 1},
 };
 
 const struct ttx_abstract* ttx_type_requirement(void) {
@@ -24,6 +24,7 @@ perimortem_bool ttx_type_prove(
   if (!ttx_interface_accepts(&interface)) {
     return PERIMORTEM_FALSE;
   }
+
   view->identity = candidate;
   view->operations = (const struct ttx_type_operations*)interface.operations;
   return PERIMORTEM_TRUE;

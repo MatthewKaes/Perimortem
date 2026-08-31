@@ -22,16 +22,12 @@ class Named : public Concept::Layout {
  public:
   constexpr Named(
       Perimortem::Core::View::Vector<const Concept::Abstract*> abstracts = {})
-      : values(abstracts) {
-    expose_named(&named_operations);
-  }
+      : values(abstracts) {}
 
   constexpr Named(
       const Concept::Layout& values,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> names)
-      : values(), source(values), names(names) {
-    expose_named(&named_operations);
-  }
+      : values(), source(values), names(names) {}
 
   constexpr auto get_size() const -> Count override {
     return get_source().get_size();
@@ -56,6 +52,9 @@ class Named : public Concept::Layout {
       Count target_offset,
       Count target_index) const
       -> Perimortem::Utility::Result<const Concept::Abstract&, Errors> override;
+
+  auto negotiate_interface(const ttx_layout_interface_requirement* requirement)
+      const -> ttx_layout_interface override;
 
  private:
   static auto visit_named_abi(

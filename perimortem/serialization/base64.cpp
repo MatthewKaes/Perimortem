@@ -5,7 +5,7 @@
 
 #include <x86intrin.h>
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -466,7 +466,7 @@ auto Base64::decode(View::Bytes source) -> Dynamic::Bytes {
   // The algorithm uses decode_underwrite_bytes of the Bibliotheca's guaranteed
   // underwrite region before the allocation pointer.
   static_assert(
-      decode_underwrite_bytes <= Bibliotheca::legal_underwrite_size,
+      decode_underwrite_bytes <= PERIMORTEM_BIBLIOTHECA_LEGAL_UNDERWRITE_SIZE,
       "Base64 decode requires more underwrite bytes than are guaranteed by the "
       "Bibliotheca, ensure Perimortem is configured correctly");
 

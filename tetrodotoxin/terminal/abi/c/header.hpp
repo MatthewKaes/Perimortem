@@ -12,6 +12,7 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/linker/fingerprint.hpp"
 #include "tetrodotoxin/terminal/abi/export.hpp"
+#include "tetrodotoxin/terminal/abi/publication.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/abi/unit.hpp"
 
@@ -28,6 +29,8 @@ class Header {
       const Tetrodotoxin::Terminal::Abi::Unit& unit,
       Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export>
           exports,
+      Perimortem::Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication>
+          publications,
       Perimortem::Core::View::Vector<
           const Tetrodotoxin::Library::Language::Model::Type*> roots = {})
       -> Perimortem::Core::Option<Header>;

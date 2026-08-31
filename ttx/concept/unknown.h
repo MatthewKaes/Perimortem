@@ -6,6 +6,10 @@
 
 #include "ttx/concept/abstract.h"
 
+// Unknown proves that a semantic question is not settled by the current graph.
+// It is provisional rather than absent, so a later observation may return a
+// real identity or None. The marker view preserves the candidate because proof
+// never manufactures another semantic object.
 struct ttx_unknown_view {
   const struct ttx_abstract* identity;
   const struct ttx_abstract_operations* operations;

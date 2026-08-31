@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/hash.hpp"
+#include "perimortem/core/hash.h"
 
 #include "perimortem/memory/allocator/arena.hpp"
 
@@ -69,8 +69,8 @@ class Bytes {
 
   constexpr auto get_arena() const -> Allocator::Arena& { return arena; }
 
-  constexpr auto hash() const -> U64 {
-    return Core::Hash(get_view()).get_value();
+  auto hash() const -> U64 {
+    return perimortem_hash_bytes({source_block, size});
   }
 
  private:

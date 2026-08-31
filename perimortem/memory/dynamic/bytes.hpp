@@ -5,8 +5,10 @@
 
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/access/bytes.hpp"
-#include "perimortem/core/hash.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/hash.h"
+#include "perimortem/core/object.h"
+
+#include "perimortem/memory/buffer.h"
 
 namespace Perimortem::Memory::Dynamic {
 
@@ -33,7 +35,7 @@ class Bytes {
     return get_view() == rhs;
   }
 
-  ~Bytes() = default;
+  ~Bytes();
 
   operator Core::View::Bytes() const { return get_view(); }
   operator Core::Access::Bytes() { return get_access(); }
@@ -68,9 +70,11 @@ class Bytes {
   auto slice(Count start, Count size) const -> Core::View::Bytes;
 
   constexpr auto get_size() const -> Count { return size; }
-  auto get_capacity() const -> Count { return data.get_capacity(); }
+  auto get_capacity() const -> Count {
+    return perimortem_core_object_capacity(data);
+  }
   auto get_view() const -> Core::View::Bytes {
-    return Core::View::Bytes(data.get_view().get_data(), size);
+    return Core::View::Bytes(data, size);
   }
 
   // Access promises writable Bytes value storage, so Bytes detaches a shared
@@ -78,7 +82,7 @@ class Bytes {
   // Bytes lifetime.
   auto get_access() -> Core::Access::Bytes;
 
-  auto hash() const -> U64 { return Core::Hash(get_view()).get_value(); }
+  auto hash() const -> U64 { return perimortem_hash_bytes({data, size}); }
 
   constexpr auto is_empty() const -> Bool { return size == 0; }
 
@@ -87,9 +91,16 @@ class Bytes {
   auto ensure_capacity(Count required_size) -> void;
 
  private:
+  static auto create_buffer(Count capacity) -> U8*;
   auto prepare_write(Count required_capacity) -> Core::Access::Bytes;
 
-  Core::Object<U8> data;
+  static constexpr perimortem_object_descriptor descriptor{
+    .size = sizeof(U8),
+    .alignment = alignof(U8),
+    .finalize = perimortem_core_object_finalize_trivial,
+  };
+
+  U8* data = nullptr;
   Count size = 0;
 };
 

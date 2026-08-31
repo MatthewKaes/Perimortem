@@ -12,7 +12,6 @@
 
 #include "perimortem/serialization/stream/textual.hpp"
 
-#include "perimortem/core/object.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
@@ -359,22 +358,47 @@ static auto write_type_name(
     return fail_header(
         "The C header cannot name a contextual Type as a C value."_view);
 
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Fixed:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Option:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Result:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Range:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::View:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Access:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation:
-  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure:
+    output << "struct perimortem_implementation"_view;
+    return True;
+
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::ObjectStorage:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object: {
     auto name = find_header_name(names, type);
     if (!name) {
       return fail_header(
+          "The C header cannot find one Package qualified Object name."_view);
+    }
+    output << "struct "_view << name->get_value() << "_object*"_view;
+    return True;
+  }
+
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Option: {
+    auto element = types.get_element(type);
+    if (element && types.is_object(*element)) {
+      return write_type_name(output, types, names, *element);
+    }
+    auto name = find_header_name(names, type);
+    if (!name) {
+      return fail_header(
+          "The C header cannot find one Package qualified Option name."_view);
+    }
+    output << "struct "_view << name->get_value();
+    return True;
+  }
+
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Fixed:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Result:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Range:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::View:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Access:
+  case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure: {
+    auto name = find_header_name(names, type);
+    if (!name) {
+      return fail_header(
           "The C header cannot find one Package qualified carrier name."_view);
     }
-    output << name->get_value();
+    output << "struct "_view << name->get_value();
     return True;
   }
   }
@@ -386,8 +410,7 @@ static auto write_type_definition(
     const Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type,
-    Bool& uses_objects) -> Bool {
+    const Ttx::Model::Type& type) -> Bool {
   auto kind = types.get_kind(type);
   if (!kind) {
     return fail_header(
@@ -403,6 +426,17 @@ static auto write_type_definition(
       Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Context) {
     return fail_header(
         "The C header found an unsupported physical carrier."_view);
+  }
+  if (*kind ==
+      Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation) {
+    return True;
+  }
+  if (*kind ==
+      Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Option) {
+    auto element = types.get_element(type);
+    if (element && types.is_object(*element)) {
+      return True;
+    }
   }
   auto retained_name = find_header_name(names, type);
   if (!retained_name) {
@@ -423,20 +457,14 @@ static auto write_type_definition(
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::ObjectStorage:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object:
-    output << "typedef struct "_view << type_name << "_object *"_view
-           << type_name << ";\n#endif\n\n"_view;
-    uses_objects = True;
+    output << "struct "_view << type_name << "_object;\n#endif\n\n"_view;
     return True;
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation:
-    output << "typedef struct "_view << type_name
-           << " {\n  void *object;\n  const void *projection;\n} "_view
-           << type_name << ";\n#endif\n\n"_view;
-    uses_objects = True;
-    return True;
+    return False;
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Structure: {
-    output << "typedef struct "_view << type_name << " {\n"_view;
+    output << "struct "_view << type_name << " {\n"_view;
 
     auto fields = types.get_fields(type);
     if (!fields) {
@@ -468,7 +496,7 @@ static auto write_type_definition(
   }
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Fixed: {
-    output << "typedef struct "_view << type_name << " {\n"_view;
+    output << "struct "_view << type_name << " {\n"_view;
 
     auto element = types.get_element(type);
     auto extent = types.get_extent(type);
@@ -488,7 +516,7 @@ static auto write_type_definition(
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::View:
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Access: {
-    output << "typedef struct "_view << type_name << " {\n"_view;
+    output << "struct "_view << type_name << " {\n"_view;
 
     auto element = types.get_element(type);
     if (!element) {
@@ -511,7 +539,7 @@ static auto write_type_definition(
   }
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Range: {
-    output << "typedef struct "_view << type_name << " {\n"_view;
+    output << "struct "_view << type_name << " {\n"_view;
 
     auto element = types.get_element(type);
     if (!element) {
@@ -540,17 +568,7 @@ static auto write_type_definition(
           "The C header cannot define Option without its element."_view);
     }
 
-    if (types.is_object(*element)) {
-      output << "typedef "_view;
-      if (!write_type_name(output, types, names, *element)) {
-        return False;
-      }
-
-      output << " "_view << type_name << ";\n#endif\n\n"_view;
-      return True;
-    }
-
-    output << "typedef struct "_view << type_name << " {\n"_view;
+    output << "struct "_view << type_name << " {\n"_view;
 
     output << "  "_view;
     if (!write_type_name(output, types, names, *element)) {
@@ -562,7 +580,7 @@ static auto write_type_definition(
   }
 
   case Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Result: {
-    output << "typedef struct "_view << type_name << " {\n  union {\n    "_view;
+    output << "struct "_view << type_name << " {\n  union {\n    "_view;
 
     auto value = types.get_element(type);
     auto error = types.get_error(type);
@@ -584,7 +602,7 @@ static auto write_type_definition(
     return False;
   }
 
-  output << "} "_view << type_name << ";\n#endif\n\n"_view;
+  output << "};\n#endif\n\n"_view;
   return True;
 }
 
@@ -607,7 +625,7 @@ static auto write_result_definition(
     return True;
   }
 
-  output << "typedef struct "_view;
+  output << "struct "_view;
   write_result_name(output, symbol);
   output << " {\n"_view;
   for (Count index = 0; index < results.get_size(); index++) {
@@ -633,9 +651,7 @@ static auto write_result_definition(
     output << ";\n"_view;
   }
 
-  output << "} "_view;
-  write_result_name(output, symbol);
-  output << ";\n\n"_view;
+  output << "};\n\n"_view;
   return True;
 }
 
@@ -667,6 +683,7 @@ static auto write_signature(
       output << "*"_view;
     }
   } else {
+    output << "struct "_view;
     write_result_name(output, symbol);
   }
 
@@ -690,7 +707,8 @@ static auto write_signature(
           "The C header found a parameter without an exact carrier."_view);
     }
 
-    if (index == 0 && declares_self(callable)) {
+    if (index == 0 && declares_self(callable) &&
+        !types.is_object(*parameter_type)) {
       output << "*"_view;
     }
     output << " "_view;
@@ -706,12 +724,37 @@ static auto write_signature(
   return True;
 }
 
+static auto write_default_construction_signatures(
+    Stream::Textual<Memory::Managed::Bytes>& output,
+    const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
+    const Memory::Managed::Vector<
+        Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
+    const Tetrodotoxin::Terminal::Abi::Unit& unit,
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication> publications)
+    -> Bool {
+  for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
+       publications) {
+    auto type = publication.get_semantic().select<Ttx::Model::Type>();
+    if (!type || !types.is_object(*type) || !unit.find_type(*type)) {
+      continue;
+    }
+
+    if (!write_type_name(output, types, names, *type)) {
+      return False;
+    }
+    output << " "_view << publication.get_symbol() << "__default(void);\n"_view;
+  }
+
+  return True;
+}
+
 auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     Memory::Allocator::Arena& arena,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Library::Language::Monograph& monograph,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Export> exports,
+    Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication> publications,
     Core::View::Vector<const Tetrodotoxin::Library::Language::Model::Type*>
         roots) -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
   Memory::Managed::Vector<const Ttx::Model::Type*> ordered(arena);
@@ -775,20 +818,41 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     }
   }
 
+  Bool uses_object = False;
+  Bool uses_implementation = False;
+  for (const Ttx::Model::Type* type : ordered.get_view()) {
+    auto kind = types.get_kind(*type);
+    if (!kind) {
+      return {};
+    }
+
+    uses_object |=
+        *kind ==
+            Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Object ||
+        *kind == Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::
+                     ObjectStorage;
+    uses_implementation |=
+        *kind ==
+        Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::Implementation;
+  }
+
   Memory::Managed::Bytes buffer(arena);
   Stream::Textual<Memory::Managed::Bytes> output(buffer);
   output << header_opening
          << "#include <stdbool.h>\n#include <stdint.h>\n\n"_view;
+  if (uses_implementation) {
+    output << "#include \"perimortem/core/implementation.h\"\n\n"_view;
+  } else if (uses_object) {
+    output << "#include \"perimortem/core/object.h\"\n\n"_view;
+  }
   for (Core::View::Bytes header : unit.get_headers()) {
     output << "#include \""_view << header << "\"\n"_view;
   }
   if (!unit.get_headers().is_empty()) {
     output << "\n"_view;
   }
-  Bool uses_objects = False;
   for (const Ttx::Model::Type* type : ordered.get_view()) {
-    if (!write_type_definition(
-            output, types, names, unit, *type, uses_objects)) {
+    if (!write_type_definition(output, types, names, unit, *type)) {
       return {};
     }
   }
@@ -812,19 +876,17 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
   }
 
   output << "#ifdef __cplusplus\nextern \"C\" {\n#endif\n\n"_view;
-  if (uses_objects) {
-    output << "void "_view << Perimortem::Core::object_retain_symbol
-           << "(void *value);\nvoid "_view
-           << Perimortem::Core::object_release_symbol
-           << "(void *value);\n"_view;
-  }
-
   for (const Tetrodotoxin::Terminal::Abi::Export& exported : exports) {
     if (!write_signature(
             output, types, names, exported.get_callable(),
             exported.get_symbol())) {
       return {};
     }
+  }
+
+  if (!write_default_construction_signatures(
+          output, types, names, unit, publications)) {
+    return {};
   }
 
   for (const Tetrodotoxin::Library::Language::Foreign::State* retained :

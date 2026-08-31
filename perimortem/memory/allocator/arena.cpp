@@ -3,7 +3,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/math.hpp"
 
 using namespace Perimortem::Core;
@@ -24,7 +24,7 @@ Allocator::Arena::~Arena() {
   while (rented_block != nullptr) {
     auto rented = rented_block;
     rented_block = *Core::Data::cast<U8*>(rented_block);
-    Bibliotheca::remit(rented);
+    perimortem_bibliotheca_remit(rented);
   }
 }
 
@@ -35,7 +35,7 @@ auto Allocator::Arena::reset() -> void {
   while (previous != nullptr) {
     auto rented = rented_block;
     rented_block = previous;
-    Bibliotheca::remit(rented);
+    perimortem_bibliotheca_remit(rented);
 
     previous = *Core::Data::cast<U8*>(rented_block);
   }
@@ -46,7 +46,7 @@ auto Allocator::Arena::reset() -> void {
 
 auto Allocator::Arena::fetch_page(Count bytes_requested) -> void {
   const Count alloc_size = Math::max(page_size, bytes_requested + sizeof(U8*));
-  auto alloc = Core::Bibliotheca::check_out(alloc_size);
+  auto alloc = perimortem_bibliotheca_check_out(alloc_size);
 
   // Store the previous pointer in the arena itself.
   U8** previous = Core::Data::cast<U8*>(alloc.ptr);

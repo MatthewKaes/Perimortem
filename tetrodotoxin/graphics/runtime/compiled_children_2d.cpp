@@ -19,34 +19,32 @@ Runtime::CompiledChildren2D::CompiledChildren2D(
 
 auto Runtime::CompiledChildren2D::read_child_count(
     const U8* context,
-    Perimortem::Core::Object<> object) -> Count {
+    U8* object) -> Count {
   const auto* selected =
       Perimortem::Core::Data::cast<const Runtime::CompiledChildren2D>(context);
-  return object.is_empty() || selected->retained_read_child == nullptr
+  return object == nullptr || selected->retained_read_child == nullptr
              ? 0
              : selected->retained_child_count;
 }
 
 auto Runtime::CompiledChildren2D::read_selected_child(
     const U8* context,
-    Perimortem::Core::Object<> object,
+    U8* object,
     Count index,
-    Perimortem::Core::Object<>* child) -> Count {
+    U8** child) -> Count {
   const auto* selected =
       Perimortem::Core::Data::cast<const Runtime::CompiledChildren2D>(context);
-  if (object.is_empty() || selected->retained_read_child == nullptr ||
+  if (object == nullptr || selected->retained_read_child == nullptr ||
       child == nullptr || index >= selected->retained_child_count) {
     return Count(-1);
   }
 
   void* payload = nullptr;
-  Count type_index =
-      selected->retained_read_child(object.get_payload(), index, &payload);
+  Count type_index = selected->retained_read_child(object, index, &payload);
   if (payload == nullptr || type_index == Count(-1)) {
     return Count(-1);
   }
 
-  *child =
-      Perimortem::Core::Object<>(Perimortem::Core::Data::cast<U8>(payload));
+  *child = Perimortem::Core::Data::cast<U8>(payload);
   return type_index;
 }

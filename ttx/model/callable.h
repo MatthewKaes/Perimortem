@@ -7,6 +7,10 @@
 #include "ttx/concept/abstract.h"
 #include "ttx/concept/layout.h"
 
+// Callable publishes the complete value shapes it receives and produces. TTX
+// leaves receiver roles, invocation, executable bodies, and calling convention
+// to the concrete language so a shared signature does not become a universal
+// execution model.
 struct ttx_callable_operations {
   struct ttx_interface_operations interface;
   const struct ttx_layout* (*parameters)(const struct ttx_abstract* identity);

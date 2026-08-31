@@ -64,9 +64,9 @@ const ttx_abstract_operations Abstract::abi_operations = {
   .name = name_abi,
   .documentation = documentation_abi,
   .resolve = resolve_abi,
-  .type = type_abi,
   .resolve_concept = concept_abi,
   .visit_concepts = visit_concepts_abi,
+  .type = type_abi,
   .interface = interface_abi,
 };
 

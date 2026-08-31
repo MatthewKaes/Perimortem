@@ -38,9 +38,11 @@ cc_library(
 cc_library(
     name = "abi",
     srcs = glob([
+        "abi/**/*.c",
         "abi/**/*.cpp",
     ]),
     hdrs = glob([
+        "abi/**/*.h",
         "abi/**/*.hpp",
     ]),
     deps = [

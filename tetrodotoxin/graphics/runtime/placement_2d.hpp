@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/graphics/frame/transform.hpp"
@@ -37,13 +37,12 @@ class Placement2D {
     S64 z_index = 0;
   };
 
-  using Read = Placement (*)(const U8*, Perimortem::Core::Object<>);
+  using Read = Placement (*)(const U8*, U8*);
 
   constexpr Placement2D(const U8* context, Read read)
       : context(context), read(read) {}
 
-  auto placement(Perimortem::Core::Object<> object) const
-      -> Perimortem::Core::Option<Placement>;
+  auto placement(U8* object) const -> Perimortem::Core::Option<Placement>;
 
  private:
   const U8* context;

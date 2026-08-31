@@ -34,10 +34,10 @@ static auto one_pixel_image() -> Image {
 
 static auto finalize_shader(U8*) -> void {}
 
-static const Object<>::Descriptor shader_descriptor{
-    .size = sizeof(R32) * 4,
-    .alignment = alignof(R32),
-    .finalize = finalize_shader,
+static const perimortem_object_descriptor shader_descriptor{
+  .size = sizeof(R32) * 4,
+  .alignment = alignof(R32),
+  .finalize = finalize_shader,
 };
 
 alignas(U32) static constexpr U32 graphics_program[] = {0x07230203};
@@ -48,11 +48,15 @@ static const Projection graphics_projection = {
   sizeof(R32) * 4,
 };
 
-static auto create_shader() -> Implementation {
-  Object<> object = Object<>::create(shader_descriptor);
-  auto shader = Implementation::retain(object, &graphics_projection);
-  object.release();
-  return shader ? static_cast<Implementation&&>(*shader) : Implementation();
+static auto create_shader() -> perimortem_implementation {
+  U8* object = perimortem_core_object_allocate(&shader_descriptor);
+  perimortem_implementation shader = {};
+  perimortem_core_implementation_retain(
+      object,
+      reinterpret_cast<const perimortem_projection*>(&graphics_projection),
+      &shader);
+  perimortem_core_object_release(object);
+  return shader;
 }
 
 PERIMORTEM_UNIT_TEST(GraphicsObjects, image_shares_immutable_pixels) {
@@ -104,16 +108,17 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, decode_reports_success) {
 
 PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   Sprite sprite;
-  EXPECT_NOT(sprite.get_object().is_empty());
+  EXPECT(sprite.get_object() != nullptr);
   EXPECT_NOT(sprite.is_drawable());
   EXPECT(sprite.is_visible());
   EXPECT_EQ(sprite.get_z_index(), S64(0));
-  EXPECT(sprite.get_material().is_empty());
+  EXPECT(perimortem_core_implementation_is_empty(sprite.get_material()));
 
   Image image = one_pixel_image();
   Texture2D texture(image);
   sprite.set_texture(texture);
-  sprite.set_material(create_shader());
+  perimortem_implementation material = create_shader();
+  sprite.set_material(&material);
   sprite.set_size({64, 32});
   Transform2D transform;
   transform.translation = {12.0, 34.0};
@@ -128,6 +133,8 @@ PERIMORTEM_UNIT_TEST(GraphicsObjects, sprite_defaults_and_aliases) {
   EXPECT_NOT(sprite.is_drawable());
   EXPECT_EQ(sprite.get_transform().translation.x, R64(12.0));
   EXPECT_EQ(sprite.get_size().width, U32(64));
-  EXPECT_EQ(sprite.get_material().get_projection(), &graphics_projection);
-  EXPECT_EQ(sprite.get_object().get_reservations(), Count(2));
+  EXPECT_EQ(
+      sprite.get_material()->projection,
+      reinterpret_cast<const perimortem_projection*>(&graphics_projection));
+  EXPECT_EQ(perimortem_core_object_reservations(sprite.get_object()), Count(2));
 }

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/vector.hpp"
@@ -23,7 +23,7 @@ namespace Tetrodotoxin::Graphics::Runtime {
 class PassUI {
  public:
   static auto create(
-      Perimortem::Core::Object<> root,
+      U8* root,
       const Children2D& root_children,
       Perimortem::Core::View::Vector<const Placement2D*> placements,
       Perimortem::Core::View::Vector<const Children2D*> children,
@@ -55,7 +55,7 @@ class PassUI {
 
   static auto collect(
       Collection& collection,
-      Perimortem::Core::Object<> object,
+      U8* object,
       const Placement2D* placement,
       const Children2D* children,
       const Drawable2D* drawable,
@@ -63,13 +63,13 @@ class PassUI {
       S64 parent_z_index) -> Bool;
   static auto collect_draws(
       Collection& collection,
-      Perimortem::Core::Object<> object,
+      U8* object,
       const Drawable2D* drawable,
       const Perimortem::Graphics::Frame::Transform& transform,
       S64 placement_z_index) -> Bool;
   static auto collect_children(
       Collection& collection,
-      Perimortem::Core::Object<> object,
+      U8* object,
       const Children2D* children,
       const Perimortem::Graphics::Frame::Transform& transform,
       S64 z_index) -> Bool;

@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/access/vector.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/math.hpp"
 #include "perimortem/core/perimortem.hpp"
@@ -91,7 +91,7 @@ class Vector {
   auto reset() -> void {
     if (source_block) {
       destruct();
-      Core::Bibliotheca::remit((U8*)source_block);
+      perimortem_bibliotheca_remit((U8*)source_block);
     }
 
     size = 0;
@@ -175,10 +175,10 @@ class Vector {
     }
 
     if (source_block) {
-      Core::Bibliotheca::remit((U8*)source_block);
+      perimortem_bibliotheca_remit((U8*)source_block);
     }
 
-    auto alloc = Core::Bibliotheca::check_out(required_size * sizeof(type));
+    auto alloc = perimortem_bibliotheca_check_out(required_size * sizeof(type));
     source_block = Core::Data::cast<type>(alloc.ptr);
     capacity = alloc.capacity / sizeof(type);
   }
@@ -232,7 +232,7 @@ class Vector {
         Core::Math::max(get_capacity() * 2, required_size);
 
     // Fetch and transfer to new block.
-    auto alloc = Core::Bibliotheca::check_out(new_capacity * sizeof(type));
+    auto alloc = perimortem_bibliotheca_check_out(new_capacity * sizeof(type));
     auto new_block = Core::Data::cast<type>(alloc.ptr);
     if (source_block) {
       if constexpr (__is_trivially_copyable(type)) {
@@ -245,7 +245,7 @@ class Vector {
         destruct();
       }
 
-      Core::Bibliotheca::remit((U8*)source_block);
+      perimortem_bibliotheca_remit((U8*)source_block);
     }
 
     // Update block and get the new capacity.

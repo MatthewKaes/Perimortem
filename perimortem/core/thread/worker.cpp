@@ -9,7 +9,7 @@
 #include "perimortem/core/static/bytes.hpp"
 #include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/algorithm/search.hpp"
-#include "perimortem/core/bibliotheca.hpp"
+#include "perimortem/core/bibliotheca.h"
 #include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
@@ -123,7 +123,8 @@ class ThreadInitializer {
       return View::Bytes();
     }
 
-    const auto allocation = Bibliotheca::check_out(source_bytes.get_size());
+    const auto allocation =
+        perimortem_bibliotheca_check_out(source_bytes.get_size());
     Data::copy(
         allocation.ptr, source_bytes.get_data(), source_bytes.get_size());
     return View::Bytes(allocation.ptr, source_bytes.get_size());
@@ -189,8 +190,10 @@ class ThreadInitializer {
                    << this_thread_id;
     }
 
-    // The job data lives in this thread's Bibliotheca. Thread exit owns
-    // cleanup.
+    // Perimortem workers close their thread memory explicitly after the final
+    // diagnostic has consumed the retained name and job data. Foreign threads
+    // receive the same cleanup from the platform thread storage callback.
+    perimortem_bibliotheca_close_thread();
     release_thread(this_thread_id);
     return nullptr;
   }

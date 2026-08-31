@@ -12,7 +12,7 @@ static ttx_interface_relation satisfied(
 }
 
 static const struct ttx_interface_operations marker_operations = {
-    .negotiate = satisfied,
+  .negotiate = satisfied,
 };
 
 ttx_interface_relation ttx_interface_negotiate(
@@ -20,6 +20,7 @@ ttx_interface_relation ttx_interface_negotiate(
   if (interface->operations == 0) {
     return TTX_INTERFACE_REJECTED;
   }
+
   return interface->operations->negotiate(
       interface->requirement, interface->candidate);
 }
@@ -34,9 +35,9 @@ struct ttx_interface ttx_interface_rejected(
     const struct ttx_abstract* requirement,
     const struct ttx_abstract* candidate) {
   struct ttx_interface interface = {
-      .requirement = requirement,
-      .candidate = candidate,
-      .operations = 0,
+    .requirement = requirement,
+    .candidate = candidate,
+    .operations = 0,
   };
   return interface;
 }
@@ -46,9 +47,9 @@ struct ttx_interface ttx_interface_satisfied(
     const struct ttx_abstract* candidate,
     const struct ttx_interface_operations* operations) {
   struct ttx_interface interface = {
-      .requirement = requirement,
-      .candidate = candidate,
-      .operations = operations,
+    .requirement = requirement,
+    .candidate = candidate,
+    .operations = operations,
   };
   return interface;
 }

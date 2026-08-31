@@ -10,20 +10,35 @@
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 
-Dynamic::Bytes::Bytes(Count reserved_capacity) : data(reserved_capacity) {}
+auto Dynamic::Bytes::create_buffer(Count capacity) -> U8* {
+  if (capacity == 0) {
+    return nullptr;
+  }
+  return perimortem_core_object_allocate_buffer(
+      &Dynamic::Bytes::descriptor, capacity, sizeof(U8));
+}
+
+Dynamic::Bytes::Bytes(Count reserved_capacity)
+    : data(create_buffer(reserved_capacity)) {}
 
 Dynamic::Bytes::Bytes(const Core::View::Bytes view)
-    : data(view.get_size()), size(view.get_size()) {
+    : data(create_buffer(view.get_size())), size(view.get_size()) {
   if (!view.is_empty()) {
-    Data::copy(data.get_access().get_data(), view.get_data(), view.get_size());
+    Data::copy(data, view.get_data(), view.get_size());
   }
 }
 
-Dynamic::Bytes::Bytes(const Bytes& rhs) : data(rhs.data), size(rhs.size) {}
+Dynamic::Bytes::Bytes(const Bytes& rhs) : data(rhs.data), size(rhs.size) {
+  perimortem_core_object_retain(data);
+}
 
-Dynamic::Bytes::Bytes(Bytes&& rhs)
-    : data(static_cast<Core::Object<U8>&&>(rhs.data)), size(rhs.size) {
+Dynamic::Bytes::Bytes(Bytes&& rhs) : data(rhs.data), size(rhs.size) {
+  rhs.data = nullptr;
   rhs.size = 0;
+}
+
+Dynamic::Bytes::~Bytes() {
+  perimortem_core_object_release(data);
 }
 
 auto Dynamic::Bytes::operator=(Core::View::Bytes view) -> Bytes& {
@@ -36,6 +51,8 @@ auto Dynamic::Bytes::operator=(const Bytes& rhs) -> Bytes& {
     return *this;
   }
 
+  perimortem_core_object_retain(rhs.data);
+  perimortem_core_object_release(data);
   data = rhs.data;
   size = rhs.size;
   return *this;
@@ -46,8 +63,10 @@ auto Dynamic::Bytes::operator=(Bytes&& rhs) -> Bytes& {
     return *this;
   }
 
-  data = static_cast<Core::Object<U8>&&>(rhs.data);
+  perimortem_core_object_release(data);
+  data = rhs.data;
   size = rhs.size;
+  rhs.data = nullptr;
   rhs.size = 0;
   return *this;
 }
@@ -93,12 +112,14 @@ auto Dynamic::Bytes::get_access() -> Core::Access::Bytes {
 
 auto Dynamic::Bytes::prepare_write(Count required_capacity)
     -> Core::Access::Bytes {
-  data.reserve(required_capacity);
-  if (data.is_shared()) {
-    data.clone();
+  constexpr U8 empty = 0;
+  data = perimortem_core_object_reserve(
+      data, &descriptor, required_capacity, sizeof(U8), &empty);
+  if (perimortem_core_object_reservations(data) > 1) {
+    data = perimortem_core_object_clone(data, &descriptor, sizeof(U8));
   }
 
-  return Core::Access::Bytes(data.get_access().get_data(), get_size());
+  return Core::Access::Bytes(data, get_size());
 }
 
 auto Dynamic::Bytes::proxy(Core::View::Bytes view) -> void {
@@ -136,12 +157,13 @@ auto Dynamic::Bytes::resize(Count new_size) -> void {
 auto Dynamic::Bytes::forgetful_resize(Count required_size) -> void {
   Count capacity = get_capacity();
   Bool reusable = required_size <= capacity && required_size > (capacity >> 1);
-  if (reusable && !data.is_shared()) {
+  if (reusable && perimortem_core_object_reservations(data) <= 1) {
     size = required_size;
     return;
   }
 
-  data = Core::Object<U8>(required_size);
+  perimortem_core_object_release(data);
+  data = create_buffer(required_size);
   size = required_size;
 }
 
@@ -175,12 +197,15 @@ auto Dynamic::Bytes::clear() -> void {
 }
 
 auto Dynamic::Bytes::reset() -> void {
-  data = Core::Object<U8>();
+  perimortem_core_object_release(data);
+  data = nullptr;
   size = 0;
 }
 
 auto Dynamic::Bytes::ensure_capacity(Count required_size) -> void {
   if (required_size > get_capacity()) {
-    data.reserve(required_size);
+    constexpr U8 empty = 0;
+    data = perimortem_core_object_reserve(
+        data, &descriptor, required_size, sizeof(U8), &empty);
   }
 }

@@ -127,6 +127,7 @@ int run_runtime_integration(void) {
   if (object == NULL) {
     return 1;
   }
+
   const uint64_t initial_object =
       TTX_FUNC_Validation_2eRuntime__Runtime__object_5fread_static(object);
   const ttx_validation_runtime_Runtime_ObjectOutcome object_value =
@@ -156,12 +157,15 @@ int run_runtime_integration(void) {
   if (object_value.value_selected) {
     perimortem_core_object_release(object_value.value);
   }
+
   if (propagated_object.value_selected) {
     perimortem_core_object_release(propagated_object.value);
   }
+
   if (!propagated_object_error.value_selected) {
     perimortem_core_object_release(propagated_object_error.error);
   }
+
   const ttx_results_TTX_5fFUNC_5fValidation_5f2eRuntime_5f_5fRuntime_5f_5fobject_5f5fresults_5fstatic
       object_results =
           TTX_FUNC_Validation_2eRuntime__Runtime__object_5fresults_static(
@@ -171,6 +175,7 @@ int run_runtime_integration(void) {
   if (object_results.optional) {
     perimortem_core_object_release(object_results.optional);
   }
+
   perimortem_core_object_retain(object);
   perimortem_core_object_release(object);
   const uint64_t changed_object =
@@ -209,17 +214,21 @@ int run_runtime_integration(void) {
           UINT64_C(18)) {
     return 1;
   }
+
   if (initial_object != UINT64_C(7) || changed_object != UINT64_C(12) ||
       read_object != UINT64_C(12) || !object_results_valid ||
       !object_result_valid) {
     return 2;
   }
+
   if (object_static_value != UINT64_C(2)) {
     return 3;
   }
+
   if (object_behavior != UINT64_C(44)) {
     return 4;
   }
+
   if (TTX_FUNC_Validation_2eRuntime__Runtime__borrow_5fiteration_static() !=
           UINT64_C(197) ||
       printed_count != 1 || printed_value != UINT64_C(21) ||
@@ -227,10 +236,12 @@ int run_runtime_integration(void) {
       dense_storage[2] != UINT64_C(37) || dense_storage[3] != UINT64_C(47)) {
     return 5;
   }
+
   if (TTX_FUNC_Validation_2eRuntime__Runtime__enumeration_5fiteration_static() !=
       UINT64_C(22)) {
     return 6;
   }
+
   return 0;
 }
 

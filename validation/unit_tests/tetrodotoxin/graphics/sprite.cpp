@@ -36,10 +36,10 @@ static auto finalize_parameters(U8* payload) -> void {
   Data::cast<SpriteParameters>(payload)->~SpriteParameters();
 }
 
-static const Object<>::Descriptor parameter_descriptor{
-    .size = sizeof(SpriteParameters),
-    .alignment = alignof(SpriteParameters),
-    .finalize = finalize_parameters,
+static const perimortem_object_descriptor parameter_descriptor{
+  .size = sizeof(SpriteParameters),
+  .alignment = alignof(SpriteParameters),
+  .finalize = finalize_parameters,
 };
 
 static constexpr Perimortem::Graphics::Projection::Resource sprite_resources[] =
@@ -74,34 +74,40 @@ static const Perimortem::Graphics::Projection blended_projection = {
   2,
 };
 
-static auto create_shader() -> Implementation {
-  Object<> instance = Object<>::create(parameter_descriptor);
-  new (instance.get_payload(), Placement::Construct) SpriteParameters();
-  auto* parameters = Data::cast<SpriteParameters>(instance.get_payload());
+static auto create_shader() -> perimortem_implementation {
+  U8* instance = perimortem_core_object_allocate(&parameter_descriptor);
+  new (instance, Placement::Construct) SpriteParameters();
+  auto* parameters = Data::cast<SpriteParameters>(instance);
   parameters->tone[0] = 0.25f;
   parameters->tone[1] = 0.5f;
   parameters->tone[2] = 0.75f;
   parameters->tone[3] = 1.0f;
-  auto implementation = Implementation::retain(instance, &sprite_projection);
-  instance.release();
-  return implementation ? static_cast<Implementation&&>(*implementation)
-                        : Implementation();
+  perimortem_implementation implementation = {};
+  perimortem_core_implementation_retain(
+      instance,
+      reinterpret_cast<const perimortem_projection*>(&sprite_projection),
+      &implementation);
+  perimortem_core_object_release(instance);
+  return implementation;
 }
 
 static auto create_blended_shader(const Perimortem::Graphics::Texture2D& noise)
-    -> Implementation {
-  Object<> instance = Object<>::create(parameter_descriptor);
-  new (instance.get_payload(), Placement::Construct) SpriteParameters();
-  auto* parameters = Data::cast<SpriteParameters>(instance.get_payload());
+    -> perimortem_implementation {
+  U8* instance = perimortem_core_object_allocate(&parameter_descriptor);
+  new (instance, Placement::Construct) SpriteParameters();
+  auto* parameters = Data::cast<SpriteParameters>(instance);
   parameters->tone[0] = 1.0f;
   parameters->tone[1] = 1.0f;
   parameters->tone[2] = 1.0f;
   parameters->tone[3] = 1.0f;
   parameters->noise = noise;
-  auto implementation = Implementation::retain(instance, &blended_projection);
-  instance.release();
-  return implementation ? static_cast<Implementation&&>(*implementation)
-                        : Implementation();
+  perimortem_implementation implementation = {};
+  perimortem_core_implementation_retain(
+      instance,
+      reinterpret_cast<const perimortem_projection*>(&blended_projection),
+      &implementation);
+  perimortem_core_object_release(instance);
+  return implementation;
 }
 
 static auto configured_sprite() -> Perimortem::Graphics::Sprite {
@@ -112,7 +118,8 @@ static auto configured_sprite() -> Perimortem::Graphics::Sprite {
   Perimortem::Graphics::Texture2D texture(image);
   Perimortem::Graphics::Sprite sprite;
   sprite.set_texture(texture);
-  sprite.set_material(create_shader());
+  perimortem_implementation material = create_shader();
+  sprite.set_material(&material);
   sprite.set_size({48, 32});
   Perimortem::Graphics::Transform2D transform;
   transform.translation = {4.0, 5.0};
@@ -160,8 +167,8 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_live_shader_parameters) {
       Data::cast<const SpriteParameters>(first->get_inputs().get_data());
   EXPECT_EQ(first_parameters->tone[1], R32(0.5));
 
-  Object<> instance = sprite.get_material().get_object();
-  auto* live = Data::cast<SpriteParameters>(instance.get_payload());
+  U8* instance = sprite.get_material()->object;
+  auto* live = Data::cast<SpriteParameters>(instance);
   live->tone[1] = 0.125f;
   auto second = drawable.draw(sprite.get_object(), 0);
   ASSERT(second);
@@ -178,16 +185,16 @@ PERIMORTEM_UNIT_TEST(GraphicsSprite, projects_generated_material_resources) {
       Perimortem::Graphics::Pixel::from_rgba(0x40, 0x80, 0xC0, 0xFF));
   Perimortem::Graphics::Image image(Data::take(pixels), 1, 1);
   Perimortem::Graphics::Texture2D noise(image);
-  sprite.set_material(create_blended_shader(noise));
+  perimortem_implementation material = create_blended_shader(noise);
+  sprite.set_material(&material);
 
   const Drawable2D& drawable = SpriteDrawable2D::get_runtime();
   auto draw = drawable.draw(sprite.get_object(), 0);
   ASSERT(draw);
   ASSERT_EQ(draw->get_resources().get_size(), Count(2));
   EXPECT_EQ(
-      draw->get_resources()[0].get_object().get_payload(),
-      noise.get_image().get_object().get_payload());
+      draw->get_resources()[0].get_object(), noise.get_image().get_object());
   EXPECT_EQ(
-      draw->get_resources()[1].get_object().get_payload(),
-      sprite.get_texture().get_image().get_object().get_payload());
+      draw->get_resources()[1].get_object(),
+      sprite.get_texture().get_image().get_object());
 }

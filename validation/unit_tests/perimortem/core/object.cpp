@@ -1,16 +1,16 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-#include "perimortem/core/object.hpp"
+#include "perimortem/core/object.h"
 
 #include "validation/unit_test.hpp"
 
+#include "perimortem/core/implementation.h"
 #include "perimortem/core/null_terminated.hpp"
 
+#include "perimortem/memory/buffer.h"
 #include "perimortem/memory/dynamic/map.hpp"
 #include "perimortem/memory/dynamic/record.hpp"
-
-#include "perimortem/core/object.hpp"
 
 using namespace Perimortem::Memory;
 using namespace Validation;
@@ -33,8 +33,7 @@ class RaiiProbe {
   Count value = 0;
 };
 
-static_assert(
-    sizeof(Dynamic::Record<RaiiProbe>) == sizeof(Perimortem::Core::Object<>));
+static_assert(sizeof(Dynamic::Record<RaiiProbe>) == sizeof(U8*));
 
 static Count native_finalizations = 0;
 
@@ -42,21 +41,20 @@ static auto finalize_native_object(U8*) -> void {
   native_finalizations++;
 }
 
-static constexpr Perimortem::Core::Object<>::Descriptor
-    native_descriptor{
-        .size = sizeof(U64),
-        .alignment = alignof(U64),
-        .finalize = finalize_native_object,
-    };
+static constexpr perimortem_object_descriptor native_descriptor{
+  .size = sizeof(U64),
+  .alignment = alignof(U64),
+  .finalize = finalize_native_object,
+};
 
 PERIMORTEM_UNIT_TEST(CoreObject, native_surface) {
   native_finalizations = 0;
   U8* object = perimortem_core_object_allocate(&native_descriptor);
-  const Perimortem::Core::Object<>::Descriptor& descriptor =
-      Perimortem::Core::Object<>(object).get_descriptor();
-  EXPECT_EQ(descriptor.size, Count(sizeof(U64)));
-  EXPECT_EQ(descriptor.alignment, Count(alignof(U64)));
-  EXPECT(descriptor.finalize == finalize_native_object);
+  const perimortem_object_descriptor* descriptor =
+      perimortem_core_object_descriptor(object);
+  EXPECT_EQ(descriptor->size, Count(sizeof(U64)));
+  EXPECT_EQ(descriptor->alignment, Count(alignof(U64)));
+  EXPECT(descriptor->finalize == finalize_native_object);
   perimortem_core_object_retain(object);
   perimortem_core_object_release(object);
   EXPECT_EQ(native_finalizations, Count(0));
@@ -71,44 +69,63 @@ PERIMORTEM_UNIT_TEST(CoreObject, empty_surface) {
 }
 
 PERIMORTEM_UNIT_TEST(CoreObject, shared_buffer_access) {
-  Perimortem::Core::Object<U64> first(3);
-  auto initialized = first.get_access();
-  ASSERT(initialized.get_size() >= 3);
-  auto first_value = initialized[0];
-  ASSERT(first_value);
-  *first_value = 42;
+  U64 initial = 0;
+  U8* first = perimortem_core_object_reserve(
+      nullptr, &native_descriptor, 3, sizeof(U64),
+      reinterpret_cast<const U8*>(&initial));
+  auto* first_values = reinterpret_cast<U64*>(first);
+  first_values[0] = 42;
 
-  Perimortem::Core::Object<U64> second = first;
-  EXPECT(first.is_shared());
-  EXPECT(second.is_shared());
-  auto shared = second.get_access();
-  auto second_value = shared[0];
-  ASSERT(second_value);
-  *second_value = 7;
+  U8* second = first;
+  perimortem_core_object_retain(second);
+  EXPECT_EQ(perimortem_core_object_reservations(first), Count(2));
+  reinterpret_cast<U64*>(second)[0] = 7;
+  EXPECT_EQ(reinterpret_cast<U64*>(first)[0], U64(7));
 
-  EXPECT_EQ(first.get_view()[0], U64(7));
-  EXPECT_EQ(second.get_view()[0], U64(7));
-  EXPECT(first.get_view().get_data() == second.get_view().get_data());
-
-  second.clone();
-  EXPECT_NOT(first.is_shared());
-  EXPECT_NOT(second.is_shared());
-  EXPECT(first.get_view().get_data() != second.get_view().get_data());
-  auto cloned = second.get_access()[0];
-  ASSERT(cloned);
-  *cloned = 9;
-  EXPECT_EQ(first.get_view()[0], U64(7));
-  EXPECT_EQ(second.get_view()[0], U64(9));
+  second =
+      perimortem_core_object_clone(second, &native_descriptor, sizeof(U64));
+  EXPECT_EQ(perimortem_core_object_reservations(first), Count(1));
+  EXPECT(first != second);
+  reinterpret_cast<U64*>(second)[0] = 9;
+  EXPECT_EQ(reinterpret_cast<U64*>(first)[0], U64(7));
+  EXPECT_EQ(reinterpret_cast<U64*>(second)[0], U64(9));
+  perimortem_core_object_release(first);
+  perimortem_core_object_release(second);
 }
 
 PERIMORTEM_UNIT_TEST(CoreObject, empty_option_payload) {
-  Perimortem::Core::Object<U8> empty;
-  Perimortem::Core::Option<Perimortem::Core::Object<U8>> selected(
-      static_cast<Perimortem::Core::Object<U8>&&>(empty));
+  U8* empty = nullptr;
+  Perimortem::Core::Option<U8*> selected(static_cast<U8*&&>(empty));
 
   EXPECT(selected);
-  EXPECT((*selected).is_empty());
-  EXPECT(sizeof(selected) > sizeof(Perimortem::Core::Object<U8>));
+  EXPECT(*selected == nullptr);
+  EXPECT(sizeof(selected) > sizeof(U8*));
+}
+
+PERIMORTEM_UNIT_TEST(CoreObject, implementation_ownership) {
+  static U8 projection_storage = 0;
+  const auto* projection =
+      reinterpret_cast<const perimortem_projection*>(&projection_storage);
+  U8* object = perimortem_core_object_allocate(&native_descriptor);
+  perimortem_implementation first = {};
+  ASSERT(perimortem_core_implementation_retain(object, projection, &first));
+  EXPECT_EQ(perimortem_core_object_reservations(object), Count(2));
+
+  perimortem_implementation second = {};
+  perimortem_core_implementation_copy(&first, &second);
+  EXPECT_EQ(perimortem_core_object_reservations(object), Count(3));
+  EXPECT(perimortem_core_implementation_is_valid(&second));
+
+  perimortem_implementation moved = {};
+  perimortem_core_implementation_move(&moved, &second);
+  EXPECT(perimortem_core_implementation_is_empty(&second));
+  EXPECT_EQ(moved.object, object);
+  EXPECT_EQ(moved.projection, projection);
+
+  perimortem_core_implementation_release(&first);
+  perimortem_core_implementation_release(&moved);
+  EXPECT_EQ(perimortem_core_object_reservations(object), Count(1));
+  perimortem_core_object_release(object);
 }
 
 PERIMORTEM_UNIT_TEST(CoreObject, shared_lifetime) {
