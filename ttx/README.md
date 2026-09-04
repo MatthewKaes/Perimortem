@@ -8,7 +8,7 @@ them the vocabulary to do that without asking Library to surrender its own
 language model.
 
 TTX is the shared semantic graph vocabulary beneath Tetrodotoxin. Purpose built
-languages use it to expose Types, values, addresses, Callables, Layouts, source
+languages use it to expose domains, values, addresses, Callables, Layouts, source
 locations, and documentation on their original objects. A Package manager,
 editor, compiler, or runtime can then ask a common question and receive an
 answer tied to the real identity rather than a private copy.
@@ -61,9 +61,9 @@ authored source
 ```
 
 The live graph keeps facts that still matter while languages and tools are
-putting the program together. A tool can ask which Type an Alias represents,
-which Type an Addressable reaches, which values a Pack supplies, which Layout a
-Callable accepts, or whether one Layout fits another. Physical registers,
+putting the program together. A tool can ask which Domain describes a producer,
+which concepts an Addressable exposes, which values a Pack supplies, which
+Layout a Callable accepts, or how one Layout fits a Pack. Physical registers,
 offsets, editor messages, and stored bytes appear later in the component that
 owns each product.
 
@@ -109,9 +109,11 @@ categories:
 Abstract
 ├── Unknown
 ├── Constant
-│   └── None
+│   ├── None
+│   ├── Route
+│   └── Extent
 ├── Alias
-├── Type
+├── Domain
 ├── Addressable
 └── Callable
 ```
@@ -120,27 +122,35 @@ Abstract
 describe, negotiate, or connect those objects without becoming separate
 language objects themselves.
 
-A `Type` exposes one complete Layout. An `Addressable` names typed data. A
-`Pack` is an identity-free view whose Layout names the exact producers. A
-`Callable` exposes parameter and result Layouts. An `Alias` keeps its own local
-name and Documentation while resolving to another identity. `Unknown` is a
-provisional answer, `Constant` is an immutable axiomatic fact, and `None` proves
-completed absence.
+A `Domain` relates one semantic identity to its current value shape. An
+`Addressable` layers local answers over one required referent while retaining
+its visible candidate identity. A `Pack` is an identity-free view whose Layout
+names the exact producers. A `Callable` exposes parameter and result Layouts. An `Alias` transparently
+forwards every observation to one required referent, beginning at Unknown until
+that referent settles. `Unknown` is a provisional answer, `Constant` is an
+immutable axiomatic fact, and `None` proves completed absence.
 
-A typed C handle points to the object created by its owner. TTX adds no
-Reference wrapper, lease, or lifetime token. Equal names, structures, and
-Layouts do not make two objects the same Type. This distinction lets Packages,
+`Route` is the narrow Constant that lends one complete immutable concept byte
+sequence. Empty and non textual routes remain valid, and the contract does not
+turn those bytes into a language string type or a universal value hierarchy.
+`Extent` is the equally narrow Constant that lends one nonnegative support
+cardinality to Ranged without introducing a universal integer type.
+
+A typed C handle carries one authority and value token supplied by its owner.
+Its operations pointer is dispatch machinery rather than semantic identity. TTX
+adds no Reference wrapper, lease, or lifetime token. Equal names, structures,
+and Layouts do not make two objects the same Domain. This distinction lets Packages,
 languages, editors, and compilers share one fact instead of keeping several
 copies synchronized.
 
 ### Packs and semantic Layout
 
 A Pack borrows the exact producers of value flow without turning that flow into
-a Type or another semantic identity. It may supply no values, one value, or several positional, named,
+a Domain or another semantic identity. It may supply no values, one value, or several positional, named,
 ranged, or composed values. One ordinary value producing expression is already
 a Pack, while a multiple value Pack remains fluid until a receiving contract
-chooses to materialize a Type. `()` supplies an empty Layout and fits `[]`
-without inventing a zero value Type identity.
+chooses to materialize a concrete type. `()` supplies an empty Layout and fits
+`[]` without inventing a zero value Domain identity.
 
 The common source shapes make that direction visible. Parentheses group values
 that are being supplied, while brackets describe values that are required:
@@ -161,24 +171,30 @@ named Pack slots use `.name = value` because they supply value flow. Concrete
 languages decide where either delimiter may be omitted without ambiguity.
 Omitting a delimiter does not change the semantic Pack or Layout.
 
-A Layout describes a shape through synchronous visitation and how supplied
+A Layout describes a shape through synchronous support views and how supplied
 values fit it. Order is semantic only when its concrete owner promises ordered
-value flow. TTX provides five common forms:
+value flow. TTX provides these common forms:
 
-* `Value` is an identity free Layout containing one atomic Type.
-* `Fluid` describes and fits ordered positional entries.
-* `Named` wraps one complete Layout, retains uniquely named slots, exposes a
-  typed name aware visitor, and owns reordering during fitting.
-* `Ranged` describes one entry repeated over a fixed interval.
-* `Composite` joins complete descriptors without flattening them.
+* `Empty` proves exact cardinality zero.
+* `Value` retains one exact producer occurrence.
+* `Ranged` retains one repeated relationship and extent provider.
+* `Fluid` retains a finite sequence of independently factual occurrences.
+* `Named` combines value shape with Unknown, None, or complete byte routes.
+* `Composite` joins coupled child Layouts without flattening them.
+* `Reindexed` retains one completed output mapping over a source Layout.
+
+When a Pack must outlive the query that produced its Layout, the Layout owner
+transfers an independently owned support snapshot to the caller's Context. That
+snapshot preserves the complete Layout behavior rather than reducing it to the
+currently enumerable leaves. Context owns its release without learning whether
+the implementation used C storage, a C++ object, a Rust box, or a remote bridge.
 
 Layouts describe promised semantic shape and how supplied values fit it. Layout
-decorators preserve the fitting rules of the source that owns each entry. A
-leaf Type contributes its own one entry Value Layout, while an empty Layout
-describes no value and fits every other empty Layout. A Type with that shape
-can retain contextual facts, but it cannot enter value flow. An Addressable
-therefore requires a Type with at least one Layout entry. Concrete languages
-define their own scalar families, logical and numeric refinements, and abstract
+decorators preserve the fitting rules of the source that owns each entry. An
+atomic Domain may contribute one Value Layout, while an empty Layout describes
+no value and fits every other empty Layout. A Domain with that shape can retain
+contextual facts but cannot enter value flow. Concrete languages define their
+own type systems, scalar families, logical and numeric refinements, and abstract
 machine storage requirements.
 
 ### Semantic Interface negotiation
@@ -203,9 +219,9 @@ Target object layout, field offsets, registers, address spaces, pointer forms,
 and runtime storage belong to the consumer that chooses a physical
 representation.
 
-An explicit erased value can route one exact requirement to the candidate
-owner through `Abstract::satisfies`. The default is rejection. Concrete owners
-override the query only for semantic relations they can prove.
+An explicit erased value retains one exact positive Interface witness beside
+the candidate. Concrete owners reject, satisfy, or leave each semantic relation
+Unknown without turning native type information into category proof.
 
 Most accepted candidates remain concrete and need no runtime indirection. A
 language that needs to store several implementations through one contract makes
@@ -214,11 +230,10 @@ that erasure explicit in its own value model. Library uses
 semantic relation. The real Object remains the semantic producer, while an ABI
 Terminal derives the immutable Projection needed by the selected native target.
 
-Every concrete Type that a language allows as an ordinary value has a nonempty
-Layout and a default.
-That language defines and creates the value. TTX does not infer it from cleared
-memory or provide one universal default object. An empty View is still one View
-value, while an empty Layout means that no value was produced.
+Construction and initialization remain language concepts independent of
+Domain. One language may provide defaults while another requires explicit
+construction. An empty View is still one View value, while an empty Layout
+means that no value was produced.
 
 ### Terminal products
 
@@ -255,7 +270,7 @@ TTX gives each part of Tetrodotoxin a useful view of the same program:
 * Package connects sources and dependencies through stable authored routes
 * Puffer uses Anchors, Documentation, and common semantic categories for editor
   services
-* Compilers consume Types, Packs, Layouts, Addressables, and Callables before
+* Compilers consume Domains, Packs, Layouts, Addressables, and Callables before
   choosing a physical representation
 * Archive writers ask each persistent Dialect for the facts needed to build a
   fresh equivalent Monograph

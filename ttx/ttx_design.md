@@ -1,7 +1,7 @@
 # TTX Design
 
 TTX is the shared semantic boundary between concrete languages and the systems
-that consume their work. It keeps exact identity, resolution, Type, Pack,
+that consume their work. It keeps exact identity, resolution, Domain, Pack,
 Addressable, Callable, and Layout facts available before a package format,
 compiler target, runtime, or tool has been chosen.
 
@@ -60,7 +60,7 @@ That arrangement lets one completed Workspace serve several kinds of consumer:
 
 * Package preserves named Import edges and reconstructable language facts
 * Editors use source Anchors, Documentation, and semantic categories
-* Compilers use Type, Pack, Layout, Addressable, and Callable contracts
+* Compilers use Domain, Pack, Layout, Addressable, and Callable contracts
 * Runtimes receive finished products and the values defined by their language
 * Language aware tools can still inspect the richer concrete object
 
@@ -124,9 +124,10 @@ the queries needed to exchange that identity with another domain:
 Abstract
 ├── Unknown
 ├── Constant
-│   └── None
+│   ├── None
+│   └── Route
 ├── Alias
-├── Type
+├── Domain
 ├── Addressable
 └── Callable
 ```
@@ -138,22 +139,21 @@ semantic identity. Complete
 declaration structure, source provenance, visibility, and publication remain
 facts of each concrete language owner rather than a lossy Abstract projection.
 
-The graph is not a tree of declarations. One Type may be reached through a
-Package Alias, a source Alias, a Generic materialization, and a direct local
-route. Those paths retain one Type and do not give it a required parent.
+The graph is not a tree of declarations. One Domain may be reached through a
+Package route, a Generic materialization, and a direct local question. Those
+paths retain one Domain without giving it a required parent.
 
-Structural similarity therefore says nothing about identity. Two Types may
-have equal Layouts and still mean different things. Two Alias objects may have
-different local names and Documentation while representing the same target.
-One Addressable keeps its own identity while its total Type query changes only
-from `Unknown` to one exact Type. A Pack borrows the exact producer identities
-exposed by its Layout. A Callable
-keeps its own identity while its parameters and results expose required
-Layouts.
+Structural similarity therefore says nothing about identity. Two Domains may
+have equal Layouts and still mean different things. Alias forwards every
+observation to one required referent without creating a second visible policy
+boundary. Addressable instead keeps its own candidate identity while local
+layers enrich or attenuate the referent. A Pack borrows the exact producer
+identities exposed by its Layout, while a Callable keeps its own identity beside
+its parameter and result Layouts.
 
 This gives tools and lowerers the original semantic fact. It also means they
 must use the contracts exposed by its owner. TTX offers no synchronized member
-record or cloned Type graph for a consumer that wants a different shape.
+record or cloned Domain graph for a consumer that wants a different shape.
 
 Category selection proves a contract on the original identity without creating
 a wrapper, clone, registry entry, or second identity. A consumer that needs
@@ -164,13 +164,14 @@ value retained there rather than asking every Abstract for a shared fragment.
 
 Every edge borrows one exact typed C handle from the graph owner. TTX defines no
 Reference wrapper, lease, lifetime token, or cacheable identity. A handle
-preserves the exact object it receives and carries no absent state. Alias owns
-the only shared represented identity traversal, and `resolve()` is the sole
-operation that follows that edge.
+preserves the exact object it receives and carries no absent state. Alias is the
+transparent indirection that forwards every observation to one required
+referent without becoming a policy boundary.
 
-The graph owner guarantees each handle lifetime. The handle address may serve
-as local identity while that owner keeps the object stable, but its meaning ends
-with the graph lifetime. A concrete same lifetime inventory stores typed handles
+The graph owner guarantees each handle lifetime. One authority token and one
+value token identify the semantic subject, while the operations pointer carries
+only borrowed dispatch machinery. A bridge may replace that pointer without
+changing identity. A concrete same lifetime inventory stores typed handles
 directly instead of laundering them through another semantic category.
 
 This avoids copying a semantic object into every context that retains it and
@@ -184,21 +185,21 @@ handle values or promise equal process addresses.
 `resolve()` follows represented identity. `resolve_concept(name)` asks the
 receiving Abstract to interpret one borrowed binary name in its own domain. The
 concrete operator splits qualified syntax and asks each selected result about
-the next name, so a route can cross Package, source, and Type contexts without
+the next name, so a route can cross Package, source, and concrete type contexts without
 flattening those contexts into one key or converting them into one common
 category. Monograph retains lifetime and never becomes an authored route
-segment. Alias remains opaque to contextual lookup: the caller resolves it
-before asking the selected identity to interpret the next name.
+segment. Alias forwards the same contextual question to its required referent,
+so a consumer does not need an Alias-specific unwrap path.
 
 Access and invocation remain concrete language operations assembled from the
-same concept graph. Library, for example, waits for an Addressable's total Type
-answer, asks that exact Type for its `instance` concept, and asks a Type for its
-`static` concept before querying the authored name. TTX owns neither spelling's
-policy and adds no flat route mode, receiver enum, forwarding hook, or member
+same concept graph. A language may ask an Addressable for a Domain, negotiate an
+`instance` concept owned by that language, or ask a concrete type owner for a
+`static` route before querying an authored name. TTX owns none of that policy
+and adds no flat route mode, receiver enum, forwarding hook, or member
 inventory.
 
 The caller owns the expected contract and proves the returned identity against
-the semantic category it needs. Route spelling does not infer a Type,
+the semantic category it needs. Route spelling does not infer a Domain,
 Addressable, Callable, or another category on the caller's behalf.
 
 This lets one qualified spelling cross several concrete contexts without
@@ -213,11 +214,13 @@ an ambiguous ownership path.
 ## Progressive construction
 
 A graph owner may reserve a stable identity before all of its edges are ready.
-An Alias reserved this way binds its borrowed target once after the defining
-pass. The immediate edge remains opaque and only Alias resolution traverses
-it. An incomplete total query returns the shared `Unknown` object. Completion
-may make that unanswered query valid, while every successful identity remains
-stable. Completed absence returns the axiomatic `None` Constant.
+An Alias reserved this way begins by forwarding to Unknown, then binds one
+spot-resolved non Alias target after the defining pass. Every observation
+forwards through the same edge, and no caller can negotiate an Alias-specific
+contract. An incomplete total query returns the shared `Unknown` object.
+Completion may make that unanswered query valid, while every successful
+identity remains stable. Completed absence returns the axiomatic `None`
+Constant.
 
 Concept exploration synchronously visits the currently advertised names and
 exact Abstract handles. A visit may omit incomplete questions or carry Unknown
@@ -246,15 +249,15 @@ identity-free view of produced flow whose Layout names the actual producers. A
 Layout has no semantic identity and describes a promised shape. This lets a
 call, swizzle, return, or other
 multiple value operation remain live value flow without materializing an anonymous
-aggregate Type merely so another owner can fit it.
+aggregate type merely so another owner can fit it.
 
 A Pack may be empty, contain one ordinary value producing expression, or carry
 several positional, named, ranged, or composed values. One expression is
 already a one value Pack. Grouping it does not create another semantic object.
 A multiple value Pack remains untyped as a group until a receiving declaration or
-operation deliberately materializes one Type. Its individual produced values
+operation deliberately materializes one concrete type. Its individual produced values
 retain their exact semantic identities throughout fitting. An explicit empty
-grouping exposes an empty Layout, so cross language empty flow needs no Type
+grouping exposes an empty Layout, so cross language empty flow needs no Domain
 identity.
 
 The common source convention reinforces the distinction: parentheses group
@@ -263,24 +266,37 @@ descriptor uses `.name : Type`. A named value uses `.name = expression`. A
 concrete language may omit a delimiter where its grammar remains unambiguous,
 but the semantic direction does not change.
 
-A Layout visits exact Abstract identities and answers whether one shape fits
-another. Fitting is directional because a Pack's source Layout supplies the
-values required by a target Layout. Only a concrete value flow owner such as a
+A Layout visits exact Abstract identities and answers whether one supplied flow
+fits the relationship it accepts. Fitting is directional because the Pack
+supplies its produced-flow Layout while the receiving Layout owns the target
+shape and every leaf question. Only a concrete value flow owner such as a
 Callable signature or Fluid sequence promises visitation order.
 
-`Value` is the terminal one entry descriptor for one exact atomic Type. `Fluid`
-describes positional entries and compares them in order. `Named` describes
-uniquely named slots, matches them by name, then preserves the source Layout's
-fitting rule for each match. A slot may borrow a name independently while
-retaining the exact source Abstract. `Ranged` describes one entry across a fixed
-interval. `Composite` preserves two complete child Layouts.
+`Value` retains one exact producer occurrence. `Ranged` retains one repeated
+producer relationship and extent provider. The provider must satisfy the narrow
+Extent Constant contract before Ranged becomes enumerable, which keeps an
+exact nonnegative cardinality available without making integers part of TTX.
+`Fluid` retains a finite sequence of
+independently factual occurrences. `Named` adds a parallel Layout of Unknown,
+None, or exact Route Constants without requiring ordered map storage. Route is
+the narrow host neutral byte contract needed here rather than a universal value
+or language string type.
+`Composite` preserves two coupled child boundaries. `Reindexed` retains a
+completed output shaped mapping back into one source Layout.
 
 The concrete producer remains the value flow owner after fitting. Its Pack
 Layout retains any owner promised order, names, and applicability without
-copying Types, Documentation, defaults, or storage facts into a generic member
+copying Domains, Documentation, defaults, or storage facts into a generic member
 record. A decorator or composition delegates fitting to the concrete Layout
 that owns the shape. Generic callers receive no index, fitted map, or optional
 base entry name.
+
+Context cannot retain that promise by flattening the Layout into an entry list.
+It asks the concrete Layout to transfer an independently owned support snapshot
+instead. The snapshot preserves every observable structural and fitting fact,
+while Context owns its lifetime and continues borrowing the exact producer
+Abstracts. A C allocation, C++ object, Rust box, or remote bridge can implement
+that ownership transfer without changing the Pack contract.
 
 Keeping Layout semantic lets the same graph feed a CPU compiler, GPU compiler,
 interpreter, editor, and archive writer without letting the first Terminal fix
@@ -293,10 +309,10 @@ negotiates whether two real Abstracts satisfy the same semantic role. A
 Callable negotiator can build on parameter and result Layouts. A rendering or
 lifecycle negotiator can add meaning that Layout never carried.
 
-This does not make structural similarity into identity. Interface returns a
-directional satisfaction or a proven two way equivalence for one explicit
-semantic question. It retains no copied declaration model and creates no graph
-object around either participant.
+This does not make structural similarity into identity. Interface may leave the
+relationship Unknown, reject it, satisfy the requested direction, or record a
+stronger equivalence established by that exact requirement. It retains no
+copied declaration model and creates no graph object around either participant.
 
 Negotiation and runtime erasure remain separate choices. A known candidate can
 be lowered directly after its relation is proven. When a language needs one
@@ -311,31 +327,31 @@ compiler derives and validates those facts for its own Terminal. That extra work
 is the price of keeping the graph target neutral.
 
 An empty Layout is a valid zero value shape and fits another empty Layout. An
-empty Pack exposes that shape without requiring a Type identity.
-Atomic Types cannot launder that shape because their Value Layout contains
-their own exact identity. A Type with an empty Layout may still own contextual
-facts, but it cannot enter value flow and no Addressable can name it.
+empty Pack exposes that shape without requiring a Domain identity. A Domain
+with an empty Layout may still own contextual facts, but it cannot enter value
+flow.
 
-## Semantic defaults
+## Language owned construction
 
-Every concrete Type admitted to ordinary value flow has one default selected
-by its owning language. This is a total language invariant, not a shared TTX
-value representation. It lets safe selection, omitted initialization, and
-other concrete operations ask their language owner for a value without making
-nullable references or target zero bits part of the semantic model.
+Construction and initialization are concepts independent of Domain. A concrete
+language may require every one of its value types to provide a default, allow
+only explicitly initialized values, or derive construction from another policy.
+TTX does not turn any of those choices into a total Domain method.
 
 The distinction matters for composite and managed values. A target may obtain
 cleared storage, but a language default may still require recursive Field
 initialization or allocation of a fresh nonnull identity. Conversely, the
 default of an optional value may be empty without constructing its payload.
-Completion rejects a recursive value Layout whose real Type and Addressable
-edges cannot reach terminal leaves. Default construction therefore needs no
-second recursion transaction.
+The receiving construction owner decides whether a recursive value can settle.
+Option, View, and Access may admit an empty initialization without recursively
+constructing their element, while a required recursive Object can remain
+Unknown. Layout exposes the shape involved in that decision without owning the
+decision itself.
 
 Default value and empty Layout are also independent. A View with no elements
 is still one exact View value, so the Pack carrying it has a one entry Layout.
 An empty Layout instead describes zero value flow. TTX preserves this
-distinction while leaving every concrete default constructor with its language
+distinction while leaving every concrete construction rule with its language
 owner.
 
 ## Terminal products and reconstruction
@@ -371,7 +387,7 @@ graph.
 
 Most Terminals are intentionally lossy. LLVM IR, debug data, and object files
 preserve the target facts needed by their consumers, not the complete language
-graph that produced them. Feeding those products back as TTX Type, Layout, or
+graph that produced them. Feeding those products back as TTX Domain, Layout, or
 identity authority would ask a lowered representation to recover meaning that
 it no longer carries.
 
@@ -389,7 +405,7 @@ Its supporting shape and process addresses may differ because they are not
 public semantic observations.
 
 Equivalence is relative to the Terminal's declared query contract rather than
-the complete source graph. A compiled library can reconstruct the Types,
+the complete source graph. A compiled library can reconstruct the Domains,
 Addressables, Callables, and folded constants that another graph may query while
 its object module carries executable behavior. This is the semantic equivalent
 of a Foreign wrapper: the reconstructed graph describes how to interact with
@@ -425,7 +441,7 @@ Terminal services come from other layers rather than TTX.
 
 A smaller source model may be enough when one language owns the whole program
 and one consumer owns every output. TTX earns its place when independent owners
-still need to share meaning. Concrete languages decide which Types exist, how
+still need to share meaning. Concrete languages decide which types exist, how
 names are published, which writes are legal, how Callables are selected, and
 how expressions produce Packs. Targets, runtimes, Packages, and tools consume
 those facts without becoming new TTX categories.

@@ -4,7 +4,9 @@
 """Validation binaries and source-graph integration products."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//toolchain:tetrodotoxin.bzl", "ttx_source")
 load("//validation:c_headers.bzl", "c_header")
 
@@ -71,6 +73,7 @@ c_header(
     deps = ["//tetrodotoxin/library:language"],
 )
 c_header("abstract", "ttx/concept/abstract.h")
+c_header("ttx_abi", "ttx/abi.h", deps = ["//ttx:abi"])
 c_header("alias", "ttx/concept/alias.h")
 c_header("concept_callable", "ttx/concept/callable.h")
 c_header("constant", "ttx/concept/constant.h")
@@ -161,6 +164,72 @@ cc_binary(
     deps = [
         "//perimortem:system",
         "//ttx:model",
+    ],
+)
+
+genrule(
+    name = "rust_ttx_provider_archive",
+    srcs = glob(["cross_language/rust/*.rs"]),
+    outs = ["librust_ttx_provider.a"],
+    cmd = "/usr/bin/rustc --edition=2021 -D warnings -C panic=abort --crate-type staticlib $(location cross_language/rust/driver.rs) -o $@",
+)
+
+cc_import(
+    name = "rust_ttx_provider",
+    static_library = ":rust_ttx_provider_archive",
+)
+
+cc_library(
+    name = "ttx_cross_language_c",
+    srcs = [
+        "cross_language/c/boolean.c",
+        "cross_language/c/integer.c",
+        "cross_language/c/value.c",
+        "cross_language/consumer.c",
+    ],
+    hdrs = [
+        "cross_language/bridge.h",
+        "cross_language/c/value.h",
+    ],
+    copts = [
+        "-std=c17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    includes = ["."],
+    deps = ["//ttx:abi"],
+)
+
+cc_test(
+    name = "ttx_cross_language",
+    srcs = [
+        "cross_language/cpp/echo.cpp",
+        "cross_language/cpp/echo.hpp",
+        "cross_language/cpp/root.cpp",
+        "cross_language/cpp/root.hpp",
+        "cross_language/cpp/ttx.cpp",
+        "cross_language/cpp/ttx.hpp",
+        "cross_language/cpp/value.cpp",
+        "cross_language/cpp/value.hpp",
+        "cross_language/driver.cpp",
+    ],
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    includes = ["."],
+    linkopts = [
+        "-ldl",
+        "-lm",
+        "-lpthread",
+    ],
+    deps = [
+        ":rust_ttx_provider",
+        ":ttx_cross_language_c",
+        "//ttx:abi",
+        "//ttx:cpp",
     ],
 )
 

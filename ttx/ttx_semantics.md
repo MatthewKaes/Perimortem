@@ -113,15 +113,16 @@ therefore has no required parent path.
 The closed identity categories are:
 
 * `Abstract` provides identity, a local name, Documentation, category proof,
-  one total Type answer, and concept queries.
+  one total Domain answer, and concept queries.
 * `Unknown` is a provisional answer that may settle differently as the graph
   completes.
 * `Constant` proves one complete immutable axiomatic graph fact.
 * `None` is the shared Constant proving completed absence.
-* `Alias` provides a local identity that redirects to one borrowed target.
-* `Type` provides a semantic domain and one total Layout.
-* `Addressable` provides a named address whose total Type edge returns
-  `Unknown` while incomplete and one exact Type once established.
+* `Route` is a Constant that lends one complete immutable concept byte sequence.
+* `Alias` transparently forwards every observation to one required referent.
+* `Domain` relates one semantic identity to its current value shape.
+* `Addressable` layers local answers over one required referent while retaining
+  the visible candidate identity.
 * `Callable` provides complete parameter and result Layouts.
 
 `Documentation`, `Layout`, `Pack`, `Context`, and `Interface` are
@@ -129,7 +130,7 @@ supporting contracts and values that carry no semantic identity. Pack carries
 named semantic flow over the exact Abstracts identified by its Layout.
 
 These categories are an interchange vocabulary rather than a complete type
-system. Concrete languages define their Type inventory, access policy,
+system. Concrete languages define their type inventory, access policy,
 mutation, construction, and invocation roles.
 
 A Terminal product is not an identity category. `Lexical::Code::Terminal` is
@@ -139,8 +140,9 @@ identity.
 ## Resolution and category proof
 
 Every Abstract exposes its local name, Documentation, represented identity
-through `resolve()`, exact Type fact through `get_type()`, and owner-directed
-concept lookup through `resolve_concept(name)`. Each observation is total.
+through `resolve()`, Domain relationship through `resolve_domain()`, and
+owner-directed concept lookup through `resolve_concept(name)`. Each observation
+is total.
 
 `resolve()` returns the represented identity. `resolve_concept(name)` gives one
 borrowed binary name to the receiving identity, which interprets the question
@@ -173,7 +175,7 @@ inspects its complete declaration value.
 ## Unknown, Constant, and None
 
 Unknown is the shared provisional Abstract. Its name is `Unknown`, its
-Documentation is empty, and its Type and concept answers remain Unknown. It
+Documentation is empty, and its Domain and concept answers remain Unknown. It
 stores no failed route, source range, diagnostic, or recovery choice. A query
 that answers Unknown may later answer a real identity or None.
 
@@ -183,99 +185,127 @@ will select the same identity during a later observation. A consumer re-queries
 a live route and may reuse a derived result only after proving that its current
 Constant inputs are the same exact identities.
 
-None is the shared Constant for proven absence. Its name is `None`, its Type is
-itself, and unsupported concept queries return itself. None never means that a
+None is the shared Constant for proven absence. Its name is `None`, its Domain
+answer is None, and every concept query returns itself. None never means that a
 future answer may materialize; Unknown carries that meaning.
+
+## Route
+
+Route is the narrow Constant contract for one complete concept byte sequence.
+After positive negotiation its typed support view preserves the exact candidate
+and lends those immutable bytes. The sequence may be empty or non textual and
+always remains one atomic question regardless of how a receiver interprets it.
+
+Route exists so Named Layout metadata and other host neutral routing machinery
+do not depend on one language string type or copy the same bytes into a second
+private table. It introduces no universal number, Boolean, string, collection,
+or value hierarchy. A Route has no Domain unless its concrete owner separately
+provides one.
+
+## Finite extent
+
+Extent is the narrow Constant contract Ranged uses to obtain one exact
+nonnegative support cardinality. Positive Interface negotiation preserves the
+candidate, and its typed observation lends the `uint64_t` count. This operation
+does not make host integers, arithmetic, scalar storage, or one language's
+numeric hierarchy part of TTX.
+
+An extent answer is Unknown while the relationship remains indeterminate and
+None after completed rejection. Only an exact Extent witness lets Ranged
+satisfy Enumerable. An exact zero witness therefore proves completed empty
+flow, while Unknown cannot be visited as though it were zero.
 
 ## Alias
 
-Alias retains a local name, local Documentation, and one borrowed target. The
-immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
-`resolve()` is the sole traversal operation. It follows only Alias edges and
-returns the first non Alias target identity without invoking that target's own
-`resolve()` operation. Every other operation, including
-`resolve_concept(name)`, returns None once the Alias is bound and Unknown while
-it is incomplete. A consumer that needs context first resolves the Alias,
-proves the returned owner, and invokes that owner's operation explicitly.
+Alias is transparent indirection to one required referent. It forwards its
+name, Documentation, resolution, Domain, concepts, visitation, and Interface
+negotiation to that referent without adding an observable contract of its own.
+An unbound Alias forwards to Unknown, which records that the required referent
+has not settled rather than making it nullable.
 
-A concrete graph owner may reserve an Alias identity before its target is
-known. An unbound Alias resolves to Unknown, and its target may be bound only
-once. Repeating the same binding is harmless while changing it fails. The
-owner preserves target lifetime and prevents Alias cycles before publishing
-the completed graph.
+A concrete graph owner may reserve an Alias before its target is known. It can
+then commit Unknown to one exact non Alias Abstract, after which a different
+target fails. Repeating the same binding is harmless. Construction spot
+resolves an Alias candidate before retaining it, so Alias chains cannot form.
+None and self reference are rejected because neither can satisfy the promised
+referent, and self reference is checked before resolution so Unknown cannot
+conceal a cycle attempt.
 
-## Type
+Because Alias forwards every question, contract negotiation cannot reveal or
+decorate the indirection. Policy belongs in an Addressable or another layered
+owner that remains visible as the candidate it presents.
 
-Type is an Abstract that represents a semantic domain. Once resolution
-succeeds, each Type exposes one complete Layout. A Type admitted to ordinary
-value flow has at least one Layout entry. A Type with an empty Layout may own
-contextual facts, but it cannot be instantiated, produced, or named by an
-Addressable. Empty Layouts fit without creating a shared Type identity.
+## Domain
 
-A value Layout terminates when recursively following its real Type entries and
-the Types named by its Addressable entries reaches terminal `Value` leaves. An
-atomic Type's exact self entry is one such leaf. Returning to an active
-structural Type or reaching an empty child Layout is not a complete value
-shape. Completion validates this graph property before a concrete language
-constructs, lowers, or stores the value.
+Domain is the total graph relationship that answers which semantic value domain
+currently describes an Abstract. `resolve_domain()` returns Unknown while that
+relationship is indeterminate, None when the owner proves that no Domain
+relationship exists, or one exact Domain identity beside its immutable Layout
+for that observation.
 
-Every completed concrete Type admitted to ordinary value flow has one total
-semantic default. The concrete language owns the
-default value and the operation that materializes it. TTX does not infer that
-value from an all zero target representation, add a default query to Type, or
-require different Types with equivalent defaults to share identity. A semantic
-Type selected for contextual traversal remains outside value flow unless a
-concrete language operation produces an instance of it.
+A Domain answers its own Domain relationship with itself. That reflexive edge
+does not create a type system, parent relation, or subtyping hierarchy. Domains
+may participate in cycles and recursive value descriptions because every query
+retains the factual uncertainty rules established above. Concrete languages
+build their own type systems from Domain identities, concepts, Interfaces, and
+Generics without making those policies host neutral.
 
-An empty Layout has no value to default. An empty View is different because it
-is one value of the exact View Type and still contributes that Type to its
-Pack's Layout.
+A Domain admitted to ordinary value flow has a nonempty Layout. The identity
+free `Value` Layout records one exact atomic producer relationship, while
+structural Domains can project Ranged, Fluid, Named, Composite, or Reindexed
+shape. A Domain with an empty Layout may retain contextual facts but cannot
+itself enter value flow. An empty Pack remains complete zero value flow rather
+than an instance of such a Domain.
 
-The identity free terminal `Value` Layout has one entry containing its exact
-atomic Type. Atomic identity therefore participates in ordinary Layout fitting
-instead of being inferred from an otherwise empty shape. Scalar families,
-logical and numeric refinements, bit width, abstract machine storage, and
-alignment belong to the concrete language that constructs those Types. They
-are not additional host neutral TTX categories.
+Construction, initialization, fitting, folding, visibility, storage, scalar
+families, bit width, alignment, and target representation are independent
+concepts owned by the concrete systems that need them. Domain supplies none of
+those policies merely because several operations ask about the same value
+relationship.
 
 ## Addressable
 
-Addressable is an Abstract that names typed data. Its total `get_type()` query
-returns `Unknown` while that edge is incomplete. Once established, it reaches
-one exact Type whose Layout contains at least one value. A zero value Type
-remains a valid semantic domain, but there is no value whose stable address an
-Addressable could name.
+Addressable is the first non axiomatic layered concept. Here “addressable” means
+a semantic subject to which another system can direct a question, closer to
+addressing a person than taking a machine address. Physical storage and pointer
+representation remain language or Terminal facts.
 
-A concrete graph object may be Addressable while adding capabilities
-owned by its language. TTX defines only the named edge to one Type.
+An Addressable composes one required referent with an ordered set of local
+layers. For each question the outer layer answers first. None means that layer
+does not own the route and permits the next layer to continue. Unknown or an
+exact answer stops the observation. Unknown is therefore absorbing: forwarding
+past it could expose a referent answer that a later policy fact would have
+hidden. A later observation asks the layer again rather than retaining that
+decision.
 
-TTX does not make an Addressable forward context, receiver access, or
-invocation queries to that Type. A concrete language may add that behavior when
-its own receiver model requires it.
+The same left biased rule lets one layer enrich the referent with new answers or
+attenuate it for a restricted holder. Visibility may return Unknown for private
+routes while a writability layer supplies an exact write authority, for example.
+Reversing those layers can expose different authority, so composition is
+associative but not commutative.
 
-Contextual resolution, Layout selection, or another consumer operation may
-return an Addressable. TTX does not prescribe its physical address or target
-representation, and later realization does not change the selected identity.
-
-Assignment, writability, storage duration, and visibility are concrete language
-policy rather than part of the shared Addressable contract.
+Unlike Alias, Addressable remains the visible candidate. Its `resolve()` answer
+is itself, and a successful Interface witness retains that Addressable identity
+instead of lending the unrestricted referent. Layers may project a nonempty
+Domain relationship, but assignment, storage duration, visibility, and
+writability remain concrete policies rather than mandatory Addressable fields.
 
 ## Pack
 
 Pack is an identity-free support value that carries one produced semantic flow.
 Its Layout identifies the actual producer Abstracts directly. Pack is not an
-Abstract, Type, Addressable, or Layout, and it has no parallel Produced record.
+Abstract, Domain, Addressable, or Layout, and it has no parallel Produced record.
 A consumer can retain, inspect, fit, or lower the flow without materializing an
-aggregate Type or reconstructing a producer table.
+aggregate type or reconstructing a producer table.
 
 A Pack may supply zero, one, or several values. It may expose positional, named,
 ranged, or composed output shape. One ordinary value producing expression is
 already a one value Pack. Grouping that expression does not create a second
 semantic identity. An empty Pack exposes an empty Layout. A concrete language's
 empty result and an explicit empty grouping agree through that Layout without
-requiring a Type identity. A multiple value Pack remains value flow until a
+requiring a Domain identity. A multiple value Pack remains value flow until a
 receiving contract fits it and an owning language deliberately materializes a
-Type.
+concrete type.
 
 The common delimiter shapes keep value flow and required shape visually
 distinct: parentheses group produced Packs while brackets describe Layouts.
@@ -293,48 +323,71 @@ Layout value.
 
 ## Callable
 
-Callable is an Abstract that supplies one complete signature as a parameter
-Layout and a result Layout. TTX assigns no receiver role to any parameter
-position or spelling.
+Callable is a closed TTX contract negotiated against one exact candidate. A
+positive result returns an identity-free view retaining that candidate beside
+its current parameter and result Layouts. Either Layout may remain partial while
+the graph is useful to tools. Completed empty Layouts prove zero value input or
+output. TTX assigns no receiver role to any parameter position or spelling.
 
-TTX does not prescribe how a Callable is selected or invoked. A concrete
-language may fit an argument Pack to the parameter Layout and expose the
-invocation's result Pack through the result Layout while adding executable body,
-calling convention, machine address, or target ABI policy.
+The common Callable view contains no invocation operation. A concrete language
+may fit an argument Pack to the parameter Layout and expose invocation through a
+separate operational Interface while adding executable body, calling
+convention, machine address, or target ABI policy. Equal Callable Layouts do not
+prove behavioral equivalence.
 
 ## Layout
 
 Layout carries no semantic identity. It describes one promised value shape and
-provides synchronous entry visitation plus directional `fits(source, target)`
-over exact Abstract identities. Types and Callables expose required Layouts.
-Packs carry the Layout of the values they supply. A failed fit does not add
-Unknown to the semantic graph.
+provides synchronous support views plus directional
+`fit(source Pack, caller Context)` over exact Abstract identities. Domains and
+Callables expose Layouts. Packs carry the Layout of the values they supply.
+Fitting returns Unknown while the relationship is unsettled, None for completed
+rejection, or a Context retained witness Pack containing the admitted source
+producers.
 
-TTX defines five common Layout forms:
+TTX defines these common Layout forms:
 
-* `Value` contains one exact atomic Type as the terminal Layout leaf.
-* `Fluid` describes ordered positional entries and fits them by represented
-  identity. An Addressable target participates through its Type.
-* `Named` wraps one complete Layout, owns nonempty unique slot names, exposes
-  name-aware visitation through its own Interface, and matches names inside its
-  fitting operation. Optional names never enter the base Layout contract.
-* `Ranged` describes one exact entry repeated over a fixed interval and applies
-  Fluid fitting.
-* `Composite` describes two complete Layouts as one shape without flattening
-  them.
+* `Empty` proves exact cardinality zero.
+* `Value` retains one exact producer occurrence.
+* `Ranged` retains one repeated producer relationship and one extent Abstract.
+* `Fluid` retains one finite sequence of independently factual occurrences.
+* `Named` combines one source Layout with a shape matching route Layout whose
+  entries may be Unknown, None, or exact Route Constants.
+* `Composite` combines two Layouts while preserving their coupled fitting
+  boundaries.
+* `Reindexed` retains one source Layout and one completed output shaped mapping
+  whose leaves select exact source paths.
 
-Fitting is directional: the source supplies the target. A Layout that decorates
-or combines another Layout owns that composition and delegates to its real
-children without exposing indices or fitted maps to generic callers. Consumers
-enumerate entries through Callables. `Named` provides name-aware visitation and
-fitting without defining a universal lookup or member interface.
+Fitting is directional: the source Pack supplies its produced-flow Layout, while
+the receiving Layout owns the structure and relationship it asks that flow to
+satisfy. A Layout that decorates or combines another Layout owns that
+composition and delegates to its real children without exposing indices or
+fitted maps to generic callers.
+Enumerable proves an exact finite cardinality and visits that many structural
+paths with their borrowed Abstract occurrences. Named provides route visitation
+and selection without defining a universal lookup or member interface. Fluid
+is a separate typed support observation, so a positional receiver cannot flatten
+an arbitrary Enumerable or Composite Layout merely because their leaf counts
+match.
 
 Layout retains no copied semantic record, target offset, storage class, ABI
-rule, or anonymous Type identity. Structural coincidence does not create Type
-identity.
+rule, or anonymous Domain identity. Structural coincidence does not create
+Domain identity.
+
+Every Layout can transfer one independently owned support snapshot. The
+snapshot preserves the complete observable Layout, including fitting behavior,
+support views, child boundaries, paths, partial route answers, and borrowed
+Abstract occurrences. It carries no semantic identity. Its owner supplies the
+release operation, while the receiving Context owns when that operation is
+called.
+
+Snapshotting is not leaf enumeration. Reconstructing a generic list from an
+Enumerable view would discard stronger Named, Composite, or Reindexed facts.
+The concrete Layout owner performs the copy so Context never selects a Layout
+family or acquires the machinery that originally established the projection.
 
 An empty Layout visits no entries. It fits another empty Layout and describes no
-stable value or address, regardless of which concrete Type or Pack exposes it.
+stable value or address, regardless of which concrete Domain or Pack exposes it.
 
 ## Interface
 
@@ -344,9 +397,10 @@ projection deliberately omits behavior and richer domain meaning.
 
 Interface negotiates the semantic relation that remains after that projection.
 It receives two real Abstracts, treats the first as the requirement and the
-second as the candidate, and returns `Rejected`, `Satisfied`, or `Equivalent`.
-Satisfied is directional. Equivalent is reserved for a relation proved in both
-directions by the concrete negotiator.
+second as the candidate, and returns `Unknown`, `Rejected`, `Satisfied`, or
+`Equivalent`. Unknown keeps that ordered relationship unsettled. Rejected
+completes it negatively. Satisfied proves the requested direction. Equivalent
+records the stronger relation established by that exact requirement.
 
 An Interface may use Layout fitting and shared category proof as evidence, but
 matching Layouts alone never imply semantic equivalence. A Callable Interface
@@ -355,7 +409,7 @@ or policy. Another Interface may negotiate resources, lifecycle roles, or a
 domain that carries no value flow.
 
 Interface carries no semantic identity and retains no copied inventory of the
-Abstracts it compares. It creates no Alias, wrapper, common Type, or dependency
+Abstracts it compares. It creates no Alias, wrapper, common Domain, or dependency
 between their Dialects. The concrete owner selects the negotiator appropriate
 to its semantic question.
 
@@ -365,10 +419,9 @@ Terminal may derive the Projection required by its target ABI. Without that valu
 the candidate remains concrete and incurs no runtime dispatch merely because an
 Interface accepted it.
 
-`Abstract::satisfies(requirement)` is the higher order routing hook used by an
-explicit erased value. The concrete candidate owner answers one exact semantic
-question without moving its Type system into TTX. The default answer is false.
-This query records no relation object and creates no physical Projection.
+An explicit erased value retains the candidate and exact positive Interface
+witness owned by its concrete language. It never recovers category proof by
+casting a native object or comparing operation table addresses.
 
 ## Documentation
 
@@ -388,9 +441,11 @@ not contribute Documentation. Formatting preserves their authored content.
 ## Host ABI
 
 The TTX concept and model contracts are expressible as C handles and immutable
-operation tables. A handle address is the live semantic identity. Category
-views, Layouts, Packs, Contexts, Interfaces, and stateful Callable handles carry
-no second semantic identity.
+operation tables. One authority token plus one value token is the live semantic
+identity. The operations pointer is borrowed dispatch machinery and may change
+across a bridge without changing that identity. Category views, Layouts, Packs,
+Contexts, Interfaces, and stateful Callable handles carry no second semantic
+identity.
 
 The ABI uses no C++ template proof, inheritance, RTTI, native type address,
 `void*` callback context, or container contract. A concrete owner retains any
@@ -410,17 +465,25 @@ retained state without an erased context pointer. Concept and Layout visits are
 synchronous and the receiver retains no Callable after returning.
 
 Context is a caller owned result domain. Its sole authority is `pack(layout)`.
-It copies the visited shape and every presented name into caller supplied
-storage, borrows the real Abstract identities, and retains the resulting Packs
-for the Context lifetime. Concept visitation does not allocate a Context or a
-Pack.
+It asks the supplied Layout to transfer an owned support snapshot, verifies that
+the snapshot remains Enumerable, and retains it behind the resulting Pack for
+the Context lifetime. The snapshot continues to borrow the real Abstract
+identities. The input Layout needs to remain valid only until `pack(layout)`
+returns, while the graph owner must outlive every Context borrowing its
+Abstracts. Concept visitation does not allocate a Context or a Pack.
+
+`pack(layout)` publishes atomically. A snapshot, allocation, capacity, or
+transport failure publishes no Pack and is a support failure rather than
+semantic Unknown or None. Context never infers that an Enumerable relationship
+Layout represents produced flow. The concrete operation calling `pack(layout)`
+owns that precondition.
 
 ## Consumers and Terminal products
 
 Concrete languages may define expressions, constants, generic formulas,
 mutation capabilities, receiver roles, executable bodies, and concrete scalar
-Types. Their value producing expressions participate as Packs and retain exact
-TTX Type, Layout, Addressable, and Callable edges.
+types. Their value producing expressions participate as Packs and retain exact
+TTX Domain, Layout, Addressable, and Callable edges.
 
 Targets may derive sizes, offsets, pointer forms, address spaces, registers,
 ABI carriers, and executable addresses. Runtimes may add managed storage,
@@ -450,10 +513,10 @@ or common byte container.
 Each Terminal format belongs to its concrete producer. The format may retain
 source presentation, target representation, or reconstruction facts defined by
 semantic owners according to that producer's purpose. The Terminal itself is
-never an Abstract, Type, Pack, Layout, Addressable, or Callable.
+never an Abstract, Domain, Pack, Layout, Addressable, or Callable.
 
 A target Terminal such as LLVM IR or an object module does not become a
-semantic source of truth. Target Types, offsets, registers, address spaces,
+semantic source of truth. Target types, offsets, registers, address spaces,
 calling convention records, and pointer representations remain derived facts
 owned by that compilation. They are not copied back into the graph.
 
@@ -473,7 +536,7 @@ behavior, completion, and concrete owner facts. Equivalence does not require
 the same internal graph shape, process addresses, or old handle values.
 
 The Terminal producer defines that observation set. It may retain only the
-Types, Addressables, Callables, constant Pack flow, and owner facts that later
+Domains, Addressables, Callables, constant Pack flow, and owner facts that later
 consumers can query through its contract. Source declarations, executable
 bodies, and intermediate expressions are not implied observations. A compiled
 Package may therefore pair a semantic Terminal that reconstructs its query
@@ -481,8 +544,8 @@ surface with a native Terminal that supplies execution. Recompilation remains
 a source or live Workspace operation.
 
 Structural coincidence is never enough for reconstruction. A reader cannot
-infer Type identity from matching Layouts, recover owner relations from target
-offsets, or treat a Terminal Type as the original semantic Type.
+infer Domain identity from matching Layouts, recover owner relations from target
+offsets, or treat a Terminal type as the original semantic Domain.
 
 ## Semantic invariants
 
@@ -494,14 +557,15 @@ offsets, or treat a Terminal Type as the original semantic Type.
 5. Incomplete semantic queries return Unknown, while completed absence returns
    None; neither answer is a null edge.
 6. Later construction never changes an identity already returned successfully.
-7. Alias preserves local identity while redirecting represented identity.
-8. TTX Type and Addressable impose no Static or Self receiver routing policy.
-9. An atomic Type exposes itself as one terminal `Value` Layout entry.
-   Every Type admitted to value flow has a nonempty Layout, Addressable reaches
-   one such Type, and Callable supplies complete parameter and result Layouts.
+7. Alias transparently forwards every observation to one required spot resolved
+   referent and exposes no separate contract.
+8. Domain and Addressable impose no Static or Self receiver routing policy.
+9. An atomic Domain exposes its exact producer relationship through one `Value`
+   Layout entry. Every Domain admitted to value flow has a nonempty Layout, and
+   Callable supplies parameter and result Layouts.
 10. Pack is an identity-free support value whose Layout names the actual
     producers directly.
-11. Type, Addressable, Callable, Pack, Layout, and Interface remain independent
+11. Domain, Addressable, Callable, Pack, Layout, and Interface remain independent
     contracts. TTX defines no universal member model over them.
 12. Layout owns promised shape and directional fitting, not produced value
     identity or copied semantic or physical records. Visitation order is
@@ -509,9 +573,9 @@ offsets, or treat a Terminal Type as the original semantic Type.
 13. Interface negotiates a semantic relation over real Abstracts without
     creating identity, copying either graph, or making equal Layouts imply
     equal meaning.
-14. Every completed concrete Type admitted to ordinary value flow has one
-    language owned semantic default. TTX neither derives it from target bits
-    nor makes it a shared identity or Type query.
+14. Construction, initialization, fitting, folding, visibility, storage, and
+    target representation remain independently owned concepts rather than
+    Domain methods.
 15. Concrete language, package, target, runtime, and diagnostic policy remain
     outside TTX.
 16. A borrowed handle preserves one exact object and never resolves or
@@ -520,6 +584,8 @@ offsets, or treat a Terminal Type as the original semantic Type.
     owner and never crosses a Terminal boundary.
 18. A Terminal product is outside the semantic graph and belongs to no TTX
     identity category.
+19. A Layout owner transfers an independently owned support snapshot to Context.
+    Context never reconstructs a stronger Layout from Enumerable leaves.
 19. Target facts specific to a Terminal never flow backward into the graph as
     semantic authority.
 20. Reconstruction without source creates a new live graph through its graph

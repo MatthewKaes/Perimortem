@@ -10,6 +10,59 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "abi",
+    srcs = [
+        "abi.cpp",
+        "context.cpp",
+        "query.cpp",
+    ],
+    hdrs = [
+        "abi.h",
+        "query.hpp",
+    ],
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+)
+
+cc_library(
+    name = "cpp",
+    srcs = [
+        "abstract.cpp",
+        "alias.cpp",
+        "callable.cpp",
+        "composite.cpp",
+        "domain.cpp",
+        "fluid.cpp",
+        "fitting.cpp",
+        "finite_extent.cpp",
+        "layout.cpp",
+        "named.cpp",
+        "ranged.cpp",
+        "route.cpp",
+        "value_layout.cpp",
+    ],
+    hdrs = [
+        "abstract.hpp",
+        "alias.hpp",
+        "callable.hpp",
+        "composite.hpp",
+        "domain.hpp",
+        "fluid.hpp",
+        "fitting.hpp",
+        "finite_extent.hpp",
+        "layout.hpp",
+        "named.hpp",
+        "ranged.hpp",
+        "route.hpp",
+        "value_layout.hpp",
+    ],
+    deps = [":abi"],
+)
+
+cc_library(
     name = "lexical",
     srcs = glob([
         "lexical/**/*.cpp",
