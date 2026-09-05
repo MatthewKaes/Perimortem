@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/field.hpp"
-#include "ttx/concept/interface.h"
+#include "ttx/abi.h"
 
 namespace Tetrodotoxin::Library::Language::Interfaces {
 

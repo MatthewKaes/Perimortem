@@ -13,37 +13,41 @@
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
-// Body owns every mutable LLVM fact for one executable Library Body. Module
-// facts remain on Program while this transaction owns values, local addresses,
-// insertion state, and scoped lifetime records.
+// Body owns the mutable LLVM state for one executable Library body. Program
+// retains module-wide declarations, while this transaction owns values, local
+// addresses, insertion state, and scoped lifetime records.
 class Body : public Emission {
  public:
   using NativeValues = Perimortem::Memory::Dynamic::Vector<LLVMValueRef>;
 
   class TargetAddress {
    public:
-    constexpr TargetAddress(const Ttx::Model::Type& type, LLVMValueRef address)
+    constexpr TargetAddress(
+        const Ttx::Model::Domain& type,
+        LLVMValueRef address)
         : type(&type), address(address) {}
 
-    constexpr auto get_type() const -> const Ttx::Model::Type& { return *type; }
+    constexpr auto get_type() const -> const Ttx::Model::Domain& {
+      return *type;
+    }
 
     constexpr auto get_address() const -> LLVMValueRef { return address; }
 
    private:
-    const Ttx::Model::Type* type;
+    const Ttx::Model::Domain* type;
     LLVMValueRef address;
   };
 
   class IndexedTarget {
    public:
     constexpr IndexedTarget(
-        const Ttx::Model::Type& type,
+        const Ttx::Model::Domain& type,
         LLVMTypeRef native_type,
         LLVMValueRef data,
         LLVMValueRef length,
@@ -56,7 +60,9 @@ class Body : public Emission {
           first(first),
           range_size(range_size) {}
 
-    constexpr auto get_type() const -> const Ttx::Model::Type& { return *type; }
+    constexpr auto get_type() const -> const Ttx::Model::Domain& {
+      return *type;
+    }
 
     constexpr auto get_native_type() const -> LLVMTypeRef {
       return native_type;
@@ -73,7 +79,7 @@ class Body : public Emission {
     }
 
    private:
-    const Ttx::Model::Type* type;
+    const Ttx::Model::Domain* type;
     LLVMTypeRef native_type;
     LLVMValueRef data;
     LLVMValueRef length;
@@ -191,7 +197,7 @@ class Body : public Emission {
 
   auto publish_target_address(
       const Tetrodotoxin::Library::Language::Model::Pack& pack,
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       LLVMValueRef address) -> Bool;
 
   auto find_indexed_target(
@@ -200,7 +206,7 @@ class Body : public Emission {
 
   auto publish_indexed_target(
       const Tetrodotoxin::Library::Language::Model::Pack& pack,
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       LLVMTypeRef native_type,
       LLVMValueRef data,
       LLVMValueRef length,
@@ -216,16 +222,16 @@ class Body : public Emission {
 
   auto get_storage_depth() const -> Count;
 
-  auto register_storage(const Ttx::Model::Type& type, LLVMValueRef address)
+  auto register_storage(const Ttx::Model::Domain& type, LLVMValueRef address)
       -> Bool;
 
   auto resize_storage(Count size) -> Bool;
 
-  auto mark_owned(const Ttx::Model::Type& type, LLVMValueRef value) -> void;
+  auto mark_owned(const Ttx::Model::Domain& type, LLVMValueRef value) -> void;
 
   auto take_owned(LLVMValueRef value) -> Bool;
 
-  auto acquire(const Ttx::Model::Type& type, LLVMValueRef value) -> Bool;
+  auto acquire(const Ttx::Model::Domain& type, LLVMValueRef value) -> Bool;
 
   auto emit_storage_cleanup(Count first) -> Bool;
 
@@ -287,11 +293,11 @@ class Body : public Emission {
   Perimortem::Memory::Dynamic::Vector<BlockScope> block_scopes;
   Perimortem::Memory::Dynamic::Vector<LoopTargets> loops;
   struct OwnedStorage {
-    const Ttx::Model::Type* type;
+    const Ttx::Model::Domain* type;
     LLVMValueRef address;
   };
   struct OwnedValue {
-    const Ttx::Model::Type* type;
+    const Ttx::Model::Domain* type;
     LLVMValueRef value;
   };
   Perimortem::Memory::Dynamic::Vector<OwnedStorage> owned_storages;

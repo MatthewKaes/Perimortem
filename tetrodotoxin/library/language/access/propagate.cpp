@@ -6,8 +6,9 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/propagation.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -32,9 +33,11 @@ auto Language::Access::Propagate::link(
     Core::Option<const Abstract&> access_scope) -> Bool {
   BAIL_IF(!receiver.link(cursor, lexical_context, access_scope));
   auto selected_type = receiver.get_type().resolve().select<Model::Type>();
-  auto propagated = selected_type ? selected_type->get_propagated_type()
-                                  : Core::Option<const Model::Type&>();
-  if (!selected_type || !propagated) {
+  auto propagation = selected_type
+                         ? selected_type->resolve_concept("propagation"_view)
+                               .select<Model::Propagation>()
+                         : Core::Option<const Model::Propagation&>();
+  if (!selected_type || !propagation) {
     cursor.create_expression_error(
         get_anchor(), "Postfix `?` requires a propagating value Type."_view,
         "Use Option, Bool, Result, or another Type that defines propagation."_view);
@@ -49,7 +52,8 @@ auto Language::Access::Propagate::link(
     return False;
   }
 
-  auto propagated_error = selected_type->get_propagated_error_type();
+  const Model::Type& propagated = propagation->continuation();
+  auto propagated_error = propagation->escape();
   if (propagated_error) {
     if (error_type && *error_type != &*propagated_error) {
       cursor.create_expression_error(
@@ -99,7 +103,7 @@ auto Language::Access::Propagate::link(
     return False;
   }
 
-  if (continuation_type && *continuation_type != &*propagated) {
+  if (continuation_type && *continuation_type != &propagated) {
     cursor.create_expression_error(
         get_anchor(),
         "Postfix `?` selected a different continuation Type."_view,
@@ -108,7 +112,7 @@ auto Language::Access::Propagate::link(
   }
 
   receiver_type = &*selected_type;
-  continuation_type = &*propagated;
+  continuation_type = &propagated;
   return Expression::link(cursor, lexical_context, access_scope);
 }
 

@@ -10,7 +10,7 @@
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 

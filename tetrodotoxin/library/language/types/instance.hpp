@@ -6,8 +6,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/map.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -18,7 +18,6 @@ class Instance : public Ttx::Concept::Abstract {
   constexpr explicit Instance(Perimortem::Memory::Allocator::Arena& arena)
       : bindings(arena) {}
 
-  TTX_CONTRACT(Instance, Ttx::Concept::Abstract);
   TTX_NAME("instance"_view);
   TTX_EMPTY_DOCUMENTATION();
 

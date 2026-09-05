@@ -41,8 +41,8 @@ cc_library(
     srcs = [
         "core/algorithm/search.cpp",
         "core/bibliotheca.c",
-        "core/diagnostics/log.cpp",
         "core/diagnostics/fatal.c",
+        "core/diagnostics/log.cpp",
         "core/diagnostics/source.cpp",
         "core/hash.c",
         "core/implementation.c",

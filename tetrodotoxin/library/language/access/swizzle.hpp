@@ -26,7 +26,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // eagerly materialized Type.
 class Swizzle : public Expression {
  public:
-  TTX_CONTRACT(Swizzle, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -59,6 +58,16 @@ class Swizzle : public Expression {
 
   constexpr auto get_selections() const { return selections.get_view(); }
 
+  // A Type-based Swizzle constructs one Address expression for each selected
+  // member. Exposing those Packs preserves their ordinary evaluation edges, so
+  // a Terminal can lower the resulting flow without learning how Swizzle found
+  // the members. Direct Pack selection keeps this empty because its values
+  // remain occurrences of the receiver rather than new expressions.
+  constexpr auto get_entries() const
+      -> Perimortem::Core::View::Vector<Language::Model::Pack*> override {
+    return projection_packs;
+  }
+
  private:
   Swizzle(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -72,7 +81,8 @@ class Swizzle : public Expression {
         name_tokens(name_tokens),
         names(names),
         selections(domain),
-        projections(domain) {}
+        projections(domain),
+        projection_packs(domain) {}
 
   Perimortem::Memory::Allocator::Arena& domain;
   Language::Model::Pack& receiver;
@@ -81,6 +91,8 @@ class Swizzle : public Expression {
   Perimortem::Memory::Managed::Vector<Count> selections;
   Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*>
       projections;
+  Perimortem::Memory::Managed::Vector<Language::Model::Pack*>
+      projection_packs;
   Perimortem::Core::Option<const Ttx::Concept::Layout&> output;
 };
 

@@ -22,7 +22,7 @@ Types::ObjectStorage::ObjectStorage(
     const Model::Type& flag_type,
     const Model::Type& view_type,
     const Model::Type& access_type)
-    : name(name), element(element) {
+    : name(name), element(element), initialization(*this) {
   auto& capacity = Builtin::Object::Capacity::create(domain, *this, size_type);
   auto& clone = Builtin::Object::Clone::create(domain, *this);
   auto& is_shared = Builtin::Object::IsShared::create(domain, *this, flag_type);
@@ -38,7 +38,20 @@ Types::ObjectStorage::ObjectStorage(
   publish_callable(domain, reserve, True);
 }
 
-auto Types::ObjectStorage::create_default(
+auto Types::ObjectStorage::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::Object::create(arena, *this);
+}
+
+auto Types::ObjectStorage::resolve_concept(View::Bytes route) const
+    -> const Ttx::Concept::Abstract& {
+  return route == "initialization"_view
+             ? static_cast<const Ttx::Concept::Abstract&>(initialization)
+             : Model::Type::resolve_concept(route);
+}
+
+void Types::ObjectStorage::visit_concepts(
+    ttx_named_abstract_callable* visitor) const {
+  Model::Type::visit_concepts(visitor);
+  visit_concept(visitor, "initialization"_view, initialization);
 }

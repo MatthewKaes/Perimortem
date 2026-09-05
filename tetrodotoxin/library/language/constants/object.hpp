@@ -11,7 +11,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // It carries no allocation while preserving the exact materialized Type.
 class Object : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Object, Tetrodotoxin::Library::Language::Constant);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

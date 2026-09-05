@@ -25,7 +25,6 @@ namespace Tetrodotoxin::Scene::Language {
 // Archive, and Terminal consumers one graph instead of parallel Scene records.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

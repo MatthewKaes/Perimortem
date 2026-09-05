@@ -19,14 +19,13 @@
 namespace Tetrodotoxin::Library::Language::Flow {
 
 // Local is one Addressable declaration retained directly by its lexical Block.
-// It owns its source name, declared or inferred Type, and initializer Pack
-// without acquiring member Visibility or a shared Definition prefix. The
-// declared Type receives the complete Pack Layout. Inference is deliberately
-// limited to one scalar output because a Local cannot silently materialize a
-// new aggregate Type for composed flow.
+// The declaration keeps its source name, declared or inferred Type, and
+// initializer Pack without acquiring member Visibility or a shared Definition
+// prefix. Its declared Type receives the complete Pack Layout, while inference
+// stays limited to one scalar output so composed flow cannot silently
+// materialize a new aggregate Type.
 class Local : public Model::Addressable {
  public:
-  TTX_CONTRACT(Local, Model::Addressable);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -129,8 +128,8 @@ class Local : public Model::Addressable {
   Perimortem::Core::Option<TypeReference> type_reference;
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<const Model::Type*> type;
-  mutable const ttx_abstract* folded_input = nullptr;
-  mutable const ttx_abstract* folded_result = nullptr;
+  mutable const Ttx::Concept::Abstract* folded_input = nullptr;
+  mutable const Ttx::Concept::Abstract* folded_result = nullptr;
   Ttx::Lexical::Anchor anchor;
   Bool initializer_linked;
 };

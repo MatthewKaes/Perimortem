@@ -9,9 +9,9 @@
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -23,7 +23,6 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // flow and flow with several values share one lifecycle without optional state.
 class Return : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Return, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

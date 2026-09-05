@@ -6,7 +6,7 @@
 #include "perimortem/core/view/bytes.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 

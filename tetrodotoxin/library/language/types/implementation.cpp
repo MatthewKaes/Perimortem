@@ -11,7 +11,7 @@ using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library::Language;
 
-auto Types::Implementation::create_default(
+auto Types::Implementation::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::Implementation::create_empty(arena, *this);
 }
@@ -39,6 +39,12 @@ auto Types::Implementation::validate_layout(Ttx::Lexical::Cursor& cursor) const
 
 auto Types::Implementation::resolve_concept(View::Bytes route) const
     -> const Abstract& {
+  if (route == "admission"_view) {
+    return admission;
+  }
+  if (route == "initialization"_view) {
+    return initialization;
+  }
   if (route != "instance"_view) {
     return Model::Type::resolve_concept(route);
   }
@@ -46,4 +52,11 @@ auto Types::Implementation::resolve_concept(View::Bytes route) const
   auto interface = requirement->resolve().select<Types::Interface>();
   return interface ? interface->resolve_concept("instance"_view)
                    : static_cast<const Abstract&>(Unknown::get_unknown());
+}
+
+void Types::Implementation::visit_concepts(
+    ttx_named_abstract_callable* visitor) const {
+  Model::Type::visit_concepts(visitor);
+  visit_concept(visitor, "admission"_view, admission);
+  visit_concept(visitor, "initialization"_view, initialization);
 }

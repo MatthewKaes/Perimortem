@@ -5,7 +5,7 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
-#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 

@@ -13,6 +13,7 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
@@ -44,7 +45,8 @@ static auto lower_local(
       !type || !Llvm::Lowering::Types::prepare(execution.get_program(), *type));
   Core::Option<const Model::Pack&> value = local.get_initializer();
   if (!value) {
-    auto created = type->create_default(execution.get_program().get_arena());
+    auto created =
+        Model::initialize_default(*type, execution.get_program().get_arena());
     BAIL_IF(!created);
     value = *created;
   }

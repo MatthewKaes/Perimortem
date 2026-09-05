@@ -12,7 +12,7 @@
 #include "tetrodotoxin/library/language/model/layout.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Library::Archive {
 

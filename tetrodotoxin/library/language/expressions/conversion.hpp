@@ -11,13 +11,12 @@
 namespace Tetrodotoxin::Library::Language::Expressions {
 
 // Conversion is the explicit scalar construction selected by `new[Target]`.
-// It keeps the real source Pack and destination Value Type as graph edges, so
-// folding and Terminals can apply the same total conversion without treating
-// target representation as language meaning. Integer bounds are saturated,
-// real to integer conversion truncates toward zero, and NaN becomes zero.
+// By retaining the real source Pack and destination Value Type as graph edges,
+// it gives folding and Terminals the same total conversion without turning a
+// target representation into language meaning. Integer bounds are saturated,
+// real-to-integer conversion truncates toward zero, and NaN becomes zero.
 class Conversion : public Expression {
  public:
-  TTX_CONTRACT(Conversion, Expression);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
@@ -66,6 +65,7 @@ class Conversion : public Expression {
   Perimortem::Memory::Allocator::Arena& arena;
   const Model::Types::Value* target;
   Model::Pack* source;
+  Model::Pack* folded = nullptr;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Expressions

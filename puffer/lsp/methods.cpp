@@ -321,7 +321,7 @@ auto Puffer::Lsp::hover(Documents& documents, const Rpc::Message& message)
   }
 
   return message.report_result(
-      semantic_hover(message.get_arena(), semantic->get_abi()));
+      semantic_hover(message.get_arena(), semantic->get_handle()));
 }
 
 auto Puffer::Lsp::definition(Documents& documents, const Rpc::Message& message)

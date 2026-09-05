@@ -8,9 +8,10 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
-#include "ttx/bootstrap/concept/constant.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/admission.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -234,7 +235,7 @@ auto Language::Flow::Local::resolve_fold() const -> const Abstract& {
     return Unknown::get_unknown();
   }
   if (source->get_layout().is_empty() && folded_input && folded_result) {
-    return Abstract::from_abi(folded_result);
+    return *folded_result;
   }
   auto input_pack =
       query_folded_pack(domain, const_cast<Model::Pack&>(*source));
@@ -242,20 +243,20 @@ auto Language::Flow::Local::resolve_fold() const -> const Abstract& {
     return query_fold(*source);
   }
   const Abstract& input = *input_pack->get_identity();
-  if (folded_input == input.get_abi() && folded_result) {
-    return Abstract::from_abi(folded_result);
+  if (folded_input == &input && folded_result) {
+    return *folded_result;
   }
   auto local_type = get_type().select<Model::Type>();
   if (!local_type) {
     return None::get_none();
   }
-  auto fitted = local_type->create_fitted(domain, *input_pack);
+  auto fitted = Model::admit(*local_type, domain, *input_pack);
   const Abstract& result =
       fitted ? fold_answer(Core::Option<Model::Pack&>(*fitted)) : input;
   if (!Ttx::Concept::Constant::prove(result)) {
     return None::get_none();
   }
-  folded_input = input.get_abi();
-  folded_result = result.get_abi();
+  folded_input = &input;
+  folded_result = &result;
   return result;
 }

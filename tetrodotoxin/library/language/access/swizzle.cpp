@@ -3,12 +3,17 @@
 
 #include "tetrodotoxin/library/language/access/swizzle.hpp"
 
+#include <cstddef>
+#include <cstdlib>
+#include <vector>
+
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
-#include "ttx/bootstrap/model/layouts/value.hpp"
+#include "ttx/model/layouts/reindexed.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/reference/model/layouts/value.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -52,86 +57,180 @@ static auto select_named(const Layout& layout, Core::View::Bytes name)
   return selected;
 }
 
-// Direct Pack selection retains exactly two facts: the real receiver producer
-// and the selected source indices. The receiver continues to own value
-// identity and local slot descriptor fitting. This identity free Layout only
-// publishes the selected order and returns the original producer on reflection.
-static auto create_layout(
-    Memory::Allocator::Arena& domain,
-    const Language::Access::Swizzle& source,
-    const Language::Model::Pack& receiver,
-    Core::View::Vector<Count> selections) -> const Ttx::Concept::Layout& {
-  class Layout final : public Ttx::Concept::Layout {
-   public:
-    constexpr Layout(
-        const Language::Access::Swizzle& source,
-        const Language::Model::Pack& receiver,
-        Core::View::Vector<Count> selections)
-        : source(source), receiver(receiver), selections(selections) {}
+static auto structural_path(Count index) -> std::vector<uint8_t> {
+  std::vector<uint8_t> path(sizeof(uint64_t));
+  for (uint64_t byte = 0; byte < path.size(); ++byte) {
+    path[byte] = uint8_t(uint64_t(index) >> (byte * 8));
+  }
+  return path;
+}
 
-    constexpr auto get_size() const -> Count override {
-      return selections.get_size();
+class DirectSwizzleLayout final : public Ttx::Concept::Layout {
+ public:
+  DirectSwizzleLayout(
+      const Language::Model::Pack& receiver,
+      Core::View::Vector<Count> selections)
+      : receiver(receiver),
+        selections(selections),
+        reindexed_binding({
+          .operations =
+              {
+                .header =
+                    {
+                      .size = sizeof(ttx_reindexed_layout_ops),
+                      .abi_major = TTX_ABI_MAJOR,
+                      .abi_minor = TTX_ABI_MINOR,
+                    },
+                .candidate = reindexed_candidate,
+                .source = reindexed_source,
+                .projection = reindexed_projection,
+                .visit_mappings = visit_mappings,
+              },
+        }) {}
+
+  constexpr auto get_size() const -> Count override {
+    return selections.get_size();
+  }
+
+  constexpr auto get_abstract(Count index) const
+      -> Core::Option<const Abstract&> override {
+    BAIL_IF(index >= get_size());
+    return receiver.get_layout().get_abstract(selections[index]);
+  }
+
+  auto fits_entry(
+      const Ttx::Concept::Layout& target,
+      Count source_index,
+      Count target_index) const -> Bool override {
+    BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
+    Count selected = selections[source_index];
+    auto source_name = receiver.get_layout().get_name(selected);
+    auto target_entry = target.get_abstract(target_index);
+    BAIL_IF(!source_name || !target_entry);
+
+    // Selection removes the source name from output flow, but the receiver's
+    // Named relationship still owns whether that selected occurrence fits the
+    // target. The temporary one-slot view asks that question without copying
+    // the receiver's route table into Swizzle.
+    Core::View::Bytes slot_names[] = {*source_name};
+    Ttx::Model::Layouts::Value target_value(*target_entry);
+    Memory::Allocator::Arena arena;
+    Ttx::Model::Layouts::Named target_slot(arena, target_value, slot_names);
+    return receiver.fits_entry(target_slot, selected, 0);
+  }
+
+  auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+      -> Bool override {
+    BAIL_IF(!has_target_segment(target, target_offset));
+    for (Count index = 0; index < get_size(); index++) {
+      BAIL_IF(!fits_entry(target, index, target_offset + index));
     }
+    return True;
+  }
 
-    constexpr auto get_abstract(Count index) const
-        -> Core::Option<const Abstract&> override {
-      BAIL_IF(index >= get_size());
-      return source;
+  auto get_fitted_at(
+      const Ttx::Concept::Layout& target,
+      Count target_offset,
+      Count target_index) const
+      -> Utility::Result<const Abstract&, Errors> override {
+    if (target_index >= get_size()) {
+      return Errors::IndexOutOfBounds;
     }
-
-    auto fits_entry(
-        const Ttx::Concept::Layout& target,
-        Count source_index,
-        Count target_index) const -> Bool override {
-      BAIL_IF(source_index >= get_size() || target_index >= target.get_size());
-      Count selected = selections[source_index];
-      auto source_name = receiver.get_layout().get_name(selected);
-      auto target_entry = target.get_abstract(target_index);
-      BAIL_IF(!source_name || !target_entry);
-
-      // Selection makes output positional, so lend the original source name to
-      // this one real target entry only while its descriptor is checked. These
-      // standard identity free Layout values create no producer or retained
-      // mapping beside the selected source index.
-      Core::View::Bytes slot_names[] = {*source_name};
-      Ttx::Model::Layouts::Value target_value(*target_entry);
-      Ttx::Model::Layouts::Named target_slot(target_value, slot_names);
-      return receiver.fits_entry(target_slot, selected, 0);
+    if (!has_target_segment(target, target_offset)) {
+      return Errors::SizeMismatch;
     }
-
-    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
-        -> Bool override {
-      BAIL_IF(!has_target_segment(target, target_offset));
-      for (Count index = 0; index < get_size(); index++) {
-        BAIL_IF(!fits_entry(target, index, target_offset + index));
-      }
-      return True;
+    if (!fits_at(target, target_offset)) {
+      return Errors::IncompatibleFit;
     }
+    auto producer = get_abstract(target_index);
+    return producer ? Utility::Result<const Abstract&, Errors>(*producer)
+                    : Utility::Result<const Abstract&, Errors>(
+                          Errors::IncompatibleFit);
+  }
 
-    auto get_fitted_at(
-        const Ttx::Concept::Layout& target,
-        Count target_offset,
-        Count target_index) const
-        -> Utility::Result<const Abstract&, Errors> override {
-      if (target_index >= get_size()) {
-        return Errors::IndexOutOfBounds;
-      }
-      if (!has_target_segment(target, target_offset)) {
-        return Errors::SizeMismatch;
-      }
-      if (!fits_at(target, target_offset)) {
-        return Errors::IncompatibleFit;
-      }
-      return source;
-    }
+  void snapshot(ttx_layout_snapshot_result result) const override {
+    Ttx::Layouts::Reindexed canonical(
+        receiver.get_layout().get_handle(), get_handle(), mappings());
+    canonical.snapshot(result);
+  }
 
-   private:
-    const Language::Access::Swizzle& source;
-    const Language::Model::Pack& receiver;
-    Core::View::Vector<Count> selections;
+  void reindexed(ttx_reindexed_layout_result result) const override {
+    result.operations->satisfied(
+        result,
+        {
+          .operations = &reindexed_binding.operations,
+          .self = reinterpret_cast<ttx_reindexed_layout_self*>(
+              const_cast<DirectSwizzleLayout*>(this)),
+        });
+  }
+
+ private:
+  struct ReindexedBinding {
+    ttx_reindexed_layout_ops operations;
   };
 
-  return domain.construct<Layout>(source, receiver, selections);
+  auto mappings() const -> std::vector<Ttx::Layouts::Reindexed::Mapping> {
+    std::vector<Ttx::Layouts::Reindexed::Mapping> result;
+    result.reserve(get_size());
+    for (Count output = 0; output < get_size(); ++output) {
+      result.push_back({
+        .output = structural_path(output),
+        .source = structural_path(selections[output]),
+      });
+    }
+    return result;
+  }
+
+  static auto select(ttx_reindexed_layout self) -> const DirectSwizzleLayout& {
+    if (self.operations == nullptr || self.self == nullptr) {
+      std::abort();
+    }
+    return *reinterpret_cast<const DirectSwizzleLayout*>(self.self);
+  }
+
+  static auto TTX_CALL reindexed_candidate(ttx_reindexed_layout self)
+      -> ttx_layout {
+    return select(self).get_handle();
+  }
+
+  static auto TTX_CALL reindexed_source(ttx_reindexed_layout self)
+      -> ttx_layout {
+    return select(self).receiver.get_layout().get_handle();
+  }
+
+  static auto TTX_CALL reindexed_projection(ttx_reindexed_layout self)
+      -> ttx_layout {
+    return select(self).get_handle();
+  }
+
+  static void TTX_CALL visit_mappings(
+      ttx_reindexed_layout self,
+      ttx_reindex_sink result) {
+    for (const Ttx::Layouts::Reindexed::Mapping& mapping :
+         select(self).mappings()) {
+      result.operations->mapping(
+          result,
+          {.data = mapping.output.data(), .size = mapping.output.size()},
+          {.data = mapping.source.data(), .size = mapping.source.size()});
+    }
+    result.operations->completed(result);
+  }
+
+  const Language::Model::Pack& receiver;
+  Core::View::Vector<Count> selections;
+  ReindexedBinding reindexed_binding;
+};
+
+// Direct Pack selection keeps the receiver Layout as its source and publishes
+// only the completed output-to-source path mapping. Consumers observe the
+// selected producers through Reindexed without learning how Swizzle resolved
+// the authored names.
+static auto create_layout(
+    Memory::Allocator::Arena& domain,
+    const Language::Access::Swizzle&,
+    const Language::Model::Pack& receiver,
+    Core::View::Vector<Count> selections) -> const Ttx::Concept::Layout& {
+  return domain.construct<DirectSwizzleLayout>(receiver, selections);
 }
 
 auto Language::Access::Swizzle::create_authored(
@@ -267,8 +366,13 @@ auto Language::Access::Swizzle::link(
     }
 
     projections.reset(created.get_size());
+    projection_packs.reset(created.get_size());
     for (const Abstract* projection : created.get_view()) {
       projections.insert(projection);
+      auto pack = Language::Model::Pack::from(
+          const_cast<Abstract&>(*projection));
+      BAIL_IF(!pack);
+      projection_packs.insert(&*pack);
     }
     output =
         domain.construct<Ttx::Model::Layouts::Fluid>(projections.get_view());

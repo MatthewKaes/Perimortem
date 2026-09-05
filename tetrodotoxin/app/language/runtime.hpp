@@ -8,7 +8,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Tetrodotoxin::App::Language {
@@ -84,7 +84,6 @@ class Runtime : public Ttx::Concept::Abstract {
     Perimortem::Core::Option<Bool> resizable;
   };
 
-  TTX_CONTRACT(Runtime, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,

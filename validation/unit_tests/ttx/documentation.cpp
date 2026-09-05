@@ -5,12 +5,11 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/bootstrap/model/documentations/block.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/block.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
-using namespace Ttx::Model;
 using namespace Validation;
 
 static Harness TtxDocumentation = {
@@ -18,10 +17,11 @@ static Harness TtxDocumentation = {
 };
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, empty) {
-  const Documentations::Comment& empty = Documentations::Comment::get_empty();
+  const Ttx::Documentations::Comment& empty =
+      Ttx::Documentations::Comment::get_empty();
   const Documentation& documentation = empty;
 
-  EXPECT(&empty == &Documentations::Comment::get_empty());
+  EXPECT(&empty == &Ttx::Documentations::Comment::get_empty());
   EXPECT(documentation.is_empty());
   EXPECT_EQ(documentation.line_count(), Count(0));
   EXPECT(documentation.get_line(0).is_empty());
@@ -33,7 +33,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, lines) {
     "Second"_view,
   }};
 
-  Documentations::Block documentation(lines);
+  Ttx::Documentations::Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT_EQ(documentation.line_count(), Count(2));
@@ -48,7 +48,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
     "Second"_view,
   }};
 
-  Documentations::Block documentation(lines);
+  Ttx::Documentations::Block documentation(lines);
 
   EXPECT_NOT(documentation.is_empty());
   EXPECT(documentation.get_line(0).is_empty());
@@ -56,7 +56,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, empty_line) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxDocumentation, comment) {
-  Documentations::Comment documentation("Stable"_view);
+  Ttx::Documentations::Comment documentation("Stable"_view);
 
   EXPECT_EQ(documentation.line_count(), Count(1));
   EXPECT_TEXT(documentation.get_line(0), "Stable"_view);
@@ -69,7 +69,7 @@ PERIMORTEM_UNIT_TEST(TtxDocumentation, late_bound) {
     "Second"_view,
   }};
 
-  Documentations::Block documentation(lines);
+  Ttx::Documentations::Block documentation(lines);
   lines[0] = "Updated"_view;
 
   EXPECT_TEXT(documentation.get_line(0), "Updated"_view);

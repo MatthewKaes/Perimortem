@@ -80,7 +80,7 @@ PERIMORTEM_UNIT_TEST(ApplicationRunner, reports_window_setup_failure) {
     "DISPLAY"_view,
     "-u"_view,
     "XDG_RUNTIME_DIR"_view,
-    ".bin/bin/apps/ttx/scene_lifetime/scene_lifetime"_view,
+    ".bin/bin/validation/window_failure_fixture"_view,
   };
   Validation::Process::Request request = {
     .executable = "/usr/bin/env"_view,

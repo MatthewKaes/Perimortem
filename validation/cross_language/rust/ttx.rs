@@ -1,7 +1,7 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 pub const ABI_MAJOR: u16 = 1;
 pub const ABI_MINOR: u16 = 0;
@@ -22,13 +22,14 @@ pub struct BorrowedBytes {
 }
 
 macro_rules! handle {
-    ($name:ident, $ops:ident) => {
+    ($name:ident, $ops:ident, $self:ident) => {
+        pub enum $self {}
+
         #[repr(C)]
         #[derive(Copy, Clone)]
         pub struct $name {
             pub operations: *const $ops,
-            pub owner: u64,
-            pub value: u64,
+            pub self_: *mut $self,
         }
 
         unsafe impl Send for $name {}
@@ -36,41 +37,100 @@ macro_rules! handle {
     };
 }
 
-handle!(Abstract, AbstractOps);
-handle!(Documentation, DocumentationOps);
-handle!(Interface, InterfaceOps);
-handle!(Layout, LayoutOps);
-handle!(Pack, PackOps);
-handle!(Context, ContextOps);
-handle!(Enumerable, EnumerableOps);
-handle!(Named, NamedOps);
-handle!(LayoutSnapshot, LayoutSnapshotOps);
-handle!(Callable, CallableOps);
-handle!(Fluid, FluidOps);
-handle!(Route, RouteOps);
-handle!(ValueLayout, ValueLayoutOps);
-handle!(CompositeLayout, CompositeLayoutOps);
-handle!(Extent, ExtentOps);
-handle!(RangedLayout, RangedLayoutOps);
-handle!(BytesSink, BytesSinkOps);
-handle!(AbstractSink, AbstractSinkOps);
-handle!(ConceptSink, ConceptSinkOps);
-handle!(InterfaceSink, InterfaceSinkOps);
-handle!(DomainResult, DomainResultOps);
-handle!(PackResult, PackResultOps);
-handle!(EnumerableResult, EnumerableResultOps);
-handle!(NamedResult, NamedResultOps);
-handle!(LayoutSnapshotResult, LayoutSnapshotResultOps);
-handle!(CallableResult, CallableResultOps);
-handle!(FluidResult, FluidResultOps);
-handle!(RouteResult, RouteResultOps);
-handle!(ValueLayoutResult, ValueLayoutResultOps);
-handle!(CompositeLayoutResult, CompositeLayoutResultOps);
-handle!(ExtentResult, ExtentResultOps);
-handle!(RangedLayoutResult, RangedLayoutResultOps);
-handle!(NamedSelectionResult, NamedSelectionResultOps);
-handle!(LayoutEntrySink, LayoutEntrySinkOps);
-handle!(NamedRouteSink, NamedRouteSinkOps);
+#[repr(C)]
+pub struct AbstractCapability {
+    pub operations: *const AbstractOps,
+}
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Abstract {
+    pub capability: *const AbstractCapability,
+}
+unsafe impl Send for Abstract {}
+unsafe impl Sync for Abstract {}
+impl Abstract {
+    pub unsafe fn ops<'call>(self) -> &'call AbstractOps {
+        assert!(!self.capability.is_null());
+        unsafe { &*(*self.capability).operations }
+    }
+}
+handle!(Documentation, DocumentationOps, DocumentationSelf);
+#[repr(C)]
+pub struct InterfaceCapability {
+    pub operations: *const InterfaceOps,
+}
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+pub struct Interface {
+    pub capability: *const InterfaceCapability,
+}
+impl Interface {
+    unsafe fn ops<'call>(self) -> &'call InterfaceOps {
+        assert!(!self.capability.is_null());
+        unsafe { &*(*self.capability).operations }
+    }
+}
+handle!(Layout, LayoutOps, LayoutSelf);
+handle!(Pack, PackOps, PackSelf);
+handle!(Context, ContextOps, ContextSelf);
+handle!(Enumerable, EnumerableOps, EnumerableSelf);
+handle!(Named, NamedOps, NamedSelf);
+handle!(LayoutSnapshot, LayoutSnapshotOps, LayoutSnapshotSelf);
+handle!(Callable, CallableOps, CallableSelf);
+handle!(Fluid, FluidOps, FluidSelf);
+handle!(Route, RouteOps, RouteSelf);
+handle!(ValueLayout, ValueLayoutOps, ValueLayoutSelf);
+handle!(CompositeLayout, CompositeLayoutOps, CompositeLayoutSelf);
+handle!(Extent, ExtentOps, ExtentSelf);
+handle!(RangedLayout, RangedLayoutOps, RangedLayoutSelf);
+handle!(ReindexedLayout, ReindexedLayoutOps, ReindexedLayoutSelf);
+handle!(Bytes, BytesOps, BytesSelf);
+handle!(BytesSink, BytesSinkOps, BytesSinkSelf);
+handle!(AbstractSink, AbstractSinkOps, AbstractSinkSelf);
+handle!(ConceptSink, ConceptSinkOps, ConceptSinkSelf);
+handle!(InterfaceSink, InterfaceSinkOps, InterfaceSinkSelf);
+handle!(DomainResult, DomainResultOps, DomainResultSelf);
+handle!(PackResult, PackResultOps, PackResultSelf);
+handle!(EnumerableResult, EnumerableResultOps, EnumerableResultSelf);
+handle!(NamedResult, NamedResultOps, NamedResultSelf);
+handle!(
+    LayoutSnapshotResult,
+    LayoutSnapshotResultOps,
+    LayoutSnapshotResultSelf
+);
+handle!(CallableResult, CallableResultOps, CallableResultSelf);
+handle!(FluidResult, FluidResultOps, FluidResultSelf);
+handle!(RouteResult, RouteResultOps, RouteResultSelf);
+handle!(
+    ValueLayoutResult,
+    ValueLayoutResultOps,
+    ValueLayoutResultSelf
+);
+handle!(
+    CompositeLayoutResult,
+    CompositeLayoutResultOps,
+    CompositeLayoutResultSelf
+);
+handle!(ExtentResult, ExtentResultOps, ExtentResultSelf);
+handle!(
+    RangedLayoutResult,
+    RangedLayoutResultOps,
+    RangedLayoutResultSelf
+);
+handle!(
+    ReindexedLayoutResult,
+    ReindexedLayoutResultOps,
+    ReindexedLayoutResultSelf
+);
+handle!(BytesResult, BytesResultOps, BytesResultSelf);
+handle!(
+    NamedSelectionResult,
+    NamedSelectionResultOps,
+    NamedSelectionResultSelf
+);
+handle!(LayoutEntrySink, LayoutEntrySinkOps, LayoutEntrySinkSelf);
+handle!(NamedRouteSink, NamedRouteSinkOps, NamedRouteSinkSelf);
+handle!(ReindexSink, ReindexSinkOps, ReindexSinkSelf);
 
 #[repr(C)]
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -132,6 +192,14 @@ pub struct PackResultOps {
 }
 
 #[repr(C)]
+pub struct BytesResultOps {
+    pub header: AbiHeader,
+    pub unknown: extern "C" fn(BytesResult),
+    pub none: extern "C" fn(BytesResult),
+    pub resolved: extern "C" fn(BytesResult, Bytes),
+}
+
+#[repr(C)]
 pub struct EnumerableResultOps {
     pub header: AbiHeader,
     pub rejected: extern "C" fn(EnumerableResult),
@@ -158,6 +226,7 @@ pub struct CallableResultOps {
     pub unknown: extern "C" fn(CallableResult),
     pub none: extern "C" fn(CallableResult),
     pub resolved: extern "C" fn(CallableResult, Callable),
+    pub support_failed: extern "C" fn(CallableResult, PackSupportFailure),
 }
 
 #[repr(C)]
@@ -205,6 +274,13 @@ pub struct RangedLayoutResultOps {
 }
 
 #[repr(C)]
+pub struct ReindexedLayoutResultOps {
+    pub header: AbiHeader,
+    pub rejected: extern "C" fn(ReindexedLayoutResult),
+    pub satisfied: extern "C" fn(ReindexedLayoutResult, ReindexedLayout),
+}
+
+#[repr(C)]
 pub struct NamedSelectionResultOps {
     pub header: AbiHeader,
     pub unknown: extern "C" fn(NamedSelectionResult),
@@ -226,6 +302,13 @@ pub struct NamedRouteSinkOps {
     pub none: extern "C" fn(NamedRouteSink, BorrowedBytes),
     pub route: extern "C" fn(NamedRouteSink, BorrowedBytes, BorrowedBytes),
     pub completed: extern "C" fn(NamedRouteSink),
+}
+
+#[repr(C)]
+pub struct ReindexSinkOps {
+    pub header: AbiHeader,
+    pub mapping: extern "C" fn(ReindexSink, BorrowedBytes, BorrowedBytes),
+    pub completed: extern "C" fn(ReindexSink),
 }
 
 #[repr(C)]
@@ -257,6 +340,7 @@ pub struct AbstractOps {
     pub resolve_callable: extern "C" fn(Abstract, CallableResult),
     pub resolve_route: extern "C" fn(Abstract, RouteResult),
     pub resolve_finite_extent: extern "C" fn(Abstract, ExtentResult),
+    pub resolve_bytes: extern "C" fn(Abstract, BytesResult),
 }
 
 #[repr(C)]
@@ -270,6 +354,7 @@ pub struct LayoutOps {
     pub value: extern "C" fn(Layout, ValueLayoutResult),
     pub composite: extern "C" fn(Layout, CompositeLayoutResult),
     pub ranged: extern "C" fn(Layout, RangedLayoutResult),
+    pub reindexed: extern "C" fn(Layout, ReindexedLayoutResult),
 }
 
 #[repr(C)]
@@ -321,6 +406,23 @@ pub struct RangedLayoutOps {
     pub candidate: extern "C" fn(RangedLayout) -> Layout,
     pub producer: extern "C" fn(RangedLayout) -> Abstract,
     pub extent: extern "C" fn(RangedLayout) -> Abstract,
+}
+
+#[repr(C)]
+pub struct ReindexedLayoutOps {
+    pub header: AbiHeader,
+    pub candidate: extern "C" fn(ReindexedLayout) -> Layout,
+    pub source: extern "C" fn(ReindexedLayout) -> Layout,
+    pub projection: extern "C" fn(ReindexedLayout) -> Layout,
+    pub visit_mappings: extern "C" fn(ReindexedLayout, ReindexSink),
+}
+
+#[repr(C)]
+pub struct BytesOps {
+    pub header: AbiHeader,
+    pub candidate: extern "C" fn(Bytes) -> Abstract,
+    pub size: extern "C" fn(Bytes) -> u64,
+    pub visit: extern "C" fn(Bytes, BytesSink),
 }
 
 #[repr(C)]
@@ -387,12 +489,19 @@ impl InterfaceModel {
     }
 }
 
+#[repr(C)]
+struct AbstractBinding {
+    capability: AbstractCapability,
+    model: AbstractModel,
+}
+
 pub struct AbstractModel {
     pub name: &'static [u8],
     pub documentation: &'static [u8],
     pub concepts: Vec<(&'static [u8], Abstract)>,
     pub interface: InterfaceFactory,
     pub domain: DomainFactory,
+    pub bytes: Arc<dyn Fn(Abstract, BytesResult) + Send + Sync>,
 }
 
 impl AbstractModel {
@@ -403,87 +512,61 @@ impl AbstractModel {
             concepts: Vec::new(),
             interface: Arc::new(|_, _| InterfaceModel::rejected()),
             domain: Arc::new(|_| DomainProjection::None),
+            bytes: Arc::new(|_, result| unsafe { ((*result.operations).none)(result) }),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct LayoutModel {
     pub entries: Vec<(Vec<u8>, Abstract)>,
     pub receiving_domains: Option<Vec<Abstract>>,
 }
 
-struct Runtime {
-    authority: u64,
-    abstracts: Vec<Arc<AbstractModel>>,
-    layouts: Vec<Arc<LayoutModel>>,
-}
-
-static RUNTIME: OnceLock<Mutex<Runtime>> = OnceLock::new();
-
-fn runtime() -> &'static Mutex<Runtime> {
-    RUNTIME.get().unwrap_or_else(|| std::process::abort())
-}
-
-pub fn install(authority: u64) {
-    if authority == 0
-        || RUNTIME
-            .set(Mutex::new(Runtime {
-                authority,
-                abstracts: Vec::new(),
-                layouts: Vec::new(),
-            }))
-            .is_err()
-    {
-        std::process::abort();
-    }
-}
-
-pub fn register_abstract(model: AbstractModel) -> Abstract {
-    let mut runtime = runtime().lock().unwrap();
-    runtime.abstracts.push(Arc::new(model));
+pub fn retain_abstract(model: AbstractModel) -> Abstract {
+    let binding = Box::into_raw(Box::new(AbstractBinding {
+        capability: AbstractCapability {
+            operations: &ABSTRACT_OPS,
+        },
+        model,
+    }));
     Abstract {
-        operations: &ABSTRACT_OPS,
-        owner: runtime.authority,
-        value: runtime.abstracts.len() as u64,
+        capability: unsafe { &(*binding).capability },
     }
 }
 
-pub fn register_layout(model: LayoutModel) -> Layout {
-    let mut runtime = runtime().lock().unwrap();
-    runtime.layouts.push(Arc::new(model));
+pub fn with_layout(model: LayoutModel, use_layout: impl FnOnce(Layout)) {
+    let mut model = model;
+    use_layout(Layout {
+        operations: &LAYOUT_OPS,
+        self_: (&mut model as *mut LayoutModel).cast(),
+    });
+}
+
+pub fn retain_layout(model: LayoutModel) -> Layout {
+    let model = Box::into_raw(Box::new(model));
     Layout {
         operations: &LAYOUT_OPS,
-        owner: runtime.authority,
-        value: runtime.layouts.len() as u64,
+        self_: model.cast::<LayoutSelf>(),
     }
 }
 
-fn abstract_model(value: Abstract) -> Arc<AbstractModel> {
-    let runtime = runtime().lock().unwrap();
-    if value.owner != runtime.authority || value.value == 0 {
-        std::process::abort();
-    }
-    runtime
-        .abstracts
-        .get(value.value as usize - 1)
-        .cloned()
-        .unwrap_or_else(|| std::process::abort())
+fn abstract_model(value: Abstract) -> &'static AbstractModel {
+    assert!(!value.capability.is_null());
+    // Only callbacks installed by AbstractBinding call this function.
+    // repr(C) places its capability first, independently of the model's layout.
+    unsafe { &(*value.capability.cast::<AbstractBinding>()).model }
 }
 
-fn layout_model(value: Layout) -> Arc<LayoutModel> {
-    let runtime = runtime().lock().unwrap();
-    if value.owner != runtime.authority || value.value == 0 {
+fn layout_model(value: Layout) -> &'static LayoutModel {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    runtime
-        .layouts
-        .get(value.value as usize - 1)
-        .cloned()
-        .unwrap_or_else(|| std::process::abort())
+    unsafe { &*value.self_.cast::<LayoutModel>() }
 }
 
 pub fn same(left: Abstract, right: Abstract) -> bool {
-    left.owner == right.owner && left.value == right.value
+    left.capability == right.capability
 }
 
 pub fn unknown() -> Abstract {
@@ -494,6 +577,88 @@ pub fn empty_layout() -> Layout {
     unsafe { ttx_empty_layout() }
 }
 
+pub fn bytes_requirement() -> Abstract {
+    unsafe { ttx_bytes_requirement() }
+}
+
+#[repr(C)]
+struct ForwardBytes {
+    candidate: Abstract,
+    result: BytesResult,
+}
+extern "C" fn forwarded_bytes_unknown(self_: BytesResult) {
+    let frame = unsafe { &*self_.self_.cast::<ForwardBytes>() };
+    unsafe { ((*frame.result.operations).unknown)(frame.result) }
+}
+extern "C" fn forwarded_bytes_none(self_: BytesResult) {
+    let frame = unsafe { &*self_.self_.cast::<ForwardBytes>() };
+    unsafe { ((*frame.result.operations).none)(frame.result) }
+}
+#[repr(C)]
+struct ByteView {
+    candidate: Abstract,
+    source: Bytes,
+}
+extern "C" fn byte_candidate(view: Bytes) -> Abstract {
+    unsafe { (*view.self_.cast::<ByteView>()).candidate }
+}
+extern "C" fn byte_size(view: Bytes) -> u64 {
+    let source = unsafe { (*view.self_.cast::<ByteView>()).source };
+    unsafe { ((*source.operations).size)(source) }
+}
+extern "C" fn byte_visit(view: Bytes, sink: BytesSink) {
+    let source = unsafe { (*view.self_.cast::<ByteView>()).source };
+    unsafe { ((*source.operations).visit)(source, sink) }
+}
+extern "C" fn forwarded_bytes_resolved(self_: BytesResult, source: Bytes) {
+    let frame = unsafe { &*self_.self_.cast::<ForwardBytes>() };
+    let view = ByteView {
+        candidate: frame.candidate,
+        source,
+    };
+    let ops = BytesOps {
+        header: AbiHeader {
+            size: std::mem::size_of::<BytesOps>() as u32,
+            abi_major: ABI_MAJOR,
+            abi_minor: ABI_MINOR,
+        },
+        candidate: byte_candidate,
+        size: byte_size,
+        visit: byte_visit,
+    };
+    unsafe {
+        ((*frame.result.operations).resolved)(
+            frame.result,
+            Bytes {
+                operations: &ops,
+                self_: (&view as *const ByteView).cast_mut().cast(),
+            },
+        )
+    }
+}
+pub fn forward_bytes(source: Abstract, candidate: Abstract, result: BytesResult) {
+    let frame = ForwardBytes { candidate, result };
+    let ops = BytesResultOps {
+        header: AbiHeader {
+            size: std::mem::size_of::<BytesResultOps>() as u32,
+            abi_major: ABI_MAJOR,
+            abi_minor: ABI_MINOR,
+        },
+        unknown: forwarded_bytes_unknown,
+        none: forwarded_bytes_none,
+        resolved: forwarded_bytes_resolved,
+    };
+    unsafe {
+        (source.ops().resolve_bytes)(
+            source,
+            BytesResult {
+                operations: &ops,
+                self_: (&frame as *const ForwardBytes).cast_mut().cast(),
+            },
+        )
+    }
+}
+
 pub fn borrowed(value: &'static [u8]) -> BorrowedBytes {
     BorrowedBytes {
         data: value.as_ptr(),
@@ -502,6 +667,9 @@ pub fn borrowed(value: &'static [u8]) -> BorrowedBytes {
 }
 
 fn route(value: BorrowedBytes) -> Option<&'static [u8]> {
+    if value.size == 0 {
+        return Some(&[]);
+    }
     if value.size > usize::MAX as u64 || (value.size != 0 && value.data.is_null()) {
         return None;
     }
@@ -510,7 +678,7 @@ fn route(value: BorrowedBytes) -> Option<&'static [u8]> {
 
 #[repr(C)]
 struct InterfaceFrame {
-    operations: InterfaceOps,
+    capability: InterfaceCapability,
     requirement: Abstract,
     candidate: Abstract,
     model: InterfaceModel,
@@ -522,39 +690,34 @@ fn with_interface(
     model: InterfaceModel,
     result: InterfaceSink,
 ) {
+    let operations = InterfaceOps {
+        header: AbiHeader {
+            size: std::mem::size_of::<InterfaceOps>() as u32,
+            abi_major: ABI_MAJOR,
+            abi_minor: ABI_MINOR,
+        },
+        requirement: interface_requirement,
+        candidate: interface_candidate,
+        negotiate: interface_negotiate,
+        invoke: interface_invoke,
+    };
     let frame = InterfaceFrame {
-        operations: InterfaceOps {
-            header: AbiHeader {
-                size: std::mem::size_of::<InterfaceOps>() as u32,
-                abi_major: ABI_MAJOR,
-                abi_minor: ABI_MINOR,
-            },
-            requirement: interface_requirement,
-            candidate: interface_candidate,
-            negotiate: interface_negotiate,
-            invoke: interface_invoke,
+        capability: InterfaceCapability {
+            operations: &operations,
         },
         requirement,
         candidate,
         model,
     };
     let value = Interface {
-        operations: &frame.operations,
-        owner: candidate.owner,
-        value: candidate.value,
+        capability: &frame.capability,
     };
     unsafe { ((*result.operations).answer)(result, value) }
 }
 
-fn interface_frame(value: Interface) -> &'static InterfaceFrame {
-    if value.operations.is_null() {
-        std::process::abort();
-    }
-    let frame = unsafe { &*value.operations.cast::<InterfaceFrame>() };
-    if frame.candidate.owner != value.owner || frame.candidate.value != value.value {
-        std::process::abort();
-    }
-    frame
+fn interface_frame<'call>(value: Interface) -> &'call InterfaceFrame {
+    assert!(!value.capability.is_null());
+    unsafe { &*value.capability.cast::<InterfaceFrame>() }
 }
 
 extern "C" fn abstract_name(value: Abstract) -> BorrowedBytes {
@@ -564,8 +727,7 @@ extern "C" fn abstract_name(value: Abstract) -> BorrowedBytes {
 extern "C" fn abstract_documentation(value: Abstract) -> Documentation {
     Documentation {
         operations: &DOCUMENTATION_OPS,
-        owner: value.owner,
-        value: value.value,
+        self_: value.capability.cast_mut().cast::<DocumentationSelf>(),
     }
 }
 
@@ -634,11 +796,13 @@ extern "C" fn abstract_resolve_finite_extent(_value: Abstract, result: ExtentRes
     unsafe { ((*result.operations).none)(result) }
 }
 
+extern "C" fn abstract_resolve_bytes(_value: Abstract, result: BytesResult) {
+    (abstract_model(_value).bytes)(_value, result);
+}
+
 extern "C" fn documentation_size(value: Documentation) -> u64 {
     abstract_model(Abstract {
-        operations: &ABSTRACT_OPS,
-        owner: value.owner,
-        value: value.value,
+        capability: value.self_.cast::<AbstractCapability>(),
     })
     .documentation
     .len() as u64
@@ -646,9 +810,7 @@ extern "C" fn documentation_size(value: Documentation) -> u64 {
 
 extern "C" fn documentation_visit(value: Documentation, result: BytesSink) {
     let model = abstract_model(Abstract {
-        operations: &ABSTRACT_OPS,
-        owner: value.owner,
-        value: value.value,
+        capability: value.self_.cast::<AbstractCapability>(),
     });
     if !model.documentation.is_empty() {
         unsafe { ((*result.operations).bytes)(result, borrowed(model.documentation)) }
@@ -696,15 +858,15 @@ struct EnumerableCapture {
     enumerable: Option<Enumerable>,
 }
 
-fn enumerable_capture(value: EnumerableResult) -> &'static mut EnumerableCapture {
-    if value.operations.is_null() {
+fn enumerable_capture<'call>(value: EnumerableResult) -> &'call mut EnumerableCapture {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    unsafe { &mut *value.operations.cast_mut().cast::<EnumerableCapture>() }
+    unsafe { &mut *value.self_.cast::<EnumerableCapture>() }
 }
 
 fn query_enumerable(layout: Layout) -> Option<Enumerable> {
-    let capture = EnumerableCapture {
+    let mut capture = EnumerableCapture {
         operations: EnumerableResultOps {
             header: AbiHeader {
                 size: std::mem::size_of::<EnumerableResultOps>() as u32,
@@ -719,8 +881,7 @@ fn query_enumerable(layout: Layout) -> Option<Enumerable> {
     };
     let result = EnumerableResult {
         operations: &capture.operations,
-        owner: layout.owner,
-        value: layout.value,
+        self_: (&mut capture as *mut EnumerableCapture).cast::<EnumerableResultSelf>(),
     };
     unsafe { ((*layout.operations).enumerable)(layout, result) }
     capture.answered.then_some(capture.enumerable).flatten()
@@ -766,22 +927,22 @@ struct AdmissionDomainBinding {
     frame: *mut AdmissionFrame,
 }
 
-fn admission_from_entry(value: LayoutEntrySink) -> &'static mut AdmissionFrame {
-    if value.operations.is_null() {
+fn admission_from_entry<'call>(value: LayoutEntrySink) -> &'call mut AdmissionFrame {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    let binding = unsafe { &*value.operations.cast::<AdmissionEntryBinding>() };
+    let binding = unsafe { &*value.self_.cast::<AdmissionEntryBinding>() };
     if binding.frame.is_null() {
         std::process::abort();
     }
     unsafe { &mut *binding.frame }
 }
 
-fn admission_from_domain(value: DomainResult) -> &'static mut AdmissionFrame {
-    if value.operations.is_null() {
+fn admission_from_domain<'call>(value: DomainResult) -> &'call mut AdmissionFrame {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    let binding = unsafe { &*value.operations.cast::<AdmissionDomainBinding>() };
+    let binding = unsafe { &*value.self_.cast::<AdmissionDomainBinding>() };
     if binding.frame.is_null() {
         std::process::abort();
     }
@@ -837,10 +998,9 @@ extern "C" fn admitted_entry(value: LayoutEntrySink, _path: BorrowedBytes, produ
     }
     let result = DomainResult {
         operations: &admission.domain.operations,
-        owner: producer.owner,
-        value: producer.value,
+        self_: (&mut admission.domain as *mut AdmissionDomainBinding).cast::<DomainResultSelf>(),
     };
-    unsafe { ((*producer.operations).resolve_domain)(producer, result) }
+    unsafe { (producer.ops().resolve_domain)(producer, result) }
 }
 
 extern "C" fn admitted_completed(value: LayoutEntrySink) {
@@ -901,8 +1061,7 @@ pub fn admit(input: Pack, expected: &[Abstract]) -> Admission {
     admission.domain.frame = frame;
     let visitor = LayoutEntrySink {
         operations: &admission.entry.operations,
-        owner: source_layout.owner,
-        value: source_layout.value,
+        self_: (&mut admission.entry as *mut AdmissionEntryBinding).cast::<LayoutEntrySinkSelf>(),
     };
     unsafe { ((*enumerable.operations).visit)(enumerable, visitor) }
     if !admission.completed || admission.producers.len() != expected.len() {
@@ -944,8 +1103,7 @@ extern "C" fn layout_enumerable(value: Layout, result: EnumerableResult) {
             result,
             Enumerable {
                 operations: &ENUMERABLE_OPS,
-                owner: value.owner,
-                value: value.value,
+                self_: value.self_.cast::<EnumerableSelf>(),
             },
         )
     }
@@ -959,10 +1117,11 @@ extern "C" fn layout_named(_value: Layout, result: NamedResult) {
 struct LayoutSnapshotState {
     operations: LayoutSnapshotOps,
     layout: Layout,
+    _model: Box<LayoutModel>,
 }
 
 fn snapshot_state(value: LayoutSnapshot) -> *mut LayoutSnapshotState {
-    value.operations.cast_mut().cast::<LayoutSnapshotState>()
+    value.self_.cast::<LayoutSnapshotState>()
 }
 
 extern "C" fn snapshot_layout(value: LayoutSnapshot) -> Layout {
@@ -976,6 +1135,11 @@ extern "C" fn snapshot_release(value: LayoutSnapshot) {
 }
 
 extern "C" fn layout_snapshot(value: Layout, result: LayoutSnapshotResult) {
+    let mut model = Box::new(layout_model(value).clone());
+    let retained_layout = Layout {
+        operations: &LAYOUT_OPS,
+        self_: (&mut *model as *mut LayoutModel).cast(),
+    };
     let snapshot = Box::new(LayoutSnapshotState {
         operations: LayoutSnapshotOps {
             header: AbiHeader {
@@ -986,7 +1150,8 @@ extern "C" fn layout_snapshot(value: Layout, result: LayoutSnapshotResult) {
             layout: snapshot_layout,
             release: snapshot_release,
         },
-        layout: value,
+        layout: retained_layout,
+        _model: model,
     });
     let snapshot = Box::into_raw(snapshot);
     unsafe {
@@ -994,8 +1159,7 @@ extern "C" fn layout_snapshot(value: Layout, result: LayoutSnapshotResult) {
             result,
             LayoutSnapshot {
                 operations: &(*snapshot).operations,
-                owner: value.owner,
-                value: value.value,
+                self_: snapshot.cast::<LayoutSnapshotSelf>(),
             },
         )
     }
@@ -1007,8 +1171,7 @@ extern "C" fn layout_fluid(value: Layout, result: FluidResult) {
             result,
             Fluid {
                 operations: &FLUID_OPS,
-                owner: value.owner,
-                value: value.value,
+                self_: value.self_.cast::<FluidSelf>(),
             },
         )
     }
@@ -1026,19 +1189,21 @@ extern "C" fn layout_ranged(_value: Layout, result: RangedLayoutResult) {
     unsafe { ((*result.operations).rejected)(result) }
 }
 
+extern "C" fn layout_reindexed(_value: Layout, result: ReindexedLayoutResult) {
+    unsafe { ((*result.operations).rejected)(result) }
+}
+
 extern "C" fn fluid_layout(value: Fluid) -> Layout {
     Layout {
         operations: &LAYOUT_OPS,
-        owner: value.owner,
-        value: value.value,
+        self_: value.self_.cast::<LayoutSelf>(),
     }
 }
 
 extern "C" fn enumerable_layout(value: Enumerable) -> Layout {
     Layout {
         operations: &LAYOUT_OPS,
-        owner: value.owner,
-        value: value.value,
+        self_: value.self_.cast::<LayoutSelf>(),
     }
 }
 
@@ -1067,23 +1232,23 @@ struct RelationCapture {
     requirement: Abstract,
 }
 
-fn relation_capture(value: InterfaceSink) -> &'static mut RelationCapture {
-    if value.operations.is_null() {
+fn relation_capture<'call>(value: InterfaceSink) -> &'call mut RelationCapture {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    unsafe { &mut *value.operations.cast_mut().cast::<RelationCapture>() }
+    unsafe { &mut *value.self_.cast::<RelationCapture>() }
 }
 
 extern "C" fn relation_answer(value: InterfaceSink, interface: Interface) {
     let capture = relation_capture(value);
     capture.answered = true;
-    capture.relation = unsafe { ((*interface.operations).negotiate)(interface) };
-    capture.candidate = unsafe { ((*interface.operations).candidate)(interface) };
-    capture.requirement = unsafe { ((*interface.operations).requirement)(interface) };
+    capture.relation = unsafe { (interface.ops().negotiate)(interface) };
+    capture.candidate = unsafe { (interface.ops().candidate)(interface) };
+    capture.requirement = unsafe { (interface.ops().requirement)(interface) };
 }
 
 pub fn relation(candidate: Abstract, requirement: Abstract) -> InterfaceRelation {
-    let capture = RelationCapture {
+    let mut capture = RelationCapture {
         operations: InterfaceSinkOps {
             header: AbiHeader {
                 size: std::mem::size_of::<InterfaceSinkOps>() as u32,
@@ -1099,10 +1264,9 @@ pub fn relation(candidate: Abstract, requirement: Abstract) -> InterfaceRelation
     };
     let result = InterfaceSink {
         operations: &capture.operations,
-        owner: candidate.owner,
-        value: candidate.value,
+        self_: (&mut capture as *mut RelationCapture).cast::<InterfaceSinkSelf>(),
     };
-    unsafe { ((*candidate.operations).interface)(candidate, requirement, result) }
+    unsafe { (candidate.ops().interface)(candidate, requirement, result) }
     if !capture.answered
         || !same(capture.candidate, candidate)
         || !same(capture.requirement, requirement)
@@ -1125,17 +1289,17 @@ struct ForwardInvocation {
 }
 
 fn forward_invocation(value: InterfaceSink) -> &'static ForwardInvocation {
-    if value.operations.is_null() {
+    if value.self_.is_null() {
         std::process::abort();
     }
-    unsafe { &*value.operations.cast::<ForwardInvocation>() }
+    unsafe { &*value.self_.cast::<ForwardInvocation>() }
 }
 
 extern "C" fn forward_answer(value: InterfaceSink, interface: Interface) {
     let call = forward_invocation(value);
-    let candidate = unsafe { ((*interface.operations).candidate)(interface) };
-    let requirement = unsafe { ((*interface.operations).requirement)(interface) };
-    let relation = unsafe { ((*interface.operations).negotiate)(interface) };
+    let candidate = unsafe { (interface.ops().candidate)(interface) };
+    let requirement = unsafe { (interface.ops().requirement)(interface) };
+    let relation = unsafe { (interface.ops().negotiate)(interface) };
     if !same(candidate, call.candidate) || !same(requirement, call.requirement) {
         unsafe {
             ((*call.result.operations).support_failed)(
@@ -1149,7 +1313,7 @@ extern "C" fn forward_answer(value: InterfaceSink, interface: Interface) {
         unsafe { ((*call.result.operations).none)(call.result) }
     } else {
         unsafe {
-            ((*interface.operations).invoke)(
+            (interface.ops().invoke)(
                 interface,
                 call.operation,
                 call.input,
@@ -1186,15 +1350,17 @@ pub fn invoke(
     };
     let callback = InterfaceSink {
         operations: &call.operations,
-        owner: candidate.owner,
-        value: candidate.value,
+        self_: (&call as *const ForwardInvocation)
+            .cast_mut()
+            .cast::<InterfaceSinkSelf>(),
     };
-    unsafe { ((*candidate.operations).interface)(candidate, requirement, callback) }
+    unsafe { (candidate.ops().interface)(candidate, requirement, callback) }
 }
 
 unsafe extern "C" {
     fn ttx_unknown() -> Abstract;
     fn ttx_empty_layout() -> Layout;
+    fn ttx_bytes_requirement() -> Abstract;
 }
 
 static ABSTRACT_OPS: AbstractOps = AbstractOps {
@@ -1213,6 +1379,7 @@ static ABSTRACT_OPS: AbstractOps = AbstractOps {
     resolve_callable: abstract_resolve_callable,
     resolve_route: abstract_resolve_route,
     resolve_finite_extent: abstract_resolve_finite_extent,
+    resolve_bytes: abstract_resolve_bytes,
 };
 
 static DOCUMENTATION_OPS: DocumentationOps = DocumentationOps {
@@ -1239,6 +1406,7 @@ static LAYOUT_OPS: LayoutOps = LayoutOps {
     value: layout_value,
     composite: layout_composite,
     ranged: layout_ranged,
+    reindexed: layout_reindexed,
 };
 
 static FLUID_OPS: FluidOps = FluidOps {

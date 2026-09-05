@@ -18,7 +18,7 @@ namespace Puffer::Lsp {
 
 // The editor colors the Token stream retained with the current source graph.
 // Reading those Tokens and their authored Associations keeps highlighting
-// aligned with the strongest hover and navigation facts available.
+// aligned with the strongest hover and navigation answers available.
 auto semantic_legend(Perimortem::Memory::Allocator::Arena& arena)
     -> Perimortem::Serialization::Json::Node;
 auto semantic_tokens_for(

@@ -14,9 +14,10 @@ namespace Tetrodotoxin::Render::Language {
 
 // Declarations owns the three namespaces shared by Render roots and nested
 // Structures. Every declaration is retained once in source order, while one
-// visibility fact answers public queries without maintaining parallel vectors.
-// This is Render policy rather than a generic language Scope because another
-// language may define different namespaces, collisions, or publication rules.
+// visibility decision answers public queries without maintaining parallel
+// vectors. This is Render policy rather than a generic language Scope because
+// another language may define different namespaces, collisions, or publication
+// rules.
 class Declarations {
  public:
   constexpr Declarations(Perimortem::Memory::Allocator::Arena& domain)
@@ -73,7 +74,6 @@ class Declarations {
    public:
     constexpr explicit Authority(const Declarations& owner) : owner(owner) {}
 
-    TTX_CONTRACT(Authority, Ttx::Concept::Abstract);
     TTX_NAME("static"_view);
     TTX_EMPTY_DOCUMENTATION();
 

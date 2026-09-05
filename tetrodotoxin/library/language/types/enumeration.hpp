@@ -10,22 +10,26 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/completion.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
+#include "tetrodotoxin/library/language/model/iteration.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Enumeration is one authored Library Type whose cases are named immutable
-// values. It keeps source facts private until one exact integer storage Type
+// values. It keeps the authored cases private until one integer storage Type
 // and every Alias backed Constant are complete.
-class Enumeration : public Model::Type {
+class Enumeration : public Model::Type, public Model::Completion {
  public:
-  // Case retains exactly the authored spelling and Documentation needed to
-  // create the immutable value after storage linking. It is source model data
-  // rather than an intermediate parser record.
+  // Case retains the authored spelling and Documentation until the storage
+  // relationship settles and can create the immutable value. Keeping that
+  // input with Enumeration avoids a parallel parser record whose lifetime
+  // would have to be synchronized with the declaration.
   struct Case {
     Perimortem::Core::View::Bytes name;
     Perimortem::Core::View::Bytes value;
@@ -42,7 +46,6 @@ class Enumeration : public Model::Type {
       TypeReference storage_reference);
 
  public:
-  TTX_CONTRACT(Enumeration, Model::Type);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -97,12 +100,12 @@ class Enumeration : public Model::Type {
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+  void visit_concepts(ttx_named_abstract_callable* visitor) const override;
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&>;
 
-  auto accepts_iteration(const Ttx::Concept::Layout& bindings) const
-      -> Bool override;
+  auto accepts_binding(const Ttx::Concept::Layout& bindings) const -> Bool;
 
   auto get_storage_type() const -> Perimortem::Core::Option<const Model::Type&>;
 
@@ -111,7 +114,7 @@ class Enumeration : public Model::Type {
   }
 
   auto get_cases() const
-      -> Perimortem::Core::View::Vector<const Ttx::Model::Alias*>;
+      -> Perimortem::Core::View::Vector<const Tetrodotoxin::Language::Binding*>;
 
   constexpr auto get_case_count() const -> Count {
     return source_cases.get_size();
@@ -140,8 +143,22 @@ class Enumeration : public Model::Type {
   TypeReference storage_reference;
   Perimortem::Memory::Managed::Vector<Case> source_cases;
   Perimortem::Core::Option<const Model::Type*> storage_type;
-  Perimortem::Memory::Managed::Vector<const Ttx::Model::Alias*> cases;
+  Perimortem::Memory::Managed::Vector<const Tetrodotoxin::Language::Binding*> cases;
   Perimortem::Core::Option<const Model::Addressable*> generated_size;
+  class Iteration final : public Model::Iteration {
+   public:
+    explicit Iteration(const Enumeration& owner) : owner(owner) {}
+
+    auto accepts_binding(const Ttx::Concept::Layout& bindings) const
+        -> Bool override {
+      return owner.accepts_binding(bindings);
+    }
+
+   private:
+    const Enumeration& owner;
+  };
+  Iteration iteration;
+  Model::OwnedInitialization<Enumeration> initialization;
   Stage stage = Stage::Authored;
 };
 

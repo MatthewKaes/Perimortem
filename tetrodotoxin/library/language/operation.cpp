@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/operation.hpp"
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -142,7 +142,7 @@ auto Language::Operation::evaluate_fold()
     return Core::Option<Model::Pack&>{};
   }
 
-  Memory::Managed::Vector<const ttx_abstract*> reached(domain);
+  Memory::Managed::Vector<const Abstract*> reached(domain);
   reached.reset(inputs.get_size());
   Bool all_reached_folded = True;
   for (Count i = 0; i < inputs.get_size(); i++) {
@@ -158,7 +158,7 @@ auto Language::Operation::evaluate_fold()
 
     all_reached_folded &= bool(child_fold);
     if (child_fold) {
-      reached.insert(static_cast<const Abstract&>(*child_fold).get_abi());
+      reached.insert(&static_cast<const Abstract&>(*child_fold));
     }
     if (i + 1 < inputs.get_size() && child_fold &&
         !reaches_next_input(i, *child_fold)) {
@@ -176,8 +176,7 @@ auto Language::Operation::evaluate_fold()
     same_inputs &= folded_inputs.at(index) == reached.at(index);
   }
   if (same_inputs) {
-    auto cached = Model::Pack::from(
-        const_cast<Abstract&>(Abstract::from_abi(folded_result)));
+    auto cached = Model::Pack::from(const_cast<Abstract&>(*folded_result));
     return cached ? Core::Option<Model::Pack&>(*cached)
                   : Core::Option<Model::Pack&>();
   }
@@ -194,10 +193,10 @@ auto Language::Operation::evaluate_fold()
               Expression::Error::Type::ResultTypeMismatch, *this);
         }
         folded_inputs.reset(reached.get_size());
-        for (const ttx_abstract* input : reached.get_view()) {
+        for (const Abstract* input : reached.get_view()) {
           folded_inputs.insert(input);
         }
-        folded_result = static_cast<const Abstract&>(*constant).get_abi();
+        folded_result = &static_cast<const Abstract&>(*constant);
         return Core::Option<Model::Pack&>(*constant);
       },
       [](const Expression::Error& error)

@@ -9,10 +9,10 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Emission {
@@ -50,23 +50,23 @@ class Computation {
 
   auto arithmetic(
       Arithmetic operation,
-      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Domain& carrier,
       const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Tetrodotoxin::Library::Language::Model::Pack& left,
       const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;
   auto negate(
-      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Domain& carrier,
       const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Tetrodotoxin::Library::Language::Model::Pack& operand) const
       -> Bool;
   auto convert(
-      const Ttx::Model::Type& source_carrier,
-      const Ttx::Model::Type& target_carrier,
+      const Ttx::Model::Domain& source_carrier,
+      const Ttx::Model::Domain& target_carrier,
       const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Tetrodotoxin::Library::Language::Model::Pack& source) const -> Bool;
   auto compare(
       Comparison operation,
-      const Ttx::Model::Type& carrier,
+      const Ttx::Model::Domain& carrier,
       const Tetrodotoxin::Library::Language::Model::Pack& result,
       const Tetrodotoxin::Library::Language::Model::Pack& left,
       const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool;

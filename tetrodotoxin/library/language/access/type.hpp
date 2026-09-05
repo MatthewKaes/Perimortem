@@ -21,7 +21,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // context owned value such as an Enumeration case enters ordinary value flow.
 class Type : public Expression {
  public:
-  TTX_CONTRACT(Type, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

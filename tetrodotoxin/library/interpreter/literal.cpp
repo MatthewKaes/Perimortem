@@ -127,7 +127,7 @@ static auto parse_quoted(
   Count decoded_size = payload.get_size();
 
   // Escape markers belong to the authored spelling rather than the retained
-  // value. Count them before allocation so the Arena receives the exact fact.
+  // value. Count them before allocation so the Arena receives the exact size.
   for (Count i = 0; i < payload.get_size(); i++) {
     if (payload[i] == '\\') {
       decoded_size--;

@@ -13,8 +13,8 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
@@ -78,7 +78,7 @@ PERIMORTEM_UNIT_TEST(SignatureTests, signature_shape) {
   ASSERT(parameter && parameter->is<Ttx::Model::Layouts::Addressable>());
   const auto& input =
       static_cast<const Ttx::Model::Layouts::Addressable&>(*parameter);
-  EXPECT(&input.get_type() == &monograph->resolve_concept("Bool"_view));
+  EXPECT(&input.get_domain() == &monograph->resolve_concept("Bool"_view));
 
   ASSERT_EQ(results.get_size(), Count(2));
   ASSERT(results.get_name(0) && results.get_name(1));
@@ -86,8 +86,8 @@ PERIMORTEM_UNIT_TEST(SignatureTests, signature_shape) {
   EXPECT_TEXT(*results.get_name(1), "accepted"_view);
   EXPECT(&*results.get_abstract(0) == &monograph->resolve_concept("U64"_view));
   EXPECT(&*results.get_abstract(1) == &monograph->resolve_concept("Bool"_view));
-  EXPECT(results.get_abstract(0)->is<Ttx::Model::Type>());
-  EXPECT(results.get_abstract(1)->is<Ttx::Model::Type>());
+  EXPECT(results.get_abstract(0)->is<Ttx::Model::Domain>());
+  EXPECT(results.get_abstract(1)->is<Ttx::Model::Domain>());
 
   EXPECT(errors.is_empty());
 }

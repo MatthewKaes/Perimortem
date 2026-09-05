@@ -12,7 +12,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // the requirement itself out of ordinary value flow.
 class Interface : public Structure {
  public:
-  TTX_CONTRACT(Interface, Structure);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -21,14 +20,6 @@ class Interface : public Structure {
   static auto create_restored(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Interface&;
-
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
-
-  auto create_fitted(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Model::Pack& source) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
 
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override;
 
@@ -43,6 +34,10 @@ class Interface : public Structure {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition)
       : Structure(domain, definition, False) {}
+
+  constexpr auto supports_initialization() const -> Bool override {
+    return False;
+  }
 
   auto retain_binding(
       Ttx::Concept::Abstract& binding,

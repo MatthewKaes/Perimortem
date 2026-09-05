@@ -3,6 +3,9 @@
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
 
+#include <utility>
+#include <vector>
+
 #include "perimortem/core/static/vector.hpp"
 
 #include "perimortem/memory/managed/vector.hpp"
@@ -22,6 +25,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
+#include "tetrodotoxin/library/language/model/admission.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
@@ -31,25 +35,13 @@
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
-
-auto Language::Model::Pack::from_abi(const ttx_pack* pack) -> const Pack& {
-  return *reinterpret_cast<const Abi*>(pack)->owner;
-}
-
-auto Language::Model::Pack::layout_abi(const ttx_pack* pack)
-    -> const ttx_layout* {
-  return from_abi(pack).get_layout().get_abi();
-}
-
-const ttx_pack_operations Language::Model::Pack::abi_operations = {
-  .layout = layout_abi,
-};
 
 auto Language::Model::Pack::from(Abstract& identity) -> Core::Option<Pack&> {
   auto expression = identity.select<Language::Expression>();
@@ -112,6 +104,10 @@ class Group final : public Language::Model::Pack {
         Count target_offset,
         Count target_index) const
         -> Utility::Result<const Abstract&, Errors> override;
+
+    void fit(ttx_pack source, ttx_context context, ttx_pack_result result)
+        const override;
+    void snapshot(ttx_layout_snapshot_result result) const override;
 
     auto select(Count index) const -> Core::Option<Selection>;
 
@@ -233,6 +229,36 @@ class Group final : public Language::Model::Pack {
   Layout layout;
   Bool linked = False;
 };
+
+static auto canonical(const Group::Layout& source) -> Ttx::Layouts::Fluid {
+  std::vector<Ttx::Layouts::Fluid::Entry> entries;
+  entries.reserve(source.get_size());
+  for (Count index = 0; index < source.get_size(); ++index) {
+    const auto producer = source.get_abstract(index);
+    std::vector<uint8_t> path(sizeof(uint64_t));
+    for (uint64_t byte = 0; byte < path.size(); ++byte) {
+      path[byte] = uint8_t(uint64_t(index) >> (byte * 8));
+    }
+    entries.push_back({
+      .path = std::move(path),
+      .producer = producer ? producer->get_handle() : ttx_unknown(),
+    });
+  }
+  return Ttx::Layouts::Fluid(std::move(entries));
+}
+
+void Group::Layout::fit(
+    ttx_pack source,
+    ttx_context context,
+    ttx_pack_result result) const {
+  const auto projected = canonical(*this);
+  projected.fit(source, context, result);
+}
+
+void Group::Layout::snapshot(ttx_layout_snapshot_result result) const {
+  const auto projected = canonical(*this);
+  projected.snapshot(result);
+}
 
 auto Group::Layout::get_size() const -> Count {
   if (!group.names.is_empty()) {
@@ -416,9 +442,17 @@ static auto select_target_type(const Abstract& target)
 
   const Abstract& resolved = target.resolve();
   auto addressable = resolved.select<Ttx::Model::Addressable>();
-  const Abstract& selected = addressable ? addressable->get_type() : resolved;
+  const Abstract& selected = addressable ? addressable->get_domain() : resolved;
   direct = selected.select<Language::Model::Type>();
   return direct ? direct : selected.resolve().select<Language::Model::Type>();
+}
+
+static auto admits(
+    const Language::Model::Type& target,
+    const Language::Model::Pack& source) -> Bool {
+  auto admission = target.resolve_concept("admission"_view)
+                       .select<Language::Model::Admission>();
+  return admission && admission->accepts(source);
 }
 
 auto Language::Model::Pack::fits_entry(
@@ -504,7 +538,9 @@ auto Language::Model::Pack::fits(const Ttx::Concept::Layout& target) const
   auto target_entry = target.get_abstract(0);
   BAIL_IF(!target_entry);
   auto target_type = select_target_type(*target_entry);
-  return target_type && target_type->accepts(*this);
+  return target_type &&
+         (fits(static_cast<const Ttx::Model::Domain&>(*target_type)) ||
+          admits(*target_type, *this));
 }
 
 auto Language::Model::Pack::get_fitted_at(
@@ -542,21 +578,22 @@ auto Language::Model::Pack::get_fitted_at(
           });
 }
 
-auto Language::Model::Pack::fits(const Ttx::Model::Type& target) const -> Bool {
+auto Language::Model::Pack::fits(const Ttx::Model::Domain& target) const
+    -> Bool {
   BAIL_IF(!is_complete());
   const Ttx::Concept::Layout& target_layout = target.get_layout();
   return get_layout().get_size() == target_layout.get_size() &&
          fits_at(target_layout, 0);
 }
 
-auto Language::Model::Pack::fits_into(const Ttx::Model::Type& target) const
+auto Language::Model::Pack::fits_into(const Ttx::Model::Domain& target) const
     -> Bool {
   if (fits(target)) {
     return True;
   }
 
   auto library_target = target.select<Language::Model::Type>();
-  return library_target && library_target->accepts(*this);
+  return library_target && admits(*library_target, *this);
 }
 
 auto Language::Model::Pack::create_empty(

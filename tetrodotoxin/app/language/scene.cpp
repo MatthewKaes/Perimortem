@@ -3,7 +3,7 @@
 
 #include "tetrodotoxin/app/language/scene.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

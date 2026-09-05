@@ -7,19 +7,20 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/bootstrap/concept/constant.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
-#include "ttx/bootstrap/model/documentations/block.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/documentations/merged.hpp"
+#include "tetrodotoxin/language/binding.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/model/documentations/block.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/model/documentations/merged.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/query.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem;
 using namespace Ttx::Concept;
-using namespace Ttx::Model;
 using namespace Validation;
+using Tetrodotoxin::Language::Binding;
 
 static Harness TtxAbstract = {
   .name = "Abstract"_view,
@@ -27,20 +28,33 @@ static Harness TtxAbstract = {
 
 class ConceptCounter {
  public:
-  ConceptCounter() : callable{&operations}, operations{.call = count} {}
+  ConceptCounter()
+      : operations{
+          .header =
+              {
+                .size = sizeof(ttx_concept_sink_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .item = count,
+          .completed = complete,
+        },
+        sink{
+          .operations = &operations,
+          .self = reinterpret_cast<ttx_concept_sink_self*>(this),
+        } {}
 
-  ttx_named_abstract_callable callable;
+  ttx_concept_sink_ops operations;
+  ttx_concept_sink sink;
   Count size = 0;
 
  private:
-  static auto count(
-      ttx_named_abstract_callable* callable,
-      perimortem_bytes,
-      const ttx_abstract*) -> void {
-    reinterpret_cast<ConceptCounter*>(callable)->size++;
+  static auto count(ttx_concept_sink sink, ttx_borrowed_bytes, ttx_abstract)
+      -> void {
+    reinterpret_cast<ConceptCounter*>(sink.self)->size++;
   }
 
-  ttx_named_abstract_callable_operations operations;
+  static auto complete(ttx_concept_sink) -> void {}
 };
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, unknown_is_provisional) {
@@ -50,9 +64,13 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, unknown_is_provisional) {
   EXPECT_TEXT(unknown.get_name(), "Unknown"_view);
   EXPECT(&unknown == &Unknown::get_unknown());
   EXPECT(&unknown.resolve() == &unknown);
-  EXPECT(&unknown.get_type() == &unknown);
+  EXPECT(
+      Ttx::resolve_domain(unknown.get_handle()).state ==
+      Ttx::Observation::Unknown);
   EXPECT(&unknown.resolve_concept("Anything::Else"_view) == &unknown);
-  ttx_abstract_visit_concepts(unknown.get_abi(), &concepts.callable);
+  const ttx_abstract identity = unknown.get_handle();
+  EXPECT(identity.operations == ttx_unknown().operations);
+  identity.operations->visit_concepts(identity, concepts.sink);
   EXPECT(concepts.size == 0);
   EXPECT(unknown.get_documentation().is_empty());
   EXPECT_NOT(unknown.is<Constant>());
@@ -62,23 +80,35 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, none_is_axiomatic) {
   const None& none = None::get_none();
 
   EXPECT_TEXT(none.get_name(), "None"_view);
+  EXPECT(none.get_handle().operations == ttx_none().operations);
   EXPECT(none.is<Constant>());
   EXPECT(&none.resolve() == &none);
-  EXPECT(&none.get_type() == &none);
+  EXPECT(
+      Ttx::resolve_domain(none.get_handle()).state == Ttx::Observation::None);
   EXPECT(&none.resolve_concept("fold"_view) == &none);
-  EXPECT(&none.resolve_concept("Anything"_view) == &Unknown::get_unknown());
+  EXPECT(&none.resolve_concept("Anything"_view) == &none);
+}
+
+PERIMORTEM_UNIT_TEST(TtxAbstract, constant_does_not_invent_language_routes) {
+  class Completed final : public Constant {
+   public:
+    TTX_NAME("Completed"_view);
+  } completed;
+
+  EXPECT(Constant::prove(completed));
+  EXPECT(&completed.resolve_concept("fold"_view) == &Unknown::get_unknown());
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
   const Unknown& invalid = Unknown::get_unknown();
-  Alias alias("Failure"_view, invalid);
+  Binding alias("Failure"_view, invalid);
   const Abstract& selected = alias;
 
-  Bool matched = selected.visit<Alias>(
-      [&](const Alias& value) { return &value == &alias ? True : False; },
+  Bool matched = selected.visit<Binding>(
+      [&](const Binding& value) { return &value == &alias ? True : False; },
       [](const Abstract&) { return False; });
-  Bool rejected = invalid.visit<Alias>(
-      [](const Alias&) { return False; },
+  Bool rejected = invalid.visit<Binding>(
+      [](const Binding&) { return False; },
       [&](const Abstract& value) { return &value == &invalid ? True : False; });
 
   EXPECT(matched);
@@ -87,30 +117,31 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, contract_visit) {
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, contract_cv) {
   const Unknown& invalid = Unknown::get_unknown();
-  Alias alias("Failure"_view, invalid);
+  Binding alias("Failure"_view, invalid);
   Abstract& mutable_selected = alias;
   const Abstract& read_selected = alias;
-  auto mutable_alias = mutable_selected.select<Alias>();
-  auto read_alias = read_selected.select<Alias>();
-  auto rejected_alias = invalid.select<Alias>();
+  auto mutable_alias = mutable_selected.select<Binding>();
+  auto read_alias = read_selected.select<Binding>();
+  auto rejected_alias = invalid.select<Binding>();
 
-  static_assert(__is_same(decltype(mutable_alias), Option<Alias&>));
-  static_assert(__is_same(decltype(read_alias), Option<const Alias&>));
+  static_assert(__is_same(decltype(mutable_alias), Option<Binding&>));
+  static_assert(__is_same(decltype(read_alias), Option<const Binding&>));
 
   EXPECT(mutable_alias && &*mutable_alias == &alias);
   EXPECT(read_alias && &*read_alias == &alias);
   EXPECT_NOT(rejected_alias);
-  EXPECT(mutable_selected.visit<Alias>(
-      [&](Alias& value) { return &value == &alias ? True : False; },
+  EXPECT(mutable_selected.visit<Binding>(
+      [&](Binding& value) { return &value == &alias ? True : False; },
       [](Abstract&) { return False; }));
-  EXPECT(read_selected.visit<Alias>(
-      [&](const Alias& value) { return &value == &alias ? True : False; },
+  EXPECT(read_selected.visit<Binding>(
+      [&](const Binding& value) { return &value == &alias ? True : False; },
       [](const Abstract&) { return False; }));
 }
 
 PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
-  /// A leaf that resolves elsewhere proves Alias returns the first non Alias
-  /// identity without observing the terminal owner's completion contract.
+  /// A leaf that resolves elsewhere proves Binding returns the first non
+  /// Binding identity without observing the terminal owner's completion
+  /// contract.
   class Value : public Abstract {
    public:
     Value(
@@ -135,7 +166,7 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
   };
 
   /// A context owns the meaning of its routes. A consumer must first resolve
-  /// an Alias, then ask that exact context explicitly.
+  /// a Binding, then ask that exact context explicitly.
   class Context : public Abstract {
    public:
     Context(
@@ -166,12 +197,12 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
     const Documentation& documentation;
   };
 
-  /// A staged Alias exposes only resolution outcomes while its graph owner
+  /// A staged Binding exposes only resolution outcomes while its graph owner
   /// keeps the one time binding operation behind the derived contract.
-  class StagedAlias : public Alias {
+  class StagedAlias : public Binding {
    public:
     StagedAlias(View::Bytes name, const Documentation& documentation)
-        : Alias(name, documentation) {}
+        : Binding(name, documentation) {}
 
     auto bind(const Abstract& target) -> Bool { return bind_target(target); }
   };
@@ -180,18 +211,18 @@ PERIMORTEM_UNIT_TEST(TtxAbstract, alias_binding) {
     "Use the palette context."_view,
     "Preserve authored color names."_view,
   }};
-  static constexpr Documentations::Comment graphics_comment(
+  static constexpr Ttx::Documentations::Comment graphics_comment(
       "The graphics context."_view);
-  static constexpr Documentations::Block palette_comments(lines);
-  static constexpr Documentations::Merged palette_documentation(
+  static constexpr Ttx::Documentations::Block palette_comments(lines);
+  static constexpr Ttx::Documentations::Merged palette_documentation(
       palette_comments, graphics_comment);
   Value color("Color"_view);
   Context graphics("Graphics"_view, "Color"_view, color, graphics_comment);
-  Alias palette("Palette"_view, graphics, palette_documentation);
-  Alias colors("Colors"_view, palette);
-  Alias deferred("Deferred"_view, color);
+  Binding palette("Palette"_view, graphics, palette_documentation);
+  Binding colors("Colors"_view, palette);
+  Binding deferred("Deferred"_view, color);
   StagedAlias staged("Staged"_view, palette_comments);
-  Alias staged_nested("StagedNested"_view, staged);
+  Binding staged_nested("StagedNested"_view, staged);
 
   EXPECT_TEXT(palette.get_name(), "Palette"_view);
   EXPECT_EQ(palette.get_documentation().line_count(), Count(3));

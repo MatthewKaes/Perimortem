@@ -6,11 +6,11 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Object {
 
@@ -18,7 +18,6 @@ class Reserve : public Language::Model::Callable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "reserve"_view;
 
-  TTX_CONTRACT(Reserve, Language::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -44,6 +43,7 @@ class Reserve : public Language::Model::Callable {
 
  private:
   Reserve(
+      Perimortem::Memory::Allocator::Arena& domain,
       Ttx::Model::Layouts::Addressable& self,
       Ttx::Model::Layouts::Addressable& count,
       const Language::Model::Type& result);
@@ -52,7 +52,7 @@ class Reserve : public Language::Model::Callable {
       parameter_entries;
   Ttx::Model::Layouts::Named parameters;
   Ttx::Model::Layouts::Ranged results;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Reserves at least count initialized elements and returns writable access."_view,
   };
 };

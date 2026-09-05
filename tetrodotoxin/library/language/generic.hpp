@@ -12,10 +12,11 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/library/language/model/completion.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -39,21 +40,22 @@ class Generic : public Ttx::Concept::Abstract {
   // accident.
   class SemanticType {
    public:
-    static constexpr auto create(const Ttx::Model::Type& type) -> SemanticType {
+    static constexpr auto create(const Ttx::Model::Domain& type)
+        -> SemanticType {
       return SemanticType(type);
     }
 
-    constexpr auto get() const -> const Ttx::Model::Type& { return *type; }
+    constexpr auto get() const -> const Ttx::Model::Domain& { return *type; }
 
     constexpr auto operator==(const SemanticType& rhs) const -> Bool {
       return type == rhs.type;
     }
 
    private:
-    explicit constexpr SemanticType(const Ttx::Model::Type& type)
+    explicit constexpr SemanticType(const Ttx::Model::Domain& type)
         : type(&type) {}
 
-    const Ttx::Model::Type* type;
+    const Ttx::Model::Domain* type;
   };
 
   // Semantic graph queries expose const references. Scalar arguments are
@@ -87,7 +89,6 @@ class Generic : public Ttx::Concept::Abstract {
   using Materialization =
       Perimortem::Utility::Result<const Model::Type&, Failure>;
 
-  TTX_CONTRACT(Generic, Ttx::Concept::Abstract);
 
   Generic(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -117,10 +118,26 @@ class Generic : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract& override;
 
  protected:
+  struct Created {
+    const Model::Type& value;
+    const Model::Completion* completion;
+  };
+
+  using Creation = Perimortem::Core::Option<Created>;
+
+  template <typename Value>
+  static constexpr auto created(const Value& value) -> Creation {
+    const Model::Completion* completion = nullptr;
+    if constexpr (__is_base_of(Model::Completion, Value)) {
+      completion = &value;
+    }
+    return Created{.value = value, .completion = completion};
+  }
+
   // None means the supplied values do not satisfy this formula. Returning an
   // incomplete or redirected Type is rejection.
   virtual auto create(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Core::Option<const Model::Type&> = 0;
+      -> Creation = 0;
 
   constexpr auto get_domain() const -> Perimortem::Memory::Allocator::Arena& {
     return domain;
@@ -135,10 +152,12 @@ class Generic : public Ttx::Concept::Abstract {
     Entry(
         Perimortem::Memory::Allocator::Arena& domain,
         Perimortem::Core::View::Vector<Argument> source_arguments,
-        const Model::Type& value);
+        const Model::Type& value,
+        const Model::Completion* completion);
 
     Perimortem::Memory::Managed::Vector<Argument> arguments;
     const Model::Type& value;
+    const Model::Completion* completion;
   };
 
   struct Active {

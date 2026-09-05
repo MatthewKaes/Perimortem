@@ -5,7 +5,8 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -59,7 +60,7 @@ auto Language::Access::Address::link(
       },
       [&](const Abstract& receiver) -> const Abstract& {
         auto addressable = receiver.resolve().select<Ttx::Model::Addressable>();
-        return addressable ? addressable->get_type()
+        return addressable ? addressable->get_domain()
                                  .resolve()
                                  .resolve_concept("instance"_view)
                                  .resolve_concept(name)
@@ -87,9 +88,7 @@ auto Language::Access::Address::link(
     const Abstract& caller = access_scope.visit(
         [&]() -> const Abstract& { return lexical_context; },
         [](const Abstract& selected) -> const Abstract& { return selected; });
-    auto caller_type = caller.select<Language::Model::Type>();
-    if (!caller_type ||
-        !caller_type->has_private_access_to(field->get_host())) {
+    if (!Language::Model::has_private_access_to(caller, field->get_host())) {
       cursor.create_expression_error(
           source_anchor, "Field is private to its declaring Type."_view,
           "Select the Field only from code hosted by that Type."_view);

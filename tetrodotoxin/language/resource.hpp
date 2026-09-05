@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Language {
 // satisfies that contract without another allocation.
 class Resource : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Resource, Ttx::Concept::Abstract);
 
   TTX_NAME("Resource"_view);
 

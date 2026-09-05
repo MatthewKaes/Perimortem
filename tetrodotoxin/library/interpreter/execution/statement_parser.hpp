@@ -9,7 +9,7 @@
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/statement.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter::Execution {

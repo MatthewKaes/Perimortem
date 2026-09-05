@@ -4,8 +4,8 @@
 #include "tetrodotoxin/app/language/route.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;

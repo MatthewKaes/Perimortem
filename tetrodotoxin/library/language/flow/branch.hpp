@@ -10,8 +10,8 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/statement.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -27,7 +27,6 @@ class Branch : public Ttx::Concept::Abstract {
     While,
   };
 
-  TTX_CONTRACT(Branch, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

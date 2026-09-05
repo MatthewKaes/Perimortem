@@ -20,8 +20,8 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 

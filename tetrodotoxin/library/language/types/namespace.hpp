@@ -7,11 +7,11 @@
 
 namespace Tetrodotoxin::Library::Language::Types {
 
-// Namespace is a contextual Type that publishes only nested Types and Aliases.
-// It has no value Layout, state, construction, or Callable surface.
+// Namespace is a contextual Type that publishes only nested Types and Aliases,
+// leaving value Layout, state, construction, and Callable behavior to the
+// declarations reached through those routes.
 class Namespace : public Composite {
  public:
-  TTX_CONTRACT(Namespace, Composite);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -22,9 +22,6 @@ class Namespace : public Composite {
       Tetrodotoxin::Language::Definition& definition) -> Namespace&;
 
   auto complete_body() -> void override;
-
-  auto create_default(Perimortem::Memory::Allocator::Arena&) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
 
  protected:
   auto retain_binding(

@@ -19,7 +19,6 @@ namespace Tetrodotoxin::Library::Language::Expressions {
 // Both remain opaque until link selects them.
 class Identifier : public Expression {
  public:
-  TTX_CONTRACT(Identifier, Expression);
 
   static auto create_authored(
       Ttx::Lexical::Cursor& cursor,

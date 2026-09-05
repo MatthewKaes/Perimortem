@@ -10,9 +10,9 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -49,6 +49,25 @@ class ContextError : public Language::Error {
   View::Bytes context;
 };
 
+// A provider written against the C carrier can satisfy the same relationship
+// without inheriting the Tetrodotoxin C++ Error class. This local stand-in uses
+// the canonical operation table directly and exercises that boundary.
+class ForeignError final : public Ttx::Abstract {
+ public:
+  auto name() const -> ttx_borrowed_bytes override {
+    static const U8 name[] = "ForeignError";
+    return {name, sizeof(name) - 1};
+  }
+
+ protected:
+  auto negotiate(ttx_abstract requirement) const
+      -> ttx_interface_relation override {
+    return ttx_abstract_same(requirement, Language::Error::requirement())
+               ? TTX_INTERFACE_SATISFIED
+               : Ttx::Abstract::negotiate(requirement);
+  }
+};
+
 static Harness LanguageError = {
   .name = "Tetrodotoxin::Language::Error"_view,
 };
@@ -61,8 +80,12 @@ PERIMORTEM_UNIT_TEST(LanguageError, category_contract) {
   EXPECT(abstract.is<Abstract>());
   EXPECT_NOT(abstract.is<Language::Resource>());
   EXPECT_NOT(abstract.is<Unknown>());
-  EXPECT_NOT(abstract.is<Ttx::Model::Type>());
+  EXPECT_NOT(abstract.is<Ttx::Model::Domain>());
   EXPECT_TEXT(error.get_name(), "Error"_view);
+  EXPECT(Language::Error::recognizes(error.get_handle()));
+
+  ForeignError foreign;
+  EXPECT(Language::Error::recognizes(foreign.get_abi()));
 
   const Documentation& documentation = error.get_documentation();
   EXPECT(&documentation == &Documentation::get_empty());
@@ -118,7 +141,7 @@ PERIMORTEM_UNIT_TEST(LanguageError, consumer_context) {
   ContextError error(TestCause::Unreadable, "resources/table.bin"_view);
 
   // The consumer chooses each authored range. Error sees only the finished
-  // Report so its route facts cannot masquerade as source provenance.
+  // Report, so its contextual routes cannot masquerade as source provenance.
   {
     Errors::Report report(
         errors, source_name, source_text, Anchor::create(source_span));

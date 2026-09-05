@@ -8,7 +8,7 @@
 #include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library::Language;
@@ -19,7 +19,7 @@ Types::View::View(
     const Model::Type& element,
     const Model::Type& size_type,
     const Model::Type& flag_type)
-    : name(name), element(element) {
+    : name(name), element(element), admission(*this) {
   auto& get_size = Builtin::View::Size::create(domain, *this, size_type);
   auto& is_empty = Builtin::View::IsEmpty::create(domain, *this, flag_type);
   auto& slice = Builtin::View::Slice::create(domain, *this, size_type, *this);
@@ -28,7 +28,18 @@ Types::View::View(
   publish_callable(domain, slice, True);
 }
 
-auto Types::View::create_default(
+auto Types::View::resolve_concept(Perimortem::Core::View::Bytes route) const
+    -> const Abstract& {
+  return route == "admission"_view ? admission
+                                   : Contiguous::resolve_concept(route);
+}
+
+void Types::View::visit_concepts(ttx_named_abstract_callable* visitor) const {
+  Contiguous::visit_concepts(visitor);
+  visit_concept(visitor, "admission"_view, admission);
+}
+
+auto Types::View::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::Bytes::create_synthetic(arena, *this, {});
 }

@@ -213,7 +213,7 @@ auto Shader::Language::Program::project_binding(
     Bool retain_role) -> Bool {
   auto definition = requirement.get_definition();
   BAIL_IF(!requirement.is_linked());
-  auto type = project_type(requirement.get_type());
+  auto type = project_type(requirement.get_domain());
   BAIL_IF(!definition || !type);
 
   auto& projected_definition =
@@ -235,7 +235,7 @@ auto Shader::Language::Program::project_binding(
 
 auto Shader::Language::Program::project_type(const Abstract& requirement) const
     -> Option<const Library::Language::Model::Type&> {
-  auto exact = requirement.select<Ttx::Model::Type>();
+  auto exact = requirement.select<Ttx::Model::Domain>();
   BAIL_IF(!exact);
   auto direct = exact->select<Library::Language::Model::Type>();
   if (direct) {
@@ -353,7 +353,7 @@ auto Shader::Language::Program::restore_projected_structure(
     auto binding = declaration->select<Render::Language::Binding>();
     auto field = binding ? find_field(*projected, binding->get_name())
                          : Option<Library::Language::Field&>();
-    auto type = binding ? project_type(binding->get_type())
+    auto type = binding ? project_type(binding->get_domain())
                         : Option<const Library::Language::Model::Type&>();
     BAIL_IF(
         !binding ||
@@ -417,7 +417,7 @@ auto Shader::Language::Program::compose_contract_restored() -> Bool {
         }
       }
     }
-    auto type = requirement ? project_type(requirement->get_type())
+    auto type = requirement ? project_type(requirement->get_domain())
                             : Option<const Library::Language::Model::Type&>();
     BAIL_IF(
         !requirement || !field || !type ||

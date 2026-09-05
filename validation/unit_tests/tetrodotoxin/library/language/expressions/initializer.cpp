@@ -19,11 +19,12 @@
 #include "tetrodotoxin/library/language/constants/true.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -132,8 +133,10 @@ PERIMORTEM_UNIT_TEST(InitializerTests, value_defaults) {
   ASSERT(authored_scalar && authored_bytes && scalar_type && bytes_type);
 
   Perimortem::Memory::Allocator::Arena direct_values;
-  auto direct_scalar = scalar_type->create_default(direct_values);
-  auto direct_bytes = bytes_type->create_default(direct_values);
+  auto direct_scalar =
+      Language::Model::initialize_default(*scalar_type, direct_values);
+  auto direct_bytes =
+      Language::Model::initialize_default(*bytes_type, direct_values);
   ASSERT(direct_scalar && direct_bytes);
   ASSERT(authored_scalar->is_identity<Language::Expressions::Initializer>());
   ASSERT(direct_scalar->is_identity<Language::Constants::Unsigned>());

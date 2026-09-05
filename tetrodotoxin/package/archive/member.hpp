@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Package::Archive {
 // graph restoration without becoming an intrinsic Monograph name. The Dialect
 // name selects the owner that can interpret its exact opaque payload.
 //
-// Member retains those three facts without interpreting or versioning the
+// Member retains those three fields without interpreting or versioning the
 // payload itself.
 class Member {
  public:

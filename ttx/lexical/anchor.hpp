@@ -7,10 +7,10 @@
 
 namespace Ttx::Lexical {
 
-// Anchor retains the complete source range relevant to one fact and selects
-// the Token a diagnostic should point at. The Token may be empty or outside
-// the Span because the final presentation owner decides whether a caret is
-// meaningful for the source snapshot it actually renders.
+// Anchor keeps the complete authored range associated with one semantic owner
+// and selects the Token a diagnostic should point at. The Token may be empty or
+// outside the Span because the presentation owner decides whether a caret is
+// meaningful for the source snapshot it renders.
 class Anchor {
  public:
   static constexpr auto create(Span span) -> Anchor {

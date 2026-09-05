@@ -5,8 +5,8 @@
 
 #include "validation/unit_test.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin;
@@ -33,7 +33,7 @@ PERIMORTEM_UNIT_TEST(LanguageResource, category_contract) {
 
   EXPECT(abstract.is<Language::Resource>());
   EXPECT(abstract.is<Abstract>());
-  EXPECT_NOT(abstract.is<Ttx::Model::Type>());
+  EXPECT_NOT(abstract.is<Ttx::Model::Domain>());
   EXPECT_NOT(abstract.is<Unknown>());
   EXPECT_TEXT(resource.get_name(), "Resource"_view);
 }

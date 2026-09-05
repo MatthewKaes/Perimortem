@@ -9,9 +9,9 @@
 namespace Tetrodotoxin::Linker {
 
 // Import is one unresolved native symbol required by an object artifact. The
-// compiler supplies ABI and symbol facts while Package compilation attaches the
-// selected logical provider for its target. Filesystem locations remain build
-// policy and never enter this record.
+// compiler supplies ABI and symbol requirements while Package compilation
+// attaches the selected logical provider for its target. Filesystem locations
+// remain build policy and never enter this record.
 class Import {
  public:
   enum class Kind : U8 {

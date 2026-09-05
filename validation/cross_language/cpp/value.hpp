@@ -14,7 +14,6 @@ auto create_value(
     ttx_abstract view_bytes,
     ttx_abstract to_string,
     Route text) -> ttx_abstract;
-auto value_bytes_provider() -> ttx_test_bytes_terminal;
 
 }  // namespace TtxTest
 

@@ -9,7 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Ttx::Lexical {
@@ -41,8 +41,8 @@ class Associations {
   Associations(const Associations&) = delete;
 
   // An authored Span gives an identity a place in source. Repeating the exact
-  // Anchor replaces its provisional semantic with the strongest linked fact.
-  // Synthetic identities have no authored place and are not retained.
+  // Anchor replaces a provisional association with the identity established
+  // by linking. Synthetic identities have no authored place and are omitted.
   auto create(Anchor anchor, const Ttx::Concept::Abstract& semantic) -> void;
 
   // An exact Token is the best answer when several authored ranges cover one

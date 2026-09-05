@@ -9,7 +9,7 @@
 #include "tetrodotoxin/library/archive/composite.hpp"
 #include "tetrodotoxin/library/archive/reference.hpp"
 #include "tetrodotoxin/library/archive/source.hpp"
-#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;
@@ -198,7 +198,7 @@ auto Library::Archive::Reader::read_documentation(Allocator::Arena& arena)
     lines.get_data()[index] = arena.proxy(*line);
   }
 
-  auto& documentation = arena.construct<Ttx::Model::Documentations::Block>(
+  auto& documentation = arena.construct<Ttx::Documentations::Block>(
       View::Vector<View::Bytes>(lines.get_data(), lines.get_size()));
   return documentation;
 }

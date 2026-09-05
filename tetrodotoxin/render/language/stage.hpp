@@ -7,13 +7,12 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/render/language/layout.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
 class Stage : public Ttx::Model::Callable {
  public:
-  TTX_CONTRACT(Stage, Ttx::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

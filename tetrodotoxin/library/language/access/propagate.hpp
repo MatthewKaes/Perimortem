@@ -15,7 +15,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // one typed error Pack that the enclosing Function must receive explicitly.
 class Propagate : public Expression {
  public:
-  TTX_CONTRACT(Propagate, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -48,7 +47,6 @@ class Propagate : public Expression {
       Result<Perimortem::Core::Option<Model::Pack&>, Expression::Error>;
   class ErrorEscape : public Expression {
    public:
-    TTX_CONTRACT(ErrorEscape, Expression);
     TTX_NAME("Propagation error"_view);
     TTX_EMPTY_DOCUMENTATION();
 

@@ -12,7 +12,7 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 

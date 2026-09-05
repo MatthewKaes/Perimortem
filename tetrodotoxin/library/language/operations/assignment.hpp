@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Operations {
@@ -17,7 +17,6 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // records an effect without fabricating a result value.
 class Assignment : public Expression {
  public:
-  TTX_CONTRACT(Assignment, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

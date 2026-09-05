@@ -17,8 +17,8 @@
 #include "tetrodotoxin/library/language/access/type.hpp"
 #include "tetrodotoxin/library/language/access/unwrap.hpp"
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -39,7 +39,7 @@ static auto associate_pack(Cursor& cursor, Library::Language::Model::Pack& pack)
   }
 
   // A malformed following postfix can prevent the completed access node from
-  // entering a Statement, but the receiver spelling still asks one factual
+  // entering a Statement, but the receiver spelling still asks one meaningful
   // Library question. Publish the exact selected identity while the concrete
   // parser still owns its lexical context; generic tooling then needs only the
   // shared TTX queries on that Association.

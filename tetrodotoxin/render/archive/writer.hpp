@@ -14,9 +14,9 @@
 
 namespace Tetrodotoxin::Render::Archive {
 
-// Writer records the Render facts another Workspace can query. Its framing is
-// private to Render, which leaves SPIR V storage and instruction choices with
-// the independent Terminal that consumes the reconstructed graph.
+// Writer records the Render relationships another Workspace can query. Its
+// framing is private to Render, which leaves SPIR V storage and instruction
+// choices with the independent Terminal that consumes the reconstructed graph.
 class Writer {
  public:
   static auto encode(const Tetrodotoxin::Render::Language::Monograph& monograph)

@@ -3,53 +3,55 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/admission.hpp"
+#include "tetrodotoxin/library/language/model/completion.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
+#include "tetrodotoxin/library/language/model/propagation.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Result is an inline value sum. Exactly one alternative is live. Raw value or
 // error flow constructs the matching state, while propagation continues with
 // the value and requires the enclosing Function to receive the error.
-class Result : public Model::Type {
+class Result : public Model::Type, public Model::Completion {
  public:
   enum class Kind : U8 {
     Value,
     Error,
   };
 
-  TTX_CONTRACT(Result, Model::Type);
 
   constexpr Result(
       Perimortem::Core::View::Bytes name,
       const Model::Type& value,
       const Model::Type& error,
       const Model::Types::Flag& flag)
-      : name(name), value(value), error(error), flag(flag) {}
+      : name(name),
+        value(value),
+        error(error),
+        flag(flag),
+        propagation(value, error),
+        admission(*this),
+        initialization(*this) {}
 
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&>;
 
-  constexpr auto get_propagated_type() const
-      -> Perimortem::Core::Option<const Model::Type&> override {
-    return value;
-  }
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+  void visit_concepts(ttx_named_abstract_callable* visitor) const override;
 
-  constexpr auto get_propagated_error_type() const
-      -> Perimortem::Core::Option<const Model::Type&> override {
-    return error;
-  }
+  auto accepts(const Model::Pack& source) const -> Bool;
 
-  auto accepts(const Model::Pack& source) const -> Bool override;
-
-  auto create_fitted(
+  auto create_admitted(
       Perimortem::Memory::Allocator::Arena& arena,
-      Model::Pack& source) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+      Model::Pack& source) const -> Perimortem::Core::Option<Model::Pack&>;
 
   auto validate_layout(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
@@ -70,7 +72,10 @@ class Result : public Model::Type {
   const Model::Type& value;
   const Model::Type& error;
   const Model::Types::Flag& flag;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  Model::Propagation propagation;
+  Model::OwnedAdmission<Result> admission;
+  Model::OwnedInitialization<Result> initialization;
+  static constexpr Ttx::Documentations::Comment documentation{
     "Carries one value or one error as an explicit handled result."_view,
   };
 };

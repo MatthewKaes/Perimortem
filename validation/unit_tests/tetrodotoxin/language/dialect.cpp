@@ -6,8 +6,8 @@
 #include "validation/unit_test.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -41,7 +41,6 @@ class DefaultMonograph : public Language::Monograph {
 
 class SemanticContext final : public Abstract {
  public:
-  TTX_CONTRACT(SemanticContext, Abstract);
 
   auto get_name() const -> View::Bytes override { return "Context"_view; }
 
@@ -96,7 +95,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
 
   EXPECT(linked);
   EXPECT(finalized);
-  EXPECT(monograph.is<Ttx::Model::Type>());
+  EXPECT(monograph.is<Ttx::Model::Domain>());
   EXPECT(monograph.get_layout().is_empty());
   EXPECT_NOT(unsupported);
   EXPECT_NOT(missing);

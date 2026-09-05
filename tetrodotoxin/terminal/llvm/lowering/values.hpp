@@ -7,13 +7,14 @@
 
 namespace Tetrodotoxin::Terminal::Llvm::Lowering {
 
-// Values translates completed immutable Library values into the carrier facts
-// selected by this Terminal. Constant domains remain entirely owned by Library.
+// Values lowers completed Library Constants into the carrier selected for this
+// native module. Library continues to own what each Constant means; this
+// Terminal owns only its LLVM representation.
 class Values {
  public:
   static auto lower(
       const Execution& execution,
-      const Tetrodotoxin::Library::Language::Expression& expression) -> Bool;
+      const Ttx::Concept::Abstract& value) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Llvm::Lowering

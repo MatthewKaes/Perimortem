@@ -6,9 +6,9 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/app/language/runtime.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::App::Interpreter {
 

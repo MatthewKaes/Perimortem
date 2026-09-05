@@ -10,7 +10,7 @@ namespace Tetrodotoxin::Terminal::Vulkan {
 
 // Products is the source independent Vulkan description derived from one
 // completed Shader Program and its exact Pipeline contract. Every record is a
-// physical target fact and retains no semantic identity after generation.
+// physical target result and retains no semantic identity after generation.
 class Products {
  public:
   enum class Stage : U8 {

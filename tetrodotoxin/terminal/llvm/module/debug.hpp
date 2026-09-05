@@ -13,10 +13,10 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
@@ -60,51 +60,51 @@ class Debug {
 
   auto finalize(Emission& program) -> Bool;
 
-  auto find_type(const Ttx::Model::Type& type) const
+  auto find_type(const Ttx::Model::Domain& type) const
       -> Perimortem::Core::Option<LLVMMetadataRef>;
 
-  auto publish_type(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto publish_type(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto replace_type(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto replace_type(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto find_payload(const Ttx::Model::Type& type) const
+  auto find_payload(const Ttx::Model::Domain& type) const
       -> Perimortem::Core::Option<LLVMMetadataRef>;
 
-  auto publish_payload(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto publish_payload(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto replace_payload(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto replace_payload(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
   auto publish_enumerator(
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       LLVMMetadataRef metadata) -> Bool;
 
-  auto get_enumerators(const Ttx::Model::Type& type) const
+  auto get_enumerators(const Ttx::Model::Domain& type) const
       -> Perimortem::Core::View::Vector<LLVMMetadataRef>;
 
-  auto find_scope(const Ttx::Model::Type& type) const
+  auto find_scope(const Ttx::Model::Domain& type) const
       -> Perimortem::Core::Option<LLVMMetadataRef>;
 
-  auto publish_scope(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto publish_scope(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto replace_scope(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto replace_scope(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
   auto get_scope_types() const
-      -> Perimortem::Core::View::Vector<const Ttx::Model::Type*>;
+      -> Perimortem::Core::View::Vector<const Ttx::Model::Domain*>;
 
-  auto publish_member(const Ttx::Model::Type& type, LLVMMetadataRef metadata)
+  auto publish_member(const Ttx::Model::Domain& type, LLVMMetadataRef metadata)
       -> Bool;
 
-  auto get_members(const Ttx::Model::Type& type) const
+  auto get_members(const Ttx::Model::Domain& type) const
       -> Perimortem::Core::View::Vector<LLVMMetadataRef>;
 
   auto type(
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) -> Bool;
 
   auto field(const Ttx::Model::Addressable& field, Ttx::Lexical::Anchor anchor)
@@ -112,13 +112,13 @@ class Debug {
 
   auto signed_enumerator(
       Emission& program,
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       const Ttx::Concept::Abstract& enumerator,
       S64 value) -> Bool;
 
   auto unsigned_enumerator(
       Emission& program,
-      const Ttx::Model::Type& type,
+      const Ttx::Model::Domain& type,
       const Ttx::Concept::Abstract& enumerator,
       U64 value) -> Bool;
 
@@ -164,19 +164,19 @@ class Debug {
   Level level;
   Perimortem::Core::Option<LLVMOpaqueDIBuilder&> builder;
   Perimortem::Core::Option<LLVMOpaqueMetadata&> file;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, LLVMMetadataRef>
+  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Domain*, LLVMMetadataRef>
       types;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, LLVMMetadataRef>
+  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Domain*, LLVMMetadataRef>
       payloads;
   Perimortem::Memory::Dynamic::Map<
-      const Ttx::Model::Type*,
+      const Ttx::Model::Domain*,
       Perimortem::Memory::Dynamic::Vector<LLVMMetadataRef>>
       enumerators;
-  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Type*, LLVMMetadataRef>
+  Perimortem::Memory::Dynamic::Map<const Ttx::Model::Domain*, LLVMMetadataRef>
       scopes;
-  Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Type*> scope_types;
+  Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Domain*> scope_types;
   Perimortem::Memory::Dynamic::Map<
-      const Ttx::Model::Type*,
+      const Ttx::Model::Domain*,
       Perimortem::Memory::Dynamic::Vector<LLVMMetadataRef>>
       members;
 };

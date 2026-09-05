@@ -12,6 +12,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/type_reference.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
@@ -23,10 +24,9 @@
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,15 +35,15 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
+using Tetrodotoxin::Language::Binding;
 using namespace Validation;
 
 static Harness LibraryTypeReference = {
   .name = "Tetrodotoxin::Library::Language::TypeReference"_view,
 };
 
-class RouteType : public Type {
+class RouteDomain : public Domain {
  public:
-  TTX_CONTRACT(RouteType, Type);
   TTX_NAME("Second"_view);
   TTX_EMPTY_DOCUMENTATION();
 
@@ -58,7 +58,6 @@ class RouteContext : public Abstract {
   RouteContext(View::Bytes name, View::Bytes child_name, const Abstract& child)
       : name(name), child_name(child_name), child(child) {}
 
-  TTX_CONTRACT(RouteContext, Abstract);
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
@@ -115,7 +114,7 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, segment_queries) {
   auto reference = Interpreter::TypeReference::parse_route(cursor);
   ASSERT(reference);
 
-  RouteType terminal;
+  RouteDomain terminal;
   RouteContext first("First"_view, "Second"_view, terminal);
   RouteContext root("Root"_view, "First"_view, first);
   Option<const Abstract&> selected;
@@ -136,9 +135,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, explicit_package_alias) {
   ASSERT(reference);
 
   Language::Types::U64 terminal;
-  Alias exported_alias("U64"_view, terminal);
+  Binding exported_alias("U64"_view, terminal);
   RouteContext package("Package"_view, "U64"_view, exported_alias);
-  Alias package_alias("Math"_view, package);
+  Binding package_alias("Math"_view, package);
   RouteContext root("Root"_view, "Math"_view, package_alias);
   Option<const Abstract&> selected;
   reference->resolve(root).visit(
@@ -204,13 +203,13 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
   EXPECT(&fixed->get_element_type() == &monograph->resolve_concept("U8"_view));
   EXPECT_EQ(fixed->get_extent(), U64(4));
 
-  auto values_type = values->get_type().select<Type>();
-  auto nested_type = nested->get_type().select<Type>();
-  auto children_type = children->get_type().select<Type>();
-  ASSERT(values_type && nested_type && children_type);
+  auto values_domain = values->get_type().select<Domain>();
+  auto nested_domain = nested->get_type().select<Domain>();
+  auto children_domain = children->get_type().select<Domain>();
+  ASSERT(values_domain && nested_domain && children_domain);
 
   // Repeating completion observes the same Generic owned materializations
-  // and the exact Types selected by the first pass.
+  // and the exact Domains selected by the first pass.
   Allocator::Arena repeat_domain;
   Tokenizer repeat_tokenizer(repeat_domain, source, "type-reference.ttx"_view);
   Ttx::Lexical::Associations repeat_associations(repeat_tokenizer.get_arena());
@@ -226,9 +225,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
   ASSERT(values);
   ASSERT(nested);
   ASSERT(children);
-  EXPECT(&values->get_type() == &*values_type);
-  EXPECT(&nested->get_type() == &*nested_type);
-  EXPECT(&children->get_type() == &*children_type);
+  EXPECT(&values->get_type() == &*values_domain);
+  EXPECT(&nested->get_type() == &*nested_domain);
+  EXPECT(&children->get_type() == &*children_domain);
 
   ASSERT(monograph->finalize(repeat_cursor));
   EXPECT(errors.is_empty());
@@ -262,8 +261,8 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_aliases) {
   const Abstract& local_alias = root.resolve_concept("LocalView"_view);
   const Abstract& qualified_alias =
       root.resolve_concept("QualifiedAccess"_view);
-  ASSERT(local_alias.is<Ttx::Model::Alias>());
-  ASSERT(qualified_alias.is<Ttx::Model::Alias>());
+  ASSERT(local_alias.is<Tetrodotoxin::Language::Binding>());
+  ASSERT(qualified_alias.is<Tetrodotoxin::Language::Binding>());
 
   auto local_view = local_alias.resolve().select<Language::Types::View>();
   auto qualified_access =

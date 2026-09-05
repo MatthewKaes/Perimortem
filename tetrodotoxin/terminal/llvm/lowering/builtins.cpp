@@ -18,6 +18,7 @@
 #include "tetrodotoxin/library/builtin/view/size.hpp"
 #include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/object_storage.hpp"
 
@@ -27,10 +28,10 @@ using namespace Tetrodotoxin::Library;
 using Llvm::Emission::Invocation;
 
 static auto select_type(const Ttx::Concept::Layout& layout, Count index)
-    -> Core::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto entry = layout.get_abstract(index);
-  return entry ? entry->resolve().select<Ttx::Model::Type>()
-               : Core::Option<const Ttx::Model::Type&>();
+  return entry ? entry->resolve().select<Ttx::Model::Domain>()
+               : Core::Option<const Ttx::Model::Domain&>();
 }
 
 static auto select_parameter(const Ttx::Model::Callable& callable, Count index)
@@ -50,7 +51,7 @@ auto Llvm::Lowering::Builtins::lower(
   const Invocation& body = execution.get_invocation();
   auto receiver = select_parameter(callable, 0);
   auto receiver_type =
-      receiver ? receiver->get_type().select<Library::Language::Model::Type>()
+      receiver ? receiver->get_domain().select<Library::Language::Model::Type>()
                : Core::Option<const Library::Language::Model::Type&>();
   BAIL_IF(receiver && !receiver_type);
   auto result_type = select_type(callable.get_results(), 0);
@@ -140,7 +141,8 @@ auto Llvm::Lowering::Builtins::lower(
             : Core::Option<const Tetrodotoxin::Library::Language::Types::
                                ObjectStorage&>();
     auto fallback =
-        storage ? storage->get_element_type().create_default(
+        storage ? Tetrodotoxin::Library::Language::Model::initialize_default(
+                      storage->get_element_type(),
                       execution.get_program().get_arena())
                 : Core::Option<Tetrodotoxin::Library::Language::Model::Pack&>();
     BAIL_IF(

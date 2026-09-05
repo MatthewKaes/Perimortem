@@ -1,6 +1,9 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
+#include "validation/unit_test.hpp"
+
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -11,14 +14,20 @@
 #include "cross_language/cpp/root.hpp"
 #include "cross_language/cpp/ttx.hpp"
 #include "cross_language/cpp/value.hpp"
-#include "ttx/callable.hpp"
-#include "ttx/composite.hpp"
-#include "ttx/finite_extent.hpp"
-#include "ttx/named.hpp"
+#include "tetrodotoxin/terminal/graph_text.hpp"
+#include "ttx/concept/callable.hpp"
+#include "ttx/concept/domain.hpp"
+#include "ttx/model/addressable.hpp"
+#include "ttx/model/extent.hpp"
+#include "ttx/model/layouts/composite.hpp"
+#include "ttx/model/layouts/named.hpp"
+#include "ttx/model/layouts/ranged.hpp"
+#include "ttx/model/layouts/reindexed.hpp"
+#include "ttx/model/layouts/value.hpp"
+#include "ttx/model/route.hpp"
 #include "ttx/query.hpp"
-#include "ttx/ranged.hpp"
-#include "ttx/route.hpp"
-#include "ttx/value_layout.hpp"
+
+using namespace Perimortem::Core;
 
 static uint64_t failures;
 
@@ -28,9 +37,9 @@ static void fail(const char* message) {
 }
 
 static auto valid(ttx_abstract value) -> bool {
-  return value.operations != nullptr &&
-         value.operations->header.abi_major == TTX_ABI_MAJOR &&
-         value.operations->header.size >= sizeof(ttx_abstract_ops);
+  return value != nullptr && value->operations != nullptr &&
+         value->operations->header.abi_major == TTX_ABI_MAJOR &&
+         value->operations->header.size >= sizeof(ttx_abstract_ops);
 }
 
 class EmptyCallable final : public Ttx::Callable {
@@ -42,6 +51,85 @@ class EmptyCallable final : public Ttx::Callable {
 
   auto parameters() const -> ttx_layout override { return ttx_empty_layout(); }
   auto results() const -> ttx_layout override { return ttx_empty_layout(); }
+};
+
+class ProjectedDomain final : public Ttx::Domain {
+ public:
+  explicit ProjectedDomain(ttx_layout layout) : projected(layout) {}
+
+  auto name() const -> ttx_borrowed_bytes override {
+    static const uint8_t value[] = "C++ projected Domain";
+    return {value, sizeof(value) - 1};
+  }
+
+  auto layout() const -> ttx_layout override { return projected; }
+
+ private:
+  const ttx_layout projected;
+};
+
+static auto route_is(ttx_borrowed_bytes route, const char* text) -> bool {
+  uint64_t size = 0;
+  while (text[size] != '\0') {
+    ++size;
+  }
+  if (route.size != size || (size != 0 && route.data == nullptr)) {
+    return false;
+  }
+  for (uint64_t index = 0; index < size; ++index) {
+    if (route.data[index] != static_cast<uint8_t>(text[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+class RestrictedEcho final : public Ttx::Addressable::Layer {
+ public:
+  explicit RestrictedEcho(ttx_abstract echo) : echo(echo) {}
+
+  auto resolve_concept(ttx_abstract, ttx_borrowed_bytes route) const
+      -> ttx_abstract override {
+    return route_is(route, "value") ? ttx_unknown() : ttx_none();
+  }
+
+  auto interface(ttx_abstract, ttx_abstract requirement) const
+      -> Ttx::Addressable::InterfaceAnswer override {
+    return ttx_abstract_same(requirement, echo)
+               ? Ttx::Addressable::InterfaceAnswer::Rejected
+               : Ttx::Addressable::InterfaceAnswer::Pass;
+  }
+
+ private:
+  const ttx_abstract echo;
+};
+
+class WriteLayer final : public Ttx::Addressable::Layer {
+ public:
+  WriteLayer(ttx_abstract requirement, ttx_abstract authority)
+      : requirement(requirement), authority(authority) {}
+
+  auto resolve_concept(ttx_abstract, ttx_borrowed_bytes route) const
+      -> ttx_abstract override {
+    return route_is(route, "write") ? authority : ttx_none();
+  }
+
+  void visit_concepts(ttx_abstract, ttx_concept_sink result) const override {
+    static const uint8_t write[] = "write";
+    result.operations->item(result, {write, sizeof(write) - 1}, authority);
+    result.operations->completed(result);
+  }
+
+  auto interface(ttx_abstract, ttx_abstract requested) const
+      -> Ttx::Addressable::InterfaceAnswer override {
+    return ttx_abstract_same(requested, requirement)
+               ? Ttx::Addressable::InterfaceAnswer::Satisfied
+               : Ttx::Addressable::InterfaceAnswer::Pass;
+  }
+
+ private:
+  const ttx_abstract requirement;
+  const ttx_abstract authority;
 };
 
 struct NamedCapture {
@@ -56,6 +144,19 @@ struct CompositeCapture {
   bool answered;
   bool satisfied;
   ttx_composite_layout composite;
+};
+
+struct ReindexedCapture {
+  ttx_reindexed_layout_result_ops operations;
+  bool answered;
+  bool satisfied;
+  ttx_reindexed_layout reindexed;
+};
+
+struct MappingCapture {
+  ttx_reindex_sink_ops operations;
+  std::vector<Ttx::Layouts::Reindexed::Mapping> mappings;
+  bool completed;
 };
 
 struct RouteSummary {
@@ -81,16 +182,12 @@ struct SelectionCapture {
 };
 
 static void TTX_CALL named_rejected(ttx_named_result self) {
-  static_assert(offsetof(NamedCapture, operations) == 0);
-  auto& capture = *reinterpret_cast<NamedCapture*>(
-      const_cast<ttx_named_result_ops*>(self.operations));
+  auto& capture = *reinterpret_cast<NamedCapture*>(self.self);
   capture.answered = true;
 }
 
 static void TTX_CALL named_satisfied(ttx_named_result self, ttx_named named) {
-  static_assert(offsetof(NamedCapture, operations) == 0);
-  auto& capture = *reinterpret_cast<NamedCapture*>(
-      const_cast<ttx_named_result_ops*>(self.operations));
+  auto& capture = *reinterpret_cast<NamedCapture*>(self.self);
   capture.answered = true;
   capture.satisfied = true;
   capture.named = named;
@@ -98,9 +195,7 @@ static void TTX_CALL named_satisfied(ttx_named_result self, ttx_named named) {
 
 static auto composite_capture(ttx_composite_layout_result self)
     -> CompositeCapture& {
-  static_assert(offsetof(CompositeCapture, operations) == 0);
-  return *reinterpret_cast<CompositeCapture*>(
-      const_cast<ttx_composite_layout_result_ops*>(self.operations));
+  return *reinterpret_cast<CompositeCapture*>(self.self);
 }
 
 static void TTX_CALL composite_rejected(ttx_composite_layout_result self) {
@@ -137,17 +232,112 @@ static auto query_composite(ttx_layout layout) -> CompositeCapture {
   };
   const ttx_composite_layout_result result = {
     .operations = &capture.operations,
-    .owner = layout.owner,
-    .value = layout.value,
+    .self = reinterpret_cast<ttx_composite_layout_result_self*>(&capture),
   };
   layout.operations->composite(layout, result);
   return capture;
 }
 
+static auto reindexed_capture(ttx_reindexed_layout_result self)
+    -> ReindexedCapture& {
+  return *reinterpret_cast<ReindexedCapture*>(self.self);
+}
+
+static void TTX_CALL reindexed_rejected(ttx_reindexed_layout_result self) {
+  ReindexedCapture& capture = reindexed_capture(self);
+  capture.answered = true;
+  capture.satisfied = false;
+}
+
+static void TTX_CALL reindexed_satisfied(
+    ttx_reindexed_layout_result self,
+    ttx_reindexed_layout reindexed) {
+  ReindexedCapture& capture = reindexed_capture(self);
+  capture.answered = true;
+  capture.satisfied = true;
+  capture.reindexed = reindexed;
+}
+
+static auto query_reindexed(ttx_layout layout) -> ReindexedCapture {
+  ReindexedCapture capture = {
+    .operations =
+        {
+          .header =
+              {
+                .size = sizeof(ttx_reindexed_layout_result_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .rejected = reindexed_rejected,
+          .satisfied = reindexed_satisfied,
+        },
+    .answered = false,
+    .satisfied = false,
+    .reindexed = {},
+  };
+  const ttx_reindexed_layout_result result = {
+    .operations = &capture.operations,
+    .self = reinterpret_cast<ttx_reindexed_layout_result_self*>(&capture),
+  };
+  layout.operations->reindexed(layout, result);
+  return capture;
+}
+
+static auto mapping_capture(ttx_reindex_sink self) -> MappingCapture& {
+  return *reinterpret_cast<MappingCapture*>(self.self);
+}
+
+static void TTX_CALL capture_mapping(
+    ttx_reindex_sink self,
+    ttx_borrowed_bytes output,
+    ttx_borrowed_bytes source) {
+  MappingCapture& capture = mapping_capture(self);
+  if (capture.completed || (output.size != 0 && output.data == nullptr) ||
+      (source.size != 0 && source.data == nullptr)) {
+    capture.completed = true;
+    capture.mappings.clear();
+    return;
+  }
+  Ttx::Layouts::Reindexed::Mapping mapping;
+  if (output.size != 0) {
+    mapping.output.assign(output.data, output.data + output.size);
+  }
+  if (source.size != 0) {
+    mapping.source.assign(source.data, source.data + source.size);
+  }
+  capture.mappings.push_back(std::move(mapping));
+}
+
+static void TTX_CALL mapping_completed(ttx_reindex_sink self) {
+  mapping_capture(self).completed = true;
+}
+
+static auto collect_mappings(ttx_reindexed_layout reindexed) -> MappingCapture {
+  MappingCapture capture = {
+    .operations =
+        {
+          .header =
+              {
+                .size = sizeof(ttx_reindex_sink_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .mapping = capture_mapping,
+          .completed = mapping_completed,
+        },
+    .mappings = {},
+    .completed = false,
+  };
+  const ttx_reindex_sink sink = {
+    .operations = &capture.operations,
+    .self = reinterpret_cast<ttx_reindex_sink_self*>(&capture),
+  };
+  reindexed.operations->visit_mappings(reindexed, sink);
+  return capture;
+}
+
 static auto route_summary(ttx_named_route_sink self) -> RouteSummary& {
-  static_assert(offsetof(RouteSummary, operations) == 0);
-  return *reinterpret_cast<RouteSummary*>(
-      const_cast<ttx_named_route_sink_ops*>(self.operations));
+  return *reinterpret_cast<RouteSummary*>(self.self);
 }
 
 static void TTX_CALL
@@ -175,9 +365,7 @@ static void TTX_CALL route_completed(ttx_named_route_sink self) {
 
 static auto selection_capture(ttx_named_selection_result self)
     -> SelectionCapture& {
-  static_assert(offsetof(SelectionCapture, operations) == 0);
-  return *reinterpret_cast<SelectionCapture*>(
-      const_cast<ttx_named_selection_result_ops*>(self.operations));
+  return *reinterpret_cast<SelectionCapture*>(self.self);
 }
 
 static void TTX_CALL selection_unknown(ttx_named_selection_result self) {
@@ -223,8 +411,7 @@ static auto select_named(ttx_named named, ttx_borrowed_bytes route)
   };
   const ttx_named_selection_result result = {
     .operations = &capture.operations,
-    .owner = named.owner,
-    .value = named.value,
+    .self = reinterpret_cast<ttx_named_selection_result_self*>(&capture),
   };
   named.operations->select(named, route, result);
   return capture;
@@ -250,8 +437,7 @@ static auto named_snapshot_is_complete(ttx_pack pack) -> bool {
   };
   const ttx_named_result result = {
     .operations = &capture.operations,
-    .owner = layout.owner,
-    .value = layout.value,
+    .self = reinterpret_cast<ttx_named_result_self*>(&capture),
   };
   layout.operations->named(layout, result);
   if (!capture.answered || !capture.satisfied ||
@@ -260,7 +446,7 @@ static auto named_snapshot_is_complete(ttx_pack pack) -> bool {
   }
   const ttx_layout candidate =
       capture.named.operations->candidate(capture.named);
-  if (candidate.owner != layout.owner || candidate.value != layout.value) {
+  if (candidate.self != layout.self) {
     return false;
   }
   RouteSummary summary = {
@@ -285,26 +471,26 @@ static auto named_snapshot_is_complete(ttx_pack pack) -> bool {
   };
   const ttx_named_route_sink visitor = {
     .operations = &summary.operations,
-    .owner = layout.owner,
-    .value = layout.value,
+    .self = reinterpret_cast<ttx_named_route_sink_self*>(&summary),
   };
   capture.named.operations->visit_routes(capture.named, visitor);
   return summary.completed && summary.unknown == 1 && summary.none == 1 &&
          summary.exact == 1 && summary.matched;
 }
 
-int main() {
-  static_assert(sizeof(ttx_abstract) == sizeof(void*) + 16);
-  static_assert(sizeof(ttx_layout) == sizeof(void*) + 16);
-  static_assert(sizeof(ttx_pack) == sizeof(void*) + 16);
+static auto run_cross_language_graph() -> bool {
+  failures = 0;
+  static_assert(sizeof(ttx_abstract) == sizeof(void*));
+  static_assert(sizeof(ttx_interface) == sizeof(void*));
+  static_assert(sizeof(ttx_layout) == sizeof(void*) * 2);
+  static_assert(sizeof(ttx_pack) == sizeof(void*) * 2);
 
-  TtxTest::install(ttx_authority_create());
   const ttx_context context = ttx_context_create();
-  const ttx_test_rust_exports rust = rust_test_exports(
-      ttx_authority_create(), ttx_test_create_bytes_terminal());
+  const ttx_test_rust_exports rust =
+      rust_test_exports(ttx_test_create_bytes_terminal());
   if (!valid(rust.echo) || !valid(rust.view_bytes) || !valid(rust.value)) {
     fail("Rust did not export complete Abstract carriers.");
-    return EXIT_FAILURE;
+    return false;
   }
 
   static const uint8_t print_name[] = "print";
@@ -338,14 +524,16 @@ int main() {
       !ttx_abstract_same(view_domain.domain, rust.view_bytes) ||
       Ttx::resolve_domain(ttx_unknown()).state != Ttx::Observation::Unknown ||
       Ttx::resolve_domain(ttx_none()).state != Ttx::Observation::None ||
-      Ttx::resolve_callable(rust.echo).state != Ttx::Observation::None ||
-      Ttx::resolve_callable(ttx_unknown()).state != Ttx::Observation::Unknown) {
-    fail("Domain or Callable observations lost their factual outcomes.");
+      Ttx::resolve_callable(rust.echo).state !=
+          Ttx::CallableObservationState::None ||
+      Ttx::resolve_callable(ttx_unknown()).state !=
+          Ttx::CallableObservationState::Unknown) {
+    fail("Domain or Callable observations collapsed distinct outcomes.");
   }
   EmptyCallable empty_callable;
   const Ttx::CallableObservation callable =
       Ttx::resolve_callable(empty_callable.get_abi());
-  if (callable.state != Ttx::Observation::Resolved ||
+  if (callable.state != Ttx::CallableObservationState::Resolved ||
       callable.callable.operations == nullptr ||
       !ttx_abstract_same(
           callable.callable.operations->candidate(callable.callable),
@@ -383,11 +571,8 @@ int main() {
   if (!valid(integer) || !valid(boolean) || !valid(cpp_value) ||
       ttx_abstract_same(integer, boolean)) {
     fail("Independent C and C++ Value owners failed construction.");
-    return EXIT_FAILURE;
+    return false;
   }
-  ttx_test_bytes_terminal_add(ttx_test_c_value_bytes_provider());
-  ttx_test_bytes_terminal_add(TtxTest::value_bytes_provider());
-  ttx_test_bytes_terminal_add(rust_echo_bytes_provider());
 
   if (TtxTest::relation(integer, rust.value) != TTX_INTERFACE_SATISFIED ||
       TtxTest::relation(integer, rust.view_bytes) != TTX_INTERFACE_SATISFIED ||
@@ -406,14 +591,20 @@ int main() {
   const ttx_abstract cpp_backed = rust_echo_create(cpp_value);
   if (!valid(direct) || !valid(nested) || !valid(cpp_backed)) {
     fail("Rust coupled Echo construction to one language's Value model.");
-    return EXIT_FAILURE;
+    return false;
   }
 
   const ttx_abstract transported = TtxTest::redispatch(direct);
-  if (!ttx_abstract_same(transported, direct) ||
-      transported.operations == direct.operations) {
-    fail("C++ transport changed Rust semantic identity.");
-    return EXIT_FAILURE;
+  if (ttx_abstract_same(transported, direct) ||
+      Ttx::relation(transported, rust.echo) != TTX_INTERFACE_SATISFIED) {
+    fail("The C++ proxy must preserve the contract with its own identity.");
+    return false;
+  }
+  const auto represented = Ttx::copy_bytes(transported);
+  if (!represented || *represented != std::vector<uint8_t>{'4'}) {
+    fail(
+        "Rust and C++ byte projections did not preserve their visible "
+        "candidate.");
   }
 
   const ttx_abstract unresolved = TtxTest::create_echo_simulacrum(
@@ -423,13 +614,18 @@ int main() {
   const ttx_abstract twice =
       TtxTest::create_echo_simulacrum(rust.echo, print_operation, layered);
   const ttx_test_policy_exports policy = rust_policy_exports();
+  const auto nested_bytes = Ttx::copy_bytes(twice);
+  if (!nested_bytes ||
+      *nested_bytes != std::vector<uint8_t>{'t', 'r', 'u', 'e'}) {
+    fail("Nested Echo witnesses lost their independent byte projection.");
+  }
   if (!valid(unresolved) || !valid(layered) || !valid(twice) ||
       !valid(policy.candidate) || !valid(policy.requirement) ||
       !valid(policy.operation)) {
     fail(
         "An independently registered simulacrum or policy failed "
         "construction.");
-    return EXIT_FAILURE;
+    return false;
   }
   if (TtxTest::relation(direct, rust.echo) != TTX_INTERFACE_SATISFIED ||
       TtxTest::relation(direct, rust.view_bytes) != TTX_INTERFACE_SATISFIED ||
@@ -448,6 +644,67 @@ int main() {
           TtxTest::create_echo_simulacrum(
               rust.echo, print_operation, ttx_none()))) {
     fail("C++ collapsed distinct owners or accepted a rejected Echo child.");
+  }
+
+  const auto restriction = std::make_shared<RestrictedEcho>(rust.echo);
+  const auto writable =
+      std::make_shared<WriteLayer>(policy.requirement, policy.candidate);
+  Ttx::Addressable restricted(direct, {restriction, writable});
+  const ttx_abstract restricted_identity = restricted.get_abi();
+  static const uint8_t write_name[] = "write";
+  const ttx_borrowed_bytes write_route = {
+    write_name,
+    sizeof(write_name) - 1,
+  };
+  if (!ttx_abstract_same(
+          Ttx::resolve(restricted_identity), restricted_identity) ||
+      !ttx_abstract_same(
+          Ttx::resolve_concept(restricted_identity, value_route),
+          ttx_unknown()) ||
+      !ttx_abstract_same(
+          Ttx::resolve_concept(restricted_identity, write_route),
+          policy.candidate) ||
+      Ttx::relation(restricted_identity, rust.echo) != TTX_INTERFACE_REJECTED ||
+      Ttx::relation(restricted_identity, policy.requirement) !=
+          TTX_INTERFACE_SATISFIED ||
+      Ttx::relation(restricted_identity, ttx_addressable_requirement()) !=
+          TTX_INTERFACE_SATISFIED) {
+    fail("Addressable let a stopped policy observation reach its referent.");
+  }
+
+  Ttx::Addressable c_restricted(
+      direct,
+      std::vector<ttx_addressable_policy>{ttx_test_c_restriction_policy()});
+  static const uint8_t private_name[] = "private";
+  const ttx_borrowed_bytes private_route = {
+    private_name,
+    sizeof(private_name) - 1,
+  };
+  if (!ttx_abstract_same(
+          Ttx::resolve_concept(c_restricted.get_abi(), private_route),
+          ttx_unknown())) {
+    fail("C policy did not stop its owned route with Unknown.");
+  }
+  const ttx_abstract direct_value = Ttx::resolve_concept(direct, value_route);
+  if (ttx_abstract_same(direct_value, ttx_unknown()) ||
+      ttx_abstract_same(direct_value, ttx_none()) ||
+      !ttx_abstract_same(
+          Ttx::resolve_concept(c_restricted.get_abi(), value_route),
+          direct_value)) {
+    fail("C policy did not pass an unowned route to its Rust referent.");
+  }
+  if (Ttx::relation(c_restricted.get_abi(), rust.echo) !=
+      TTX_INTERFACE_SATISFIED) {
+    fail("C policy did not pass Interface negotiation to its Rust referent.");
+  }
+
+  Ttx::Addressable value_address(integer);
+  const Ttx::DomainObservation addressed_domain =
+      Ttx::resolve_domain(value_address.get_abi());
+  if (addressed_domain.state != Ttx::Observation::Unknown ||
+      Ttx::relation(value_address.get_abi(), rust.value) !=
+          TTX_INTERFACE_SATISFIED) {
+    fail("Addressable changed a relationship after every layer passed.");
   }
 
   const TtxTest::AliasBinding alias = TtxTest::make_alias(direct);
@@ -624,6 +881,99 @@ int main() {
           .state != Ttx::PackObservationState::None) {
     fail("Composite implicitly reassociated equal enumerable leaves.");
   }
+
+  ttx_pack retained_reindexed = {};
+  {
+    Ttx::Layouts::Fluid reindex_source({
+      {.path = {0}, .producer = integer},
+      {.path = {1}, .producer = boolean},
+      {.path = {2}, .producer = cpp_value},
+    });
+    Ttx::Layouts::Fluid reindex_projection({
+      {.path = {0}, .producer = integer},
+      {.path = {1}, .producer = integer},
+      {.path = {2}, .producer = cpp_value},
+      {.path = {3}, .producer = boolean},
+      {.path = {4}, .producer = cpp_value},
+    });
+    Ttx::Layouts::Reindexed reindexed(
+        reindex_source.get_abi(), reindex_projection.get_abi(),
+        {
+          {.output = {0}, .source = {0}},
+          {.output = {1}, .source = {0}},
+          {.output = {2}, .source = {2}},
+          {.output = {3}, .source = {1}},
+          {.output = {4}, .source = {2}},
+        });
+    const Ttx::PackObservation retained =
+        Ttx::pack(context, reindexed.get_abi());
+    if (retained.state == Ttx::PackObservationState::Packed) {
+      retained_reindexed = retained.pack;
+    }
+  }
+  ReindexedCapture reindexed_view = {};
+  MappingCapture retained_mappings = {};
+  if (retained_reindexed.operations != nullptr) {
+    reindexed_view = query_reindexed(
+        retained_reindexed.operations->layout(retained_reindexed));
+    if (reindexed_view.satisfied) {
+      retained_mappings = collect_mappings(reindexed_view.reindexed);
+    }
+  }
+  if (retained_reindexed.operations == nullptr ||
+      ttx_test_pack_cardinality(retained_reindexed) != 5 ||
+      !ttx_abstract_same(ttx_test_pack_first(retained_reindexed), integer) ||
+      !reindexed_view.answered || !reindexed_view.satisfied ||
+      !retained_mappings.completed || retained_mappings.mappings.size() != 5 ||
+      retained_mappings.mappings[1].source != std::vector<uint8_t>{0} ||
+      retained_mappings.mappings[4].source != std::vector<uint8_t>{2}) {
+    fail("Reindexed lost its source mapping or original producers.");
+  }
+
+  if (retained_reindexed.operations != nullptr) {
+    ProjectedDomain projected(
+        retained_reindexed.operations->layout(retained_reindexed));
+    static const uint8_t graph_source[] = "cross-language observation";
+    const auto first = Tetrodotoxin::Terminal::GraphText::write(
+        {graph_source, sizeof(graph_source) - 1}, restricted_identity,
+        projected.get_abi(), projected.get_abi());
+    const auto second = Tetrodotoxin::Terminal::GraphText::write(
+        {graph_source, sizeof(graph_source) - 1}, restricted_identity,
+        projected.get_abi(), projected.get_abi());
+    const std::vector<uint8_t> reindexed_text = {' ', ' ', 'r', 'e', 'i', 'n',
+                                                 'd', 'e', 'x', 'e', 'd', ' '};
+    const std::vector<uint8_t> addressable_text = {
+      ' ', ' ', 'a', 'd', 'd', 'r', 'e', 's', 's', 'a', 'b', 'l',
+      'e', ' ', 's', 'a', 't', 'i', 's', 'f', 'i', 'e', 'd'};
+    if (first != second ||
+        std::search(
+            first.begin(), first.end(), reindexed_text.begin(),
+            reindexed_text.end()) == first.end() ||
+        std::search(
+            first.begin(), first.end(), addressable_text.begin(),
+            addressable_text.end()) == first.end()) {
+      fail(
+          "Graph Text selected a C++ owner or lost canonical Layout "
+          "structure.");
+    }
+  }
+
+  {
+    Ttx::Layouts::Fluid source({
+      {.path = {0}, .producer = integer},
+    });
+    Ttx::Layouts::Fluid dishonest_projection({
+      {.path = {0}, .producer = boolean},
+    });
+    Ttx::Layouts::Reindexed dishonest(
+        source.get_abi(), dishonest_projection.get_abi(),
+        {{{.output = {0}, .source = {0}}}});
+    if (Ttx::pack(context, dishonest.get_abi()).state !=
+        Ttx::PackObservationState::SupportFailed) {
+      fail("Reindexed accepted a projection that changed its source producer.");
+    }
+  }
+
   Ttx::Layouts::Fluid positional_receiver({
     {.path = {0}, .producer = rust.value},
     {.path = {1}, .producer = rust.value},
@@ -720,8 +1070,7 @@ int main() {
     };
     const ttx_named_result named_result = {
       .operations = &retained_view.operations,
-      .owner = retained_layout.owner,
-      .value = retained_layout.value,
+      .self = reinterpret_cast<ttx_named_result_self*>(&retained_view),
     };
     retained_layout.operations->named(retained_layout, named_result);
     static const uint8_t green_bytes[] = ".g";
@@ -762,8 +1111,7 @@ int main() {
     };
     const ttx_named_result named_result = {
       .operations = &view.operations,
-      .owner = settled.get_abi().owner,
-      .value = settled.get_abi().value,
+      .self = reinterpret_cast<ttx_named_result_self*>(&view),
     };
     settled.get_abi().operations->named(settled.get_abi(), named_result);
     const ttx_borrowed_bytes green = {
@@ -808,8 +1156,7 @@ int main() {
     };
     const ttx_named_result named_result = {
       .operations = &view.operations,
-      .owner = duplicate.get_abi().owner,
-      .value = duplicate.get_abi().value,
+      .self = reinterpret_cast<ttx_named_result_self*>(&view),
     };
     duplicate.get_abi().operations->named(duplicate.get_abi(), named_result);
     if (!view.answered || view.satisfied) {
@@ -839,5 +1186,13 @@ int main() {
   }
 
   context.operations->release(context);
-  return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+  return failures == 0;
+}
+
+static Validation::Harness CrossLanguageGraph = {
+  .name = "TTX cross-language graph"_view,
+};
+
+PERIMORTEM_UNIT_TEST(CrossLanguageGraph, semantic_substitution) {
+  EXPECT(run_cross_language_graph());
 }

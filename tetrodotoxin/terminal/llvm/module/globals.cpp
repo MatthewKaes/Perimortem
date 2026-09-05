@@ -116,7 +116,7 @@ static auto emit_destructor(
       native_function.getContext(), "entry", &native_function);
   Llvm::Module::Body body(program, addressable, function);
   llvm::IRBuilder<>& builder = get_builder(body);
-  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  auto type = addressable.get_domain().select<Ttx::Model::Domain>();
   auto native_type =
       type ? carriers.get_type(*type) : Core::Option<LLVMTypeRef>();
   if (!type || !native_type) {
@@ -251,7 +251,7 @@ auto Llvm::Module::Globals::complete(
     return True;
   }
 
-  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  auto type = addressable.get_domain().select<Ttx::Model::Domain>();
   auto native_type =
       type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
   if (!type || !native_type) {
@@ -348,7 +348,7 @@ auto Llvm::Module::Globals::end_initializer(
         "LLVM completed a Static initializer under different target state."_view);
   }
 
-  auto type = addressable.get_type().select<Ttx::Model::Type>();
+  auto type = addressable.get_domain().select<Ttx::Model::Domain>();
   BAIL_IF(!type);
 
   auto values = native_body->find_values(value);

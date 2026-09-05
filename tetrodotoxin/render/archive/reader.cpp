@@ -12,7 +12,7 @@
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
 #include "tetrodotoxin/render/language/structure.hpp"
-#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;
@@ -158,7 +158,7 @@ auto Render::Archive::Reader::read_documentation(Allocator::Arena& arena)
     BAIL_IF(!line);
     lines.get_data()[index] = arena.proxy(*line);
   }
-  return arena.construct<Ttx::Model::Documentations::Block>(
+  return arena.construct<Ttx::Documentations::Block>(
       View::Vector<View::Bytes>(lines.get_data(), lines.get_size()));
 }
 

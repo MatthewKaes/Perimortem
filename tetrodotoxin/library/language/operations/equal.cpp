@@ -11,7 +11,7 @@
 #include "tetrodotoxin/library/language/model/types/value.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -79,7 +79,7 @@ static auto accepts_constant(
 
   auto type = selected.select<Language::Model::Type>();
   return type && constant.is_identity<Language::Constants::Bytes>() &&
-         type->accepts(constant);
+         constant.fits_into(*type);
 }
 
 TTX_BINARY_OP(Equal);

@@ -11,13 +11,13 @@
 
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Definition owns the common declaration facts shared by concrete
+// Definition owns the common authored state shared by concrete
 // Tetrodotoxin languages. Authored definitions begin with a retained prefix and
 // complete their Anchor after the concrete grammar succeeds. Synthetic
 // definitions retain the same semantic contract without fabricating lexical
@@ -53,10 +53,9 @@ class Definition {
       Perimortem::Core::View::Bytes name,
       Visibility visibility) -> Definition&;
 
-  // Creates one complete Definition after a concrete grammar has accepted its
-  // exact authored form. This keeps alternate declaration orders in their
-  // concrete language without copying common declaration facts into the
-  // resulting semantic identity.
+  // Once a concrete grammar accepts its authored form, it creates the complete
+  // Definition here. Alternate declaration orders remain with that language
+  // while the resulting semantic identity receives only the shared state.
   static auto create_authored(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
@@ -88,7 +87,7 @@ class Definition {
       Ttx::Lexical::Anchor anchor) -> Definition&;
 
   // Completes one authored declaration with its concrete grammar range. A
-  // rejected or repeated completion leaves the original source fact intact.
+  // rejected or repeated completion leaves the original source range intact.
   auto complete(Ttx::Lexical::Token focus, Ttx::Lexical::Token closing) -> Bool;
 
   constexpr auto get_documentation() const
@@ -112,9 +111,9 @@ class Definition {
     return visibility_token;
   }
 
-  // Host is the enclosing mutable definition transaction owner and access
-  // authority. It is never universal semantic parentage or a required route
-  // through the TTX graph.
+  // Host lends the enclosing definition transaction and access authority.
+  // Keeping that relationship local avoids turning source containment into
+  // universal semantic parentage or a required route through every TTX graph.
   constexpr auto get_host() -> Ttx::Concept::Abstract& { return host; }
 
   constexpr auto get_host() const -> const Ttx::Concept::Abstract& {

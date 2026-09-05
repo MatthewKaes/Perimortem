@@ -3,24 +3,28 @@
 
 #pragma once
 
-#include "perimortem/memory/allocator/arena.hpp"
+#include <cstdint>
+#include <vector>
 
-#include "tetrodotoxin/language/product.hpp"
-#include "ttx/concept/abstract.h"
+#include "ttx/abi.h"
 
 namespace Tetrodotoxin::Terminal {
 
-// GraphText emits one dialect-neutral, lossless description of the Abstract
-// graph visible to a caller. The dump is a presentation product: it borrows no
-// semantic ownership and assigns IDs only for this serialization transaction.
+// Graph Text is the first Terminal which consumes the canonical graph without
+// selecting a native C++ owner. It copies the answers exposed during one
+// observation into a deterministic textual report, including partial Domain
+// answers and the complete Layout topology available to the caller. The bytes
+// are a product of the observation rather than another semantic participant;
+// they never become an authority that the live graph resolves through later.
 class GraphText {
  public:
+  using Bytes = std::vector<uint8_t>;
+
   static auto write(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes source,
-      const ttx_abstract* dialect,
-      const ttx_abstract* root,
-      const ttx_abstract* graph) -> const Tetrodotoxin::Language::Product&;
+      ttx_borrowed_bytes source,
+      ttx_abstract dialect,
+      ttx_abstract root,
+      ttx_abstract graph) -> Bytes;
 };
 
 }  // namespace Tetrodotoxin::Terminal

@@ -18,7 +18,6 @@ namespace Tetrodotoxin::Package {
 // another resource model for Library, App, or a Terminal.
 class Resource : public Tetrodotoxin::Language::Resource {
  public:
-  TTX_CONTRACT(Resource, Tetrodotoxin::Language::Resource);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,

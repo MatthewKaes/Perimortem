@@ -24,7 +24,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -67,7 +67,7 @@ class LessEqualExpression : public Expression {
   const Abstract& type;
 };
 
-class LessEqualUnresolvedType : public Ttx::Model::Type {
+class LessEqualUnresolvedType : public Ttx::Model::Domain {
  public:
   auto get_name() const -> View::Bytes override { return "Unresolved"_view; }
   auto get_documentation() const -> const Documentation& override {

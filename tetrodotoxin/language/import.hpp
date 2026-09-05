@@ -7,10 +7,10 @@
 
 #include "perimortem/system/version.hpp"
 
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/language/reference.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -20,7 +20,7 @@ namespace Tetrodotoxin::Language {
 // acquired by Environment. Its optional Type route resolves over that root,
 // then the Alias represents the exact selected identity without forwarding a
 // second lookup or Type surface.
-class Import : public Ttx::Model::Alias {
+class Import : public Tetrodotoxin::Language::Binding {
  public:
   enum class Kind : U8 {
     Source,
@@ -95,7 +95,7 @@ class Import : public Ttx::Model::Alias {
   constexpr Import(
       Perimortem::Memory::Allocator::Arena& domain,
       const Description& description)
-      : Ttx::Model::Alias(
+      : Tetrodotoxin::Language::Binding(
             description.get_name(),
             description.get_documentation()),
         domain(domain),
@@ -109,7 +109,6 @@ class Import : public Ttx::Model::Alias {
         expression_anchor(description.get_expression_anchor()),
         route_anchor(description.get_route_anchor()) {}
 
-  TTX_CONTRACT(Import, Ttx::Model::Alias);
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
   constexpr auto get_kind() const -> Kind { return kind; }
@@ -129,10 +128,10 @@ class Import : public Ttx::Model::Alias {
     return expression_anchor;
   }
 
-  auto acquire(const Ttx::Model::Type& root) -> Bool;
+  auto acquire(const Ttx::Model::Domain& root) -> Bool;
 
   auto get_acquired() const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&>;
+      -> Perimortem::Core::Option<const Ttx::Model::Domain&>;
 
   auto validate(Ttx::Lexical::Cursor& cursor) -> Bool;
   auto validate_restored() -> Bool;
@@ -154,7 +153,7 @@ class Import : public Ttx::Model::Alias {
   Ttx::Lexical::Anchor declaration_anchor;
   Ttx::Lexical::Anchor expression_anchor;
   Ttx::Lexical::Anchor route_anchor;
-  const Ttx::Model::Type* acquired = nullptr;
+  const Ttx::Model::Domain* acquired = nullptr;
   const Ttx::Concept::Abstract* target = nullptr;
 };
 

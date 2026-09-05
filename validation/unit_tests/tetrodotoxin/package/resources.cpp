@@ -20,10 +20,10 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -266,7 +266,8 @@ PERIMORTEM_UNIT_TEST(PackageResources, monograph_dispatch) {
   Cursor cursor(tokenizer, errors, associations);
   auto& root = Package::Language::Monograph::create_authored(
       arena, dialect, Documentation::get_empty(), Anchor::create(Span()),
-      "Validation.Resources"_view, Version(1, 0), dialect, library);
+      "Validation.Resources"_view, Version(1, 0), dialect, library,
+      Managed::Vector<Package::RequiredDialect>(arena));
   EXPECT(&root.resolve_concept(complete) == &Unknown::get_unknown());
   EXPECT(&root.resolve_concept(partial) == &Unknown::get_unknown());
   EXPECT(

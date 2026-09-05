@@ -17,6 +17,7 @@
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/types/bool.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
@@ -35,7 +36,8 @@ static auto lower_address(
     const Model::Pack& receiver) -> Bool {
   auto selected =
       expression.get_result().resolve().select<Model::Addressable>();
-  auto instance = receiver.get_result().resolve().select<Model::Addressable>();
+  auto instance =
+      receiver.get_result().resolve().select<Ttx::Model::Addressable>();
   BAIL_IF(
       !selected ||
       !Llvm::Lowering::Graph::prepare(execution.get_program(), *selected));
@@ -70,7 +72,8 @@ static auto lower_initializer(
 
   auto values = initializer.get_completed_values();
   BAIL_IF(!values || !execution.lower(*values));
-  auto completed_type = values->get_type().resolve().select<Ttx::Model::Type>();
+  auto completed_type =
+      values->get_type().resolve().select<Ttx::Model::Domain>();
   if (completed_type && &*completed_type == &*type) {
     return execution.get_storage().alias(initializer, *values);
   }
@@ -152,8 +155,8 @@ static auto lower_slice(
   Memory::Managed::Vector<LLVMValueRef> values(
       execution.get_program().get_arena());
   for (Count offset = 0; offset < *range_count; offset++) {
-    auto fallback =
-        element->create_default(execution.get_program().get_arena());
+    auto fallback = Model::initialize_default(
+        *element, execution.get_program().get_arena());
     auto state = execution.get_storage().begin_slice_slot(*range, offset);
     BAIL_IF(!fallback || !state || !execution.lower(*fallback));
     auto selected =
@@ -199,9 +202,12 @@ auto Llvm::Lowering::Access::lower(
       return True;
     }
     auto addressable =
-        identifier->get_result().resolve().select<Model::Addressable>();
-    return addressable &&
-           Graph::prepare(execution.get_program(), *addressable) &&
+        identifier->get_result().resolve().select<Ttx::Model::Addressable>();
+    auto type = addressable
+                    ? addressable->get_domain().resolve().select<Model::Type>()
+                    : Core::Option<const Model::Type&>();
+    return addressable && type &&
+           Types::prepare(execution.get_program(), *type) &&
            execution.get_storage().select(*identifier, *addressable) &&
            execution.get_storage().load(*identifier);
   }
@@ -229,9 +235,11 @@ auto Llvm::Lowering::Access::lower(
       expression.select<Tetrodotoxin::Library::Language::Access::Unwrap>();
   if (unwrap) {
     auto fallback = unwrap->get_fallback();
-    auto carrier =
-        unwrap->get_receiver().get_type().resolve().select<Ttx::Model::Type>();
-    auto element = unwrap->get_type().resolve().select<Ttx::Model::Type>();
+    auto carrier = unwrap->get_receiver()
+                       .get_type()
+                       .resolve()
+                       .select<Ttx::Model::Domain>();
+    auto element = unwrap->get_type().resolve().select<Ttx::Model::Domain>();
     BAIL_IF(
         !fallback || !carrier || !element ||
         !execution.lower(unwrap->get_receiver()));
@@ -296,7 +304,8 @@ auto Llvm::Lowering::Access::lower_write_target(
   if (!index) {
     return False;
   }
-  auto element = index->get_element_type().resolve().select<Ttx::Model::Type>();
+  auto element =
+      index->get_element_type().resolve().select<Ttx::Model::Domain>();
   BAIL_IF(
       !element || !execution.lower(index->get_receiver()) ||
       !execution.lower(index->get_index()));

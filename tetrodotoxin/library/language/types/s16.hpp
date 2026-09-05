@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -15,7 +15,7 @@ class S16 : public Model::Types::Signed {
 
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 16; }
   constexpr auto get_size() const -> Count override { return sizeof(::S16); }
@@ -24,7 +24,7 @@ class S16 : public Model::Types::Signed {
   }
 
  private:
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "S16 is stored as a 2 byte two's-complement integer."_view,
   };
 };

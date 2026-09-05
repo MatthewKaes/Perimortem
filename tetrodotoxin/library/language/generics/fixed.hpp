@@ -6,8 +6,8 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Generics {
 
@@ -34,11 +34,11 @@ class Fixed : public Generic {
 
  private:
   auto create(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Core::Option<const Model::Type&> override;
+      -> Creation override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 2>
       parameterization = {{Parameters::Type, Parameters::U64}};
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,
   };
 };

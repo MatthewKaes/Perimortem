@@ -12,7 +12,7 @@
 #include "tetrodotoxin/app/language/monograph.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
 #include "tetrodotoxin/terminal/vulkan/products.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Terminal::Application {
 
@@ -50,8 +50,8 @@ class Generator {
       Perimortem::Core::View::Bytes package,
       Perimortem::Core::View::Bytes artifact,
       Perimortem::Core::View::Vector<MemberBinding> members,
-      const Ttx::Model::Type& graphics_placement,
-      Perimortem::Core::View::Vector<const Ttx::Model::Type*> graphics_types,
+      const Ttx::Model::Domain& graphics_placement,
+      Perimortem::Core::View::Vector<const Ttx::Model::Domain*> graphics_types,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>
           graphics_placements,
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes>

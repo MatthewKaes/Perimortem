@@ -7,9 +7,9 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language {
@@ -18,13 +18,13 @@ namespace Tetrodotoxin::Library::Language {
 // its stable identity and TypeReference. Link binds one exact target only after
 // every surrounding Type identity exists. TTX Alias remains opaque, so no
 // consumer can inspect or operate on the stored target edge directly.
-class Alias : public Ttx::Model::Alias {
+class Alias : public Tetrodotoxin::Language::Binding {
  private:
   constexpr Alias(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
       TypeReference target_reference)
-      : Ttx::Model::Alias(
+      : Tetrodotoxin::Language::Binding(
             definition.get_name(),
             definition.get_documentation()),
         definition(definition),
@@ -32,7 +32,6 @@ class Alias : public Ttx::Model::Alias {
         target_reference(target_reference) {}
 
  public:
-  TTX_CONTRACT(Alias, Ttx::Model::Alias);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

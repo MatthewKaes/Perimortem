@@ -3,15 +3,14 @@
 
 #pragma once
 
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
-class Alias : public Ttx::Model::Alias {
+class Alias : public Tetrodotoxin::Language::Binding {
  public:
-  TTX_CONTRACT(Alias, Ttx::Model::Alias);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -37,7 +36,7 @@ class Alias : public Ttx::Model::Alias {
   Alias(
       Tetrodotoxin::Language::Definition& definition,
       Tetrodotoxin::Language::TypeReference target)
-      : Ttx::Model::Alias(
+      : Tetrodotoxin::Language::Binding(
             definition.get_name(),
             definition.get_documentation()),
         definition(definition),

@@ -5,8 +5,8 @@
 
 #include "perimortem/core/option.hpp"
 
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -16,7 +16,6 @@ namespace Tetrodotoxin::App::Language {
 // selected from that completed Package graph during linking.
 class Program : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Program, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,

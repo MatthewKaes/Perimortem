@@ -11,7 +11,7 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
-#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;
@@ -148,6 +148,6 @@ auto Scene::Archive::Reader::read_documentation(Allocator::Arena& arena)
     BAIL_IF(!line);
     lines.get_data()[index] = arena.proxy(*line);
   }
-  return arena.construct<Ttx::Model::Documentations::Block>(
+  return arena.construct<Ttx::Documentations::Block>(
       View::Vector<View::Bytes>(lines.get_data(), lines.get_size()));
 }

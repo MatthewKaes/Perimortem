@@ -13,7 +13,8 @@ namespace Tetrodotoxin::Render::Language {
 // Attributes owns the Render meaning of otherwise uninterpreted authored keys.
 // Validation proves that each key appears on a declaration where its meaning is
 // coherent. Satisfaction compares a concrete implementation with the required
-// Render facts while both sides keep their original semantic identities.
+// Render relationships while both sides keep their original semantic
+// identities.
 class Attributes {
  public:
   enum class Placement : U8 {
@@ -34,7 +35,7 @@ class Attributes {
       Placement placement) -> Bool;
 
   // Archive reconstruction has no source Cursor. This pure query applies the
-  // same key, value, repetition, and pairing policy so malformed payload facts
+  // same key, value, repetition, and pairing policy so malformed payload data
   // cannot enter a restored graph.
   static auto accepts(
       Perimortem::Core::View::Vector<Tetrodotoxin::Language::Attribute>

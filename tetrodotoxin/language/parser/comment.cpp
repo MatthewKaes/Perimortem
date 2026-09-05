@@ -5,7 +5,7 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/model/documentations/block.hpp"
 #include "ttx/lexical/lexicon.hpp"
 #include "ttx/lexical/token.hpp"
 
@@ -58,7 +58,7 @@ auto Parser::Comment::parse(Cursor& cursor) -> const Documentation& {
   // the tokenizer's source bytes so formatters and other tools can examine the
   // block just as it was source authored.
   const auto& documentation =
-      cursor.get_arena().construct<Ttx::Model::Documentations::Block>(
+      cursor.get_arena().construct<Ttx::Documentations::Block>(
           lines.get_view());
   return documentation;
 }

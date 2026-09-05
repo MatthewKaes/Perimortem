@@ -40,8 +40,3 @@ auto Types::Namespace::retain_binding(
 auto Types::Namespace::complete_body() -> void {
   complete_field_layout();
 }
-
-auto Types::Namespace::create_default(Allocator::Arena&) const
-    -> Option<Model::Pack&> {
-  return {};
-}

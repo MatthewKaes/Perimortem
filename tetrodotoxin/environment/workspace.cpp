@@ -18,11 +18,11 @@
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/resource.hpp"
 #include "tetrodotoxin/package/storage.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,6 +30,89 @@ using namespace Perimortem::System;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
+
+const tetrodotoxin_workspace_view_ops
+    Environment::Workspace::provider_operations = {
+      .header =
+          {
+            .size = sizeof(tetrodotoxin_workspace_view_ops),
+            .abi_major = TTX_ABI_MAJOR,
+            .abi_minor = TTX_ABI_MINOR,
+          },
+      .root = provider_root,
+      .visit_revisions = provider_revisions,
+};
+
+const tetrodotoxin_authority_revision_ops
+    Environment::Workspace::SourceRevision::operations = {
+      .header =
+          {
+            .size = sizeof(tetrodotoxin_authority_revision_ops),
+            .abi_major = TTX_ABI_MAJOR,
+            .abi_minor = TTX_ABI_MINOR,
+          },
+      .revision = revision,
+      .is_current = is_current,
+};
+
+auto Environment::Workspace::SourceRevision::select(
+    tetrodotoxin_authority_revision_self* self) -> SourceRevision& {
+  return *reinterpret_cast<SourceRevision*>(self);
+}
+
+auto Environment::Workspace::SourceRevision::handle()
+    -> tetrodotoxin_authority_revision {
+  return {
+    .operations = &operations,
+    .self = reinterpret_cast<tetrodotoxin_authority_revision_self*>(this),
+  };
+}
+
+auto Environment::Workspace::SourceRevision::revision(
+    tetrodotoxin_authority_revision_self*) -> uint64_t {
+  return 1;
+}
+
+auto Environment::Workspace::SourceRevision::is_current(
+    tetrodotoxin_authority_revision_self*) -> uint8_t {
+  return 1;
+}
+
+auto Environment::Workspace::select(tetrodotoxin_workspace_view_self* self)
+    -> Workspace& {
+  return *reinterpret_cast<Workspace*>(self);
+}
+
+auto Environment::Workspace::provider_root(
+    tetrodotoxin_workspace_view_self* self) -> ttx_abstract {
+  return select(self).get_handle();
+}
+
+void Environment::Workspace::provider_revisions(
+    tetrodotoxin_workspace_view_self* self,
+    tetrodotoxin_closure_authority_sink result) {
+  Workspace& workspace = select(self);
+  for (Count index = 0; index < workspace.retained_sources.get_size();
+       ++index) {
+    result.operations->authority(
+        result.self, workspace.retained_sources[index].revision.handle());
+  }
+  for (Count index = 0; index < workspace.provider_sources.get_size();
+       ++index) {
+    result.operations->authority(
+        result.self, workspace.provider_sources[index]->revision.handle());
+  }
+  result.operations->completed(result.self);
+}
+
+auto Environment::Workspace::get_provider_handle() const
+    -> tetrodotoxin_workspace_view {
+  return {
+    .operations = &provider_operations,
+    .self = reinterpret_cast<tetrodotoxin_workspace_view_self*>(
+        const_cast<Workspace*>(this)),
+  };
+}
 
 static auto append_storage_failure(
     auto& report,
@@ -54,23 +137,74 @@ static auto append_storage_failure(
       });
 }
 
+struct PortableSourceInput {
+  tetrodotoxin_source_input_ops operations;
+  View::Bytes diagnostic_path;
+  View::Bytes contents;
+  View::Vector<Token> tokens;
+};
+
+static auto portable_source(tetrodotoxin_source_input_self* self)
+    -> PortableSourceInput& {
+  return *reinterpret_cast<PortableSourceInput*>(self);
+}
+
+static auto TTX_CALL portable_source_path(tetrodotoxin_source_input_self* self)
+    -> ttx_borrowed_bytes {
+  const View::Bytes value = portable_source(self).diagnostic_path;
+  return {.data = value.get_data(), .size = value.get_size()};
+}
+
+static auto TTX_CALL portable_source_bytes(tetrodotoxin_source_input_self* self)
+    -> ttx_borrowed_bytes {
+  const View::Bytes value = portable_source(self).contents;
+  return {.data = value.get_data(), .size = value.get_size()};
+}
+
+static void TTX_CALL portable_source_tokens(
+    tetrodotoxin_source_input_self* self,
+    tetrodotoxin_token_sink result) {
+  if (result.operations == nullptr || result.self == nullptr ||
+      result.operations->header.abi_major != TTX_ABI_MAJOR ||
+      result.operations->header.size < sizeof(tetrodotoxin_token_sink_ops) ||
+      result.operations->token == nullptr ||
+      result.operations->completed == nullptr) {
+    return;
+  }
+  for (const Token& token : portable_source(self).tokens) {
+    result.operations->token(
+        result.self, {
+                       .offset = token.get_offset(),
+                       .line = token.get_line(),
+                       .column = token.get_column(),
+                       .size = token.get_size(),
+                       .code = static_cast<U8>(token.get_code().get_type()),
+                     });
+  }
+  result.operations->completed(result.self);
+}
+
 Environment::Workspace::Workspace(
     Toolchain& selected_toolchain,
     Option<Dynamic::Record<Package::Snapshots>> selected_snapshots,
-    Package::Repository::Repository* selected_repository)
+    Package::Repository::Repository* selected_repository,
+    Abstract* selected_outer)
     : toolchain(selected_toolchain),
       repository(selected_repository),
+      outer(selected_outer),
       snapshots(selected_snapshots),
       arena(),
       retained_sources(),
+      provider_sources(),
       package_members(arena),
-      retained_monographs(),
+      retained_graphs(),
       packages(arena),
       active_packages() {}
 
 Environment::Workspace::~Workspace() = default;
 
 auto Environment::Workspace::restore_coordinate(
+    Errors& errors,
     View::Bytes identity,
     Version version) -> Bool {
   for (const ImportedPackage& imported : packages.get_view()) {
@@ -81,6 +215,19 @@ auto Environment::Workspace::restore_coordinate(
   BAIL_IF(repository == nullptr);
   for (const ActivePackage& active : active_packages.get_view()) {
     BAIL_IF(active.identity == identity);
+  }
+
+  Option<View::Bytes> source_root;
+  repository->select_source(identity, version)
+      .visit(
+          [&](View::Bytes selected) { source_root = selected; },
+          [](Package::Repository::Repository::Error) {});
+  if (source_root) {
+    active_packages.insert(ActivePackage{identity, version});
+    auto imported = import_package(
+        errors, *source_root, arena.proxy(identity), "package.ttx"_view);
+    active_packages.remove(active_packages.get_size() - 1);
+    return Bool(imported);
   }
 
   Option<const Package::Archive::Archive&> selected;
@@ -94,7 +241,8 @@ auto Environment::Workspace::restore_coordinate(
   Bool complete = True;
   for (const Package::Archive::GraphImport& import : selected->get_imports()) {
     if (import.get_kind() == Language::Import::Kind::Package) {
-      complete &= restore_coordinate(import.get_target(), import.get_version());
+      complete &=
+          restore_coordinate(errors, import.get_target(), import.get_version());
     }
   }
   active_packages.remove(active_packages.get_size() - 1);
@@ -120,7 +268,7 @@ auto Environment::Workspace::interpret_source(
   Cursor& cursor =
       transaction->construct<Cursor>(tokenizer, errors, associations);
 
-  if (retained_monographs.contains(semantic_name)) {
+  if (retained_graphs.contains(semantic_name)) {
     cursor.create_error(
         "This semantic source name is already published in the Workspace."_view,
         semantic_name);
@@ -191,10 +339,181 @@ auto Environment::Workspace::interpret_source(
     }
   }
 
-  retained_monographs.insert(retained_name, &monograph);
+  retained_graphs.insert(
+      retained_name, {
+                       .root = monograph.get_handle(),
+                       .local = &monograph,
+                     });
   retained_sources[retained_index].completed = completed;
   return completed ? Option<Language::Monograph&>(monograph)
                    : Option<Language::Monograph&>();
+}
+
+auto Environment::Workspace::interpret_source(
+    tetrodotoxin_dialect_provider provider,
+    View::Bytes semantic_name,
+    View::Bytes diagnostic_path,
+    View::Bytes contents) -> ProviderSourceObservation {
+  const ProviderSourceObservation invalid = {
+    .state = ProviderSourceState::Invalid,
+    .root = {},
+    .error = {},
+  };
+  if (semantic_name.is_empty() || retained_graphs.contains(semantic_name) ||
+      !toolchain.is_installed(provider)) {
+    return invalid;
+  }
+
+  Dynamic::Record<Allocator::Arena> transaction;
+  const View::Bytes retained_contents = transaction->proxy(contents);
+  const View::Bytes retained_path = transaction->proxy(diagnostic_path);
+  Tokenizer& tokenizer = transaction->construct<Tokenizer>(
+      *transaction, retained_contents, retained_path);
+  PortableSourceInput source = {
+    .operations =
+        {
+          .header =
+              {
+                .size = sizeof(tetrodotoxin_source_input_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .diagnostic_path = portable_source_path,
+          .bytes = portable_source_bytes,
+          .visit_tokens = portable_source_tokens,
+        },
+    .diagnostic_path = retained_path,
+    .contents = retained_contents,
+    .tokens = tokenizer.get_tokens(),
+  };
+  const auto interpreted = Language::interpret(
+      provider,
+      {
+        .operations = &source.operations,
+        .self = reinterpret_cast<tetrodotoxin_source_input_self*>(&source),
+      },
+      get_handle());
+  if (interpreted.state == Language::InterpretationState::Failed) {
+    return {
+      .state = ProviderSourceState::Failed,
+      .root = {},
+      .error = interpreted.error,
+    };
+  }
+  if (interpreted.state != Language::InterpretationState::Constructed) {
+    return invalid;
+  }
+
+  const ttx_abstract root =
+      interpreted.graph.operations->root(interpreted.graph.self);
+  const ttx_abstract dialect =
+      interpreted.graph.operations->dialect(interpreted.graph.self);
+  const ttx_abstract provider_candidate =
+      provider.operations->candidate(provider.self);
+  if (root.operations == nullptr ||
+      root.operations->header.abi_major != TTX_ABI_MAJOR ||
+      root.operations->header.size < sizeof(ttx_abstract_ops) ||
+      dialect.operations == nullptr ||
+      dialect.operations->header.abi_major != TTX_ABI_MAJOR ||
+      dialect.operations->header.size < TTX_ABSTRACT_INTERFACE_PREFIX_SIZE ||
+      ttx_abstract_same(root, ttx_unknown()) ||
+      ttx_abstract_same(root, ttx_none()) ||
+      !ttx_abstract_same(dialect, provider_candidate)) {
+    interpreted.graph.operations->release(interpreted.graph.self);
+    return invalid;
+  }
+
+  const auto validation = Language::validate(interpreted.graph);
+  if (validation.state == Language::ValidationState::Invalid) {
+    interpreted.graph.operations->release(interpreted.graph.self);
+    return invalid;
+  }
+
+  Dynamic::Record<ProviderSource> retained(transaction, interpreted.graph);
+  provider_sources.insert(retained);
+  retained_graphs.insert(
+      arena.proxy(semantic_name), {
+                                    .root = root,
+                                    .local = nullptr,
+                                  });
+  switch (validation.state) {
+  case Language::ValidationState::Accepted:
+    return {
+      .state = ProviderSourceState::Accepted,
+      .root = root,
+      .error = {},
+    };
+  case Language::ValidationState::Incomplete:
+    return {
+      .state = ProviderSourceState::Incomplete,
+      .root = root,
+      .error = {},
+    };
+  case Language::ValidationState::Failed:
+    return {
+      .state = ProviderSourceState::Failed,
+      .root = root,
+      .error = validation.error,
+    };
+  case Language::ValidationState::Invalid:
+    break;
+  }
+  return invalid;
+}
+
+auto Environment::Workspace::produce(
+    ttx_abstract root,
+    ttx_context context,
+    Allocator::Arena& result_arena,
+    tetrodotoxin_production_result result) const -> Bool {
+  if (root.operations == nullptr || context.operations == nullptr ||
+      result.operations == nullptr || result.self == nullptr ||
+      result.operations->header.abi_major != TTX_ABI_MAJOR ||
+      result.operations->header.size <
+          sizeof(tetrodotoxin_production_result_ops)) {
+    return False;
+  }
+
+  for (Count index = 0; index < provider_sources.get_size(); ++index) {
+    const tetrodotoxin_source_graph graph = provider_sources[index]->graph;
+    if (!ttx_abstract_same(graph.operations->root(graph.self), root)) {
+      continue;
+    }
+    graph.operations->produce(graph.self, context, result);
+    return True;
+  }
+
+  for (Count index = 0; index < retained_graphs.get_size(); ++index) {
+    const auto* entry = retained_graphs.get_entry(index);
+    if (entry == nullptr || entry->value.local == nullptr ||
+        !ttx_abstract_same(entry->value.root, root)) {
+      continue;
+    }
+    const Language::Monograph& monograph = *entry->value.local;
+    auto dialect = monograph.get_language().select<Language::Dialect>();
+    if (!dialect) {
+      return False;
+    }
+    dialect->produce(
+        context, result_arena, get_provider_handle(), monograph, result);
+    return True;
+  }
+  return False;
+}
+
+auto Environment::Workspace::produce(
+    ttx_abstract root,
+    ttx_context context,
+    Allocator::Arena& result_arena) const -> Language::ProductionObservation {
+  Language::ProductionSink result;
+  if (!produce(root, context, result_arena, result.get_handle())) {
+    return {
+      .state = Language::ProductionState::Invalid,
+      .production = {},
+      .error = {},
+    };
+  }
+  return result.get_observation();
 }
 
 auto Environment::Workspace::import_package(
@@ -250,7 +569,7 @@ auto Environment::Workspace::import_package(
       root_transaction->construct<Associations>(*root_transaction);
   Cursor& root_cursor = root_transaction->construct<Cursor>(
       root_tokenizer, errors, root_associations, root_logical_route);
-  if (retained_monographs.contains(root_semantic_name)) {
+  if (retained_graphs.contains(root_semantic_name)) {
     root_cursor.create_error(
         "This Package semantic name is already published in the Workspace."_view,
         root_semantic_name);
@@ -283,6 +602,17 @@ auto Environment::Workspace::import_package(
   Package::Language::Monograph& root = *selected_root;
   View::Bytes root_package_identity = root.get_name();
   Version root_package_version = root.get_version();
+  if (active_packages.get_size() != 0) {
+    const ActivePackage& requested =
+        active_packages[active_packages.get_size() - 1];
+    if (requested.identity != root_package_identity ||
+        requested.version != root_package_version) {
+      root_cursor.create_error(
+          "The Package source does not match the requested coordinate."_view,
+          requested.identity);
+      return {};
+    }
+  }
   for (Count i = 0; i < packages.get_size(); i++) {
     const ImportedPackage& imported = packages[i];
     if (imported.identity != root_package_identity) {
@@ -343,7 +673,11 @@ auto Environment::Workspace::import_package(
         });
       }
     }
-    retained_monographs.insert(arena.proxy(root_semantic_name), &root);
+    retained_graphs.insert(
+        arena.proxy(root_semantic_name), {
+                                           .root = root.get_handle(),
+                                           .local = &root,
+                                         });
     retained = True;
   };
 
@@ -384,7 +718,8 @@ auto Environment::Workspace::import_package(
           }
         }
         if (!selected &&
-            restore_coordinate(import.get_locator(), import.get_version())) {
+            restore_coordinate(
+                errors, import.get_locator(), import.get_version())) {
           for (const ImportedPackage& candidate : packages.get_view()) {
             if (candidate.identity == import.get_locator() &&
                 candidate.version == import.get_version()) {
@@ -395,8 +730,8 @@ auto Environment::Workspace::import_package(
         }
         auto target =
             selected
-                ? selected->monograph->get_root().select<Ttx::Model::Type>()
-                : Option<const Ttx::Model::Type&>();
+                ? selected->monograph->get_root().select<Ttx::Model::Domain>()
+                : Option<const Ttx::Model::Domain&>();
         if (!target || !import.acquire(*target)) {
           cursors[candidate_index]->create_expression_error(
               import.get_declaration_anchor(),
@@ -499,7 +834,7 @@ auto Environment::Workspace::import_package(
       }
 
       auto target =
-          candidates[*existing_index]->get_root().select<Ttx::Model::Type>();
+          candidates[*existing_index]->get_root().select<Ttx::Model::Domain>();
       if (!target || !import.acquire(*target)) {
         cursors[candidate_index]->create_expression_error(
             import.get_declaration_anchor(),
@@ -511,7 +846,7 @@ auto Environment::Workspace::import_package(
     }
   }
 
-  // Source parsing is where Package Storage becomes authored language facts.
+  // Parsing turns retained Package bytes into source-owned graph identities.
   // Linking receives the sealed context after that conversion, when the set of
   // semantic candidates is already fixed.
   root.get_resources().seal();
@@ -624,7 +959,7 @@ auto Environment::Workspace::restore_package(
     const Package::Archive::Archive& archive,
     View::Bytes root_semantic_name) -> Option<Language::Monograph&> {
   if (root_semantic_name.is_empty() ||
-      retained_monographs.contains(root_semantic_name)) {
+      retained_graphs.contains(root_semantic_name)) {
     Diagnostics::Log::error(
         "Package restoration requires one unpublished semantic name."_view);
     return {};
@@ -737,11 +1072,12 @@ auto Environment::Workspace::restore_package(
         *importer->get_imports()
              .get_data()[importer->get_imports().get_size() - 1];
 
-    const Ttx::Model::Type* target = nullptr;
+    const Ttx::Model::Domain* target = nullptr;
     if (archived.get_kind() == Language::Import::Kind::Source) {
       auto selected = restored_members.find(archived.get_target());
       if (selected) {
-        auto root_type = selected->value.get_root().select<Ttx::Model::Type>();
+        auto root_type =
+            selected->value.get_root().select<Ttx::Model::Domain>();
         if (root_type) {
           target = &*root_type;
         }
@@ -751,7 +1087,7 @@ auto Environment::Workspace::restore_package(
         if (candidate.identity == archived.get_target() &&
             candidate.version == archived.get_version()) {
           auto root_type =
-              candidate.monograph->get_root().select<Ttx::Model::Type>();
+              candidate.monograph->get_root().select<Ttx::Model::Domain>();
           if (root_type) {
             target = &*root_type;
           }
@@ -858,7 +1194,11 @@ auto Environment::Workspace::restore_package(
     .monograph = &root,
   });
   View::Bytes retained_name = arena.proxy(root_semantic_name);
-  retained_monographs.insert(retained_name, &root);
+  retained_graphs.insert(
+      retained_name, {
+                       .root = root.get_handle(),
+                       .local = &root,
+                     });
   return root;
 }
 
@@ -944,6 +1284,34 @@ auto Environment::Workspace::get_package_source(
     if (index++ == selected_index) {
       return PackageSource(
           member.name, member.logical_route, *member.monograph);
+    }
+  }
+  return {};
+}
+
+auto Environment::Workspace::find_package_owner(const Abstract& semantic) const
+    -> Option<const Package::Language::Monograph&> {
+  const Abstract& selected = semantic.resolve();
+  for (const PackageMember& member : package_members.get_view()) {
+    if (&member.monograph->get_root().resolve() == &selected) {
+      return *member.package;
+    }
+  }
+  for (const ImportedPackage& imported : packages.get_view()) {
+    if (&imported.monograph->resolve() == &selected) {
+      return *imported.monograph;
+    }
+  }
+  return {};
+}
+
+auto Environment::Workspace::find_source_input(
+    const Language::Monograph& monograph) const -> Option<AuthoredLocation> {
+  for (const RetainedSource& source : retained_sources.get_view()) {
+    if (&source.monograph == &monograph) {
+      return AuthoredLocation(
+          source.package_root, source.diagnostic_path, source.source_text,
+          Anchor::create(Span()));
     }
   }
   return {};
@@ -1132,6 +1500,13 @@ auto Environment::Workspace::get_name() const -> View::Bytes {
   return "Workspace"_view;
 }
 
+auto Environment::Workspace::negotiate(ttx_abstract requirement) const
+    -> ttx_interface_relation {
+  return ttx_abstract_same(requirement, tetrodotoxin_workspace_requirement())
+             ? TTX_INTERFACE_SATISFIED
+             : Abstract::negotiate(requirement);
+}
+
 auto Environment::Workspace::get_documentation() const -> const Documentation& {
   return Documentation::get_empty();
 }
@@ -1142,23 +1517,122 @@ auto Environment::Workspace::resolve() const -> const Abstract& {
 
 auto Environment::Workspace::resolve_concept(View::Bytes route) const
     -> const Abstract& {
-  return retained_monographs.visit(
+  return retained_graphs.visit(
       route,
-      [](Language::Monograph* selected) -> const Abstract& {
-        return *selected;
+      [](const RetainedGraph& selected) -> const Abstract& {
+        return selected.local == nullptr
+                   ? static_cast<const Abstract&>(Unknown::get_unknown())
+                   : static_cast<const Abstract&>(*selected.local);
       },
-      []() -> const Abstract& { return Unknown::get_unknown(); });
+      [&]() -> const Abstract& {
+        return outer == nullptr
+                   ? static_cast<const Abstract&>(Unknown::get_unknown())
+                   : outer->resolve_concept(route);
+      });
 }
 
 auto Environment::Workspace::visit_concepts(
     ttx_named_abstract_callable* visitor) const -> void {
-  for (Count index = 0; index < retained_monographs.get_size(); index++) {
-    const auto* entry = retained_monographs.get_entry(index);
-    if (entry != nullptr) {
-      visit_concept(visitor, entry->key, *entry->value);
+  for (Count index = 0; index < retained_graphs.get_size(); index++) {
+    const auto* entry = retained_graphs.get_entry(index);
+    if (entry != nullptr && entry->value.local != nullptr) {
+      visit_concept(visitor, entry->key, *entry->value.local);
     }
   }
   for (const PackageMember& member : package_members.get_view()) {
     visit_concept(visitor, member.name, *member.monograph);
   }
+  if (outer != nullptr) {
+    outer->visit_concepts(visitor);
+  }
+}
+
+auto Environment::Workspace::resolve_concept(ttx_borrowed_bytes route) const
+    -> ttx_abstract {
+  const View::Bytes name(route.data, route.size);
+  return retained_graphs.visit(
+      name,
+      [](const RetainedGraph& selected) -> ttx_abstract {
+        return selected.root;
+      },
+      [&]() -> ttx_abstract {
+        return outer == nullptr
+                   ? ttx_unknown()
+                   : Ttx::resolve_concept(outer->get_handle(), route);
+      });
+}
+
+struct ForwardedConcepts {
+  ttx_concept_sink_ops operations;
+  ttx_concept_sink destination;
+  Bool completed;
+};
+
+static auto forwarded_concepts(ttx_concept_sink self) -> ForwardedConcepts& {
+  return *reinterpret_cast<ForwardedConcepts*>(self.self);
+}
+
+static void TTX_CALL forward_concept(
+    ttx_concept_sink self,
+    ttx_borrowed_bytes route,
+    ttx_abstract answer) {
+  auto& forwarding = forwarded_concepts(self);
+  forwarding.destination.operations->item(
+      forwarding.destination, route, answer);
+}
+
+static void TTX_CALL complete_forwarding(ttx_concept_sink self) {
+  forwarded_concepts(self).completed = True;
+}
+
+void Environment::Workspace::visit_concepts(ttx_concept_sink result) const {
+  for (Count index = 0; index < retained_graphs.get_size(); index++) {
+    const auto* entry = retained_graphs.get_entry(index);
+    if (entry != nullptr) {
+      result.operations->item(
+          result,
+          {
+            .data = entry->key.get_data(),
+            .size = entry->key.get_size(),
+          },
+          entry->value.root);
+    }
+  }
+  for (const PackageMember& member : package_members.get_view()) {
+    result.operations->item(
+        result,
+        {
+          .data = member.name.get_data(),
+          .size = member.name.get_size(),
+        },
+        member.monograph->get_handle());
+  }
+  if (outer != nullptr) {
+    ForwardedConcepts forwarding = {
+      .operations =
+          {
+            .header =
+                {
+                  .size = sizeof(ttx_concept_sink_ops),
+                  .abi_major = TTX_ABI_MAJOR,
+                  .abi_minor = TTX_ABI_MINOR,
+                },
+            .item = forward_concept,
+            .completed = complete_forwarding,
+          },
+      .destination = result,
+      .completed = False,
+    };
+    const ttx_concept_sink sink = {
+      .operations = &forwarding.operations,
+      .self = reinterpret_cast<ttx_concept_sink_self*>(&forwarding),
+    };
+    const ttx_abstract outer_handle = outer->get_handle();
+    outer_handle.operations->visit_concepts(outer_handle, sink);
+    if (!forwarding.completed) {
+      result.operations->completed(result);
+      return;
+    }
+  }
+  result.operations->completed(result);
 }

@@ -7,12 +7,12 @@
 #include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
 
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi {
 
-// Unit carries only target publication facts for one separately compiled
+// Unit carries the target publication description for one separately compiled
 // Package member. Original semantic identities remain the keys, while Archive
 // export symbols provide exact declarations for identities owned elsewhere.
 class Unit {
@@ -38,18 +38,18 @@ class Unit {
   };
 
   // TypeBinding gives one exact semantic Type its durable Package route. The
-  // generated interfaces consume this target fact so every compilation names
+  // generated interfaces consume this binding so every compilation names
   // an imported carrier through its provider rather than the current consumer.
   class TypeBinding {
    public:
     constexpr TypeBinding(
-        const Ttx::Model::Type& semantic,
+        const Ttx::Model::Domain& semantic,
         Perimortem::Core::View::Bytes package,
         Perimortem::Core::View::Bytes member,
         Perimortem::Core::View::Bytes route)
         : semantic(&semantic), package(package), member(member), route(route) {}
 
-    constexpr auto get_semantic() const -> const Ttx::Model::Type& {
+    constexpr auto get_semantic() const -> const Ttx::Model::Domain& {
       return *semantic;
     }
 
@@ -66,7 +66,7 @@ class Unit {
     }
 
    private:
-    const Ttx::Model::Type* semantic;
+    const Ttx::Model::Domain* semantic;
     Perimortem::Core::View::Bytes package;
     Perimortem::Core::View::Bytes member;
     Perimortem::Core::View::Bytes route;
@@ -136,7 +136,7 @@ class Unit {
     return {};
   }
 
-  auto find_type(const Ttx::Model::Type& semantic) const
+  auto find_type(const Ttx::Model::Domain& semantic) const
       -> Perimortem::Core::Option<const TypeBinding&> {
     for (Count index = 0; index < types.get_size(); index++) {
       const TypeBinding& binding = types.get_data()[index];

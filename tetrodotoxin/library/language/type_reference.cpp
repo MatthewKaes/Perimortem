@@ -20,10 +20,10 @@
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/language/binding.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -40,8 +40,8 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
         return import.resolve();
       },
       [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+        return candidate.visit<Tetrodotoxin::Language::Binding>(
+            [](const Tetrodotoxin::Language::Binding& alias) -> const Abstract& {
               return alias.resolve();
             },
             [](const Abstract& direct) -> const Abstract& { return direct; });
@@ -252,7 +252,7 @@ auto Language::TypeReference::resolve_with_root(
       if (nested_failure) {
         return *nested_failure;
       }
-      if (!nested || !nested->is<Ttx::Model::Type>()) {
+      if (!nested || !nested->is<Ttx::Model::Domain>()) {
         return Failure(Failure::Type::Argument, anchor, i);
       }
       linked.insert(&*nested);
@@ -276,8 +276,8 @@ auto Language::TypeReference::resolve_with_root(
       },
       [&](const Generic::Failure& failure) -> Resolution {
         // Generic knows which formula parameter failed, while TypeReference
-        // knows where that argument was written. Joining those facts gives the
-        // diagnostic the right authored Anchor.
+        // knows where that argument was written. Combining the owner-specific
+        // failure with that location gives the diagnostic its authored Anchor.
         Anchor failure_anchor = anchor;
         Count index = failure.get_argument();
         if (failure.get_type() == Generic::Failure::Type::Parameter &&

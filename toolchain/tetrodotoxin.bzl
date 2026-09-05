@@ -13,7 +13,6 @@ def _ttx_source_impl(ctx):
         ctx.executable._compiler.path,
         ctx.file.src.path,
         products.path,
-        "1" if ctx.attr.generate_cxx else "0",
     ] + [product_tree.path for product_tree in dependency_products.to_list()]
     ctx.actions.run_shell(
         inputs = depset(
@@ -28,8 +27,11 @@ set -eu
 compiler="$1"
 source="$2"
 products="$3"
-generate_cxx="$4"
-shift 4
+root="$(pwd)"
+compiler="$root/$compiler"
+source="$root/$source"
+products="$root/$products"
+shift 3
 mkdir -p "$products"
 for dependency in "$@"; do
   while IFS= read -r -d '' product; do
@@ -46,11 +48,8 @@ for dependency in "$@"; do
     fi
   done < <(find "$dependency" -type f -print0)
 done
-set -- "$source" "-package_repository=$products" "-terminal_repository=$products"
-if [ "$generate_cxx" = 1 ]; then
-  set -- "$@" -generate_cxx
-fi
-"$compiler" "$@"
+cd "$products"
+"$compiler" "$source"
 """,
         mnemonic = "TtxSourceCompile",
         progress_message = "Compiling TTX source graph %s" % ctx.label,
@@ -68,10 +67,6 @@ _ttx_source = rule(
         "deps": attr.label_list(
             doc = "Complete Package product trees staged into a private repository.",
         ),
-        "generate_cxx": attr.bool(
-            default = False,
-            doc = "Requests the graph's optional canonical C++ products.",
-        ),
         "source_tree": attr.label_list(allow_files = True),
         "_compiler": attr.label(
             default = "//puffer:puffer",
@@ -82,7 +77,7 @@ _ttx_source = rule(
     doc = "Compiles one TTX source through Puffer and returns its product tree.",
 )
 
-def ttx_source(name, src, deps = [], generate_cxx = False, **kwargs):
+def ttx_source(name, src, deps = [], **kwargs):
     """Compiles one source graph without exposing build-tool artifacts to TTX."""
     if type(src) != "string":
         fail("ttx_source src must be one package-relative path")
@@ -98,7 +93,6 @@ def ttx_source(name, src, deps = [], generate_cxx = False, **kwargs):
         name = name,
         src = src,
         deps = deps,
-        generate_cxx = generate_cxx,
         source_tree = source_tree,
         **kwargs
     )

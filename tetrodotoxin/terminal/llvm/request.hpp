@@ -18,8 +18,8 @@
 namespace Tetrodotoxin::Terminal::Llvm {
 
 // Request borrows one completed Library graph and the exact authored source
-// facts used by this compilation. Target and Debug Level are request policy
-// rather than semantic graph facts.
+// identities used by this compilation. Target and Debug Level are request
+// policy rather than semantic graph relationships.
 class Request {
  public:
   constexpr Request(

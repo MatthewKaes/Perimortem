@@ -22,7 +22,7 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 
 using namespace Perimortem::Core;
@@ -262,13 +262,8 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_reordering) {
   auto selected_y = output.get_abstract(0);
   auto selected_x = output.get_abstract(1);
   ASSERT(source_x && source_y && selected_y && selected_x);
-  EXPECT(&*selected_y == &swizzle);
-  EXPECT(&*selected_x == &swizzle);
-  auto y_producer = selected_y->select<Language::Expression>();
-  auto x_producer = selected_x->select<Language::Expression>();
-  ASSERT(y_producer && x_producer);
-  EXPECT(&y_producer->get_result() == &swizzle);
-  EXPECT(&x_producer->get_result() == &swizzle);
+  EXPECT(&*selected_y == &*source_y);
+  EXPECT(&*selected_x == &*source_x);
   auto reordered_type = require_type(reordered->get_type());
   ASSERT(reordered_type);
   EXPECT(swizzle.fits(*reordered_type));
@@ -318,6 +313,8 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_call_identity) {
   ASSERT(selected_swizzle.get_receiver().is_identity<Language::Access::Call>());
   const auto& reordered_call = static_cast<const Language::Access::Call&>(
       reordered_swizzle.get_receiver());
+  const auto& selected_call = static_cast<const Language::Access::Call&>(
+      selected_swizzle.get_receiver());
   const Layout& call_output = reordered_call.get_layout();
   ASSERT_EQ(call_output.get_size(), Count(2));
   auto count_name = call_output.get_name(0);
@@ -338,6 +335,11 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_call_identity) {
   ASSERT_EQ(reordered_output.get_size(), Count(2));
   EXPECT(!reordered_output.get_name(0));
   EXPECT(!reordered_output.get_name(1));
+  auto reordered_flag = reordered_output.get_abstract(0);
+  auto reordered_count = reordered_output.get_abstract(1);
+  ASSERT(reordered_flag && reordered_count);
+  EXPECT(&*reordered_flag == &reordered_call);
+  EXPECT(&*reordered_count == &reordered_call);
   EXPECT(reordered_swizzle.fits(*reordered_type));
   const Abstract& original_identity =
       monograph->get_source().resolve_concept("Original"_view);
@@ -349,7 +351,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_call_identity) {
     EXPECT(reordered_output.get_fitted(reordered_type->get_layout(), index)
                .visit(
                    [&](const Abstract& producer) {
-                     return Bool(&producer == &reordered_swizzle);
+                     return Bool(&producer == &reordered_call);
                    },
                    [](Layout::Errors) { return False; }));
   }
@@ -360,7 +362,7 @@ PERIMORTEM_UNIT_TEST(SwizzleTests, named_call_identity) {
   EXPECT(selected_output.get_fitted(selected_type->get_layout(), 0)
              .visit(
                  [&](const Abstract& producer) {
-                   return Bool(&producer == &selected_swizzle);
+                   return Bool(&producer == &selected_call);
                  },
                  [](Layout::Errors) { return False; }));
   EXPECT(errors.is_empty());

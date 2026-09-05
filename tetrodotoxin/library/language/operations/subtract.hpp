@@ -12,7 +12,8 @@ namespace Tetrodotoxin::Library::Language::Operations {
 
 // Subtract owns one ordered scalar difference. It retains the exact left and
 // right Expression edges and selects their shared Type during semantic
-// linking. Folding projects a difference without changing those authored facts.
+// linking. Folding projects a difference without changing those authored
+// inputs.
 class Subtract : public Operation {
  public:
   BINARY_OP_CONTRACT(Subtract);

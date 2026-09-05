@@ -3,11 +3,28 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Constant::resolve_concept(Core::View::Bytes route) const
+    -> const Ttx::Concept::Abstract& {
+  return route == "fold"_view ? static_cast<const Abstract&>(*this)
+                              : Ttx::Concept::Constant::resolve_concept(route);
+}
+
+auto Language::Constant::visit_concepts(
+    ttx_named_abstract_callable* visitor) const -> void {
+  Ttx::Concept::Constant::visit_concepts(visitor);
+  visit_concept(visitor, "fold"_view, *this);
+}
+
+void Language::Constant::domain(ttx_abstract, ttx_domain_result result) const {
+  const ttx_abstract selected = get_type().get_handle();
+  selected.operations->resolve_domain(selected, result);
+}
 
 auto Language::Constant::get_value_type(Count index) const
     -> const Ttx::Concept::Abstract& {

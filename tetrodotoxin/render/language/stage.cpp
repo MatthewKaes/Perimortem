@@ -4,8 +4,8 @@
 #include "tetrodotoxin/render/language/stage.hpp"
 
 #include "tetrodotoxin/render/language/attributes.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

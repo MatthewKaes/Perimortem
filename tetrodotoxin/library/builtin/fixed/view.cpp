@@ -31,30 +31,29 @@ auto Builtin::Fixed::View::invoke(
       domain, result_type, bytes->get_value(), bytes->get_resource());
 }
 
-auto Builtin::Fixed::View::invoke_abi(
-    const ttx_abstract* callable,
-    const ttx_pack* receiver,
-    const ttx_pack* arguments) -> const ttx_pack* {
-  const auto& selected =
-      static_cast<const View&>(Ttx::Concept::Abstract::from_abi(callable));
-  auto source = receiver ? Core::Option<const Language::Model::Pack&>(
-                               Language::Model::Pack::from_abi(receiver))
-                         : Core::Option<const Language::Model::Pack&>();
-  const auto& inputs = Language::Model::Pack::from_abi(arguments);
-  auto result = selected.invoke(source, inputs);
-  return result ? result->get_abi() : nullptr;
+auto Builtin::Fixed::View::negotiate(ttx_abstract requirement) const
+    -> ttx_interface_relation {
+  return ttx_abstract_same(
+             requirement, Language::Model::Invocation::requirement())
+             ? TTX_INTERFACE_SATISFIED
+             : Language::Model::Callable::negotiate(requirement);
 }
 
-const ttx_library_invocation_operations
-    Builtin::Fixed::View::invocation_operations = {
-      .interface = {.negotiate = ttx_library_invocation_relation},
-      .invoke = invoke_abi,
-};
-
-auto Builtin::Fixed::View::negotiate_interface(
-    const ttx_abstract* requirement) const -> ttx_interface {
-  return requirement == ttx_library_invocation_requirement()
-             ? ttx_interface_satisfied(
-                   requirement, get_abi(), &invocation_operations.interface)
-             : Language::Model::Callable::negotiate_interface(requirement);
+void Builtin::Fixed::View::invoke(
+    ttx_abstract operation,
+    ttx_pack input,
+    ttx_context context,
+    ttx_pack_result result) const {
+  if (!ttx_abstract_same(operation, Language::Model::Invocation::operation())) {
+    result.operations->none(result);
+    return;
+  }
+  auto inputs = Language::Model::Invocation::local_inputs(input);
+  if (!inputs || inputs->size() != 1) {
+    result.operations->none(result);
+    return;
+  }
+  auto& arguments = Language::Model::Pack::create_completed(domain, {});
+  Language::Model::Invocation::return_pack(
+      invoke(*(*inputs)[0], arguments), context, result);
 }

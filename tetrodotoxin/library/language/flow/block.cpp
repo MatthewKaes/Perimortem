@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -115,8 +115,8 @@ auto Language::Flow::Block::reaches_next_statement() const -> Bool {
 auto Language::Flow::Block::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   // The active prefix follows source order. A Local becomes queryable
-  // only after every preceding Statement links. Keeping this phase fact on the
-  // real Block avoids a wrapper context for every Statement membership.
+  // only after every preceding Statement links. Recording that source-order
+  // boundary on the real Block avoids a wrapper for every membership.
   auto ordered = statements.get_view();
   Count visible = linked_prefix_size < ordered.get_size() ? linked_prefix_size
                                                           : ordered.get_size();

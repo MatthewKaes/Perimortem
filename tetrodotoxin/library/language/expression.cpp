@@ -5,12 +5,26 @@
 
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
+
+void Language::Expression::domain(ttx_abstract, ttx_domain_result result)
+    const {
+  const ttx_abstract selected = get_type().get_handle();
+  if (ttx_abstract_same(selected, ttx_unknown())) {
+    result.operations->unknown(result);
+    return;
+  }
+  if (ttx_abstract_same(selected, ttx_none())) {
+    result.operations->none(result);
+    return;
+  }
+  selected.operations->resolve_domain(selected, result);
+}
 
 static auto select_output_type(const Abstract& candidate)
     -> Option<const Language::Model::Type&> {

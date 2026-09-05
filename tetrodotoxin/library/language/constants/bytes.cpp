@@ -5,9 +5,9 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;

@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/language/import.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 using namespace Perimortem::Core;
@@ -12,7 +12,7 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-auto Language::Import::acquire(const Ttx::Model::Type& root) -> Bool {
+auto Language::Import::acquire(const Ttx::Model::Domain& root) -> Bool {
   if (acquired) {
     return acquired == &root;
   }
@@ -39,9 +39,9 @@ auto Language::Import::acquire(const Ttx::Model::Type& root) -> Bool {
   return True;
 }
 
-auto Language::Import::get_acquired() const -> Option<const Ttx::Model::Type&> {
-  return acquired ? Option<const Ttx::Model::Type&>(*acquired)
-                  : Option<const Ttx::Model::Type&>();
+auto Language::Import::get_acquired() const -> Option<const Ttx::Model::Domain&> {
+  return acquired ? Option<const Ttx::Model::Domain&>(*acquired)
+                  : Option<const Ttx::Model::Domain&>();
 }
 
 auto Language::Import::select_target() const -> const Abstract& {
@@ -50,7 +50,7 @@ auto Language::Import::select_target() const -> const Abstract& {
   }
 
   const Abstract& resolved = target->resolve();
-  return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
+  return resolved.is<Ttx::Model::Domain>() ? resolved : None::get_none();
 }
 
 auto Language::Import::validate(Cursor& cursor) -> Bool {

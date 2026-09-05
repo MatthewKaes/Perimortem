@@ -58,35 +58,35 @@ auto Interpreter::Member::parse(
     BAIL_IF(!enumeration);
     return Result(
         enumeration->get_semantic(), Language::Types::Composite::Category::Type,
-        enumeration->get_state());
+        enumeration->get_state(), &enumeration->get_semantic());
   }
   case Code::Type::Namespace: {
     auto selected = Interpreter::Types::Namespace::parse(cursor, definition);
     BAIL_IF(!selected);
     return Result(
         selected->get_semantic(), Language::Types::Composite::Category::Type,
-        selected->get_state());
+        selected->get_state(), &selected->get_semantic());
   }
   case Code::Type::Struct: {
     auto structure = Interpreter::Types::Structure::parse(cursor, definition);
     BAIL_IF(!structure);
     return Result(
         structure->get_semantic(), Language::Types::Composite::Category::Type,
-        structure->get_state());
+        structure->get_state(), &structure->get_semantic());
   }
   case Code::Type::Object: {
     auto object = Interpreter::Types::Object::parse(cursor, definition);
     BAIL_IF(!object);
     return Result(
         object->get_semantic(), Language::Types::Composite::Category::Type,
-        object->get_state());
+        object->get_state(), &object->get_semantic());
   }
   case Code::Type::Interface: {
     auto interface = Interpreter::Types::Interface::parse(cursor, definition);
     BAIL_IF(!interface);
     return Result(
         interface->get_semantic(), Language::Types::Composite::Category::Type,
-        interface->get_state());
+        interface->get_state(), &interface->get_semantic());
   }
   case Code::Type::Implementation: {
     auto implemented =
@@ -94,7 +94,7 @@ auto Interpreter::Member::parse(
     BAIL_IF(!implemented);
     return Result(
         implemented->get_semantic(), Language::Types::Composite::Category::Type,
-        implemented->get_state());
+        implemented->get_state(), &implemented->get_semantic());
   }
   default:
     cursor.create_token_error(

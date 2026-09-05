@@ -6,6 +6,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "ttx/query.hpp"
+
 class CppEchoSimulacrum final : public TtxTest::AbstractModel {
  public:
   CppEchoSimulacrum(
@@ -34,7 +36,11 @@ class CppEchoSimulacrum final : public TtxTest::AbstractModel {
     result.operations->item(
         result, {echo_route, sizeof(echo_route) - 1},
         TtxTest::alias_target(alias));
-    alias.abstract.operations->visit_concepts(alias.abstract, result);
+    alias.abstract->operations->visit_concepts(alias.abstract, result);
+  }
+
+  void bytes(ttx_abstract self, ttx_bytes_result result) const override {
+    TtxTest::forward_bytes(TtxTest::alias_target(alias), self, result);
   }
 
   void interface(
@@ -57,6 +63,19 @@ class CppEchoSimulacrum final : public TtxTest::AbstractModel {
               [selected, selected_echo, intercepted_operation](
                   ttx_abstract invoked, ttx_pack input, ttx_context context,
                   ttx_pack_result output) {
+                const auto admitted =
+                    Ttx::fit(ttx_empty_layout(), input, context);
+                if (admitted.state != Ttx::PackObservationState::Packed) {
+                  if (admitted.state == Ttx::PackObservationState::Unknown) {
+                    output.operations->unknown(output);
+                  } else if (
+                      admitted.state == Ttx::PackObservationState::None) {
+                    output.operations->none(output);
+                  } else {
+                    output.operations->support_failed(output, admitted.failure);
+                  }
+                  return;
+                }
                 const bool intercepted =
                     ttx_abstract_same(invoked, intercepted_operation);
                 if (intercepted) {
@@ -108,9 +127,9 @@ auto TtxTest::create_echo_simulacrum(
     }
   }
   AliasBinding alias = make_alias(selected);
-  if (alias.abstract.operations == nullptr) {
+  if (alias.abstract == nullptr || alias.abstract->operations == nullptr) {
     return {};
   }
-  return register_abstract(
+  return retain_abstract(
       std::make_shared<CppEchoSimulacrum>(echo, operation, std::move(alias)));
 }

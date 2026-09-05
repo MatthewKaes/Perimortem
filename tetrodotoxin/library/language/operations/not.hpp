@@ -15,7 +15,6 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // changing that authored input or linked Type.
 class Not : public Operation {
  public:
-  TTX_CONTRACT(Not, Operation);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

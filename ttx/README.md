@@ -136,12 +136,15 @@ turn those bytes into a language string type or a universal value hierarchy.
 `Extent` is the equally narrow Constant that lends one nonnegative support
 cardinality to Ranged without introducing a universal integer type.
 
-A typed C handle carries one authority and value token supplied by its owner.
-Its operations pointer is dispatch machinery rather than semantic identity. TTX
-adds no Reference wrapper, lease, or lifetime token. Equal names, structures,
-and Layouts do not make two objects the same Domain. This distinction lets Packages,
-languages, editors, and compilers share one fact instead of keeping several
-copies synchronized.
+An Abstract handle is one pointer to the capability supplied by its owner. That
+capability begins with a pointer to its immutable operation table and may retain
+whatever private state its implementation needs beyond the shared prefix.
+Keeping the table attached to the capability prevents a caller from combining
+one object's dispatch with another object's state. TTX adds no Reference
+wrapper, lease, or lifetime token. Equal names, structures, and Layouts do not
+make two objects the same Domain. A bridge represents a remote object with its
+own local capability and proves substitutability through Interface negotiation
+rather than claiming the proxy has the remote process's identity.
 
 ### Packs and semantic Layout
 
@@ -206,15 +209,19 @@ producer identities, while Layout exposes the shape that can move to a consumer.
 That projection deliberately leaves behavior and richer domain meaning behind.
 
 Interface negotiates the missing semantic relation over the two original
-Abstracts. A candidate may satisfy a requirement directionally, or a concrete
-negotiator may prove that the relation is equivalent in both directions. A
+Abstracts. The candidate receives one exact requirement and synthesizes a
+call-scoped witness containing that requirement, its own visible identity, and
+the strongest relationship it can currently establish. It may satisfy the
+requirement directionally, or prove that the relation is equivalent in both
+directions. A
 Callable Interface can use parameter and result Layouts as evidence while a
 rendering contract adds resources, locations, and capabilities. Other domains
 can define useful Interfaces even when no values flow between their objects.
 
 Equal Layouts therefore remain insufficient evidence for equal meaning.
-Interface exists only where an owner can state the richer relation explicitly,
-and it creates no wrapper or copied graph around either participant.
+Interface exists only where an owner can state the richer relation explicitly.
+The witness is support for that one observation rather than a wrapper or copied
+graph around either participant.
 Target object layout, field offsets, registers, address spaces, pointer forms,
 and runtime storage belong to the consumer that chooses a physical
 representation.

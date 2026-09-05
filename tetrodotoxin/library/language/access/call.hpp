@@ -22,7 +22,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // validate the selected signature without rebuilding an overload search.
 class Call : public Expression {
  public:
-  TTX_CONTRACT(Call, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

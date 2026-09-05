@@ -14,6 +14,20 @@ using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library::Language;
 
+auto Model::Types::Value::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  return route == "admission"_view        ? admission
+         : route == "initialization"_view ? initialization
+                                          : Model::Type::resolve_concept(route);
+}
+
+void Model::Types::Value::visit_concepts(
+    ttx_named_abstract_callable* visitor) const {
+  Model::Type::visit_concepts(visitor);
+  visit_concept(visitor, "admission"_view, admission);
+  visit_concept(visitor, "initialization"_view, initialization);
+}
+
 auto Model::Types::Value::accepts(const Model::Pack& source) const -> Bool {
   auto selected = source.get_type().resolve().select<Value>();
   return selected && is_equivalent(*selected);
@@ -28,7 +42,7 @@ auto Model::Types::Value::is_equivalent(const Value& selected) const -> Bool {
       (is<Unsigned>() && selected.is<Unsigned>()));
 }
 
-auto Model::Types::Value::create_supplied(
+auto Model::Types::Value::initialize_supplied(
     Ttx::Lexical::Cursor& cursor,
     Model::Pack& source,
     Option<const Abstract&>,
@@ -45,7 +59,7 @@ auto Model::Types::Value::create_supplied(
   return Expressions::Conversion::create(cursor.get_arena(), *this, source);
 }
 
-auto Model::Types::Value::create_supplied_restored(
+auto Model::Types::Value::initialize_supplied_restored(
     Perimortem::Memory::Allocator::Arena& arena,
     Model::Pack& source,
     Option<const Abstract&>) const -> Option<Model::Pack&> {

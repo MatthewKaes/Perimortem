@@ -31,7 +31,6 @@ class Source : public Composite {
       Ttx::Lexical::Cursor& cursor) -> Bool override;
 
  public:
-  TTX_CONTRACT(Source, Composite);
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -74,9 +73,6 @@ class Source : public Composite {
   constexpr auto resolve() const -> const Ttx::Concept::Abstract& override {
     return *this;
   }
-
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;

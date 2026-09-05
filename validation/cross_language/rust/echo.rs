@@ -2,16 +2,16 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 use std::io::Write;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 
 use super::ttx;
 
+pub enum BytesTerminalSelf {}
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct BytesTerminal {
     pub operations: *const BytesTerminalOps,
-    pub owner: u64,
-    pub value: u64,
+    pub self_: *mut BytesTerminalSelf,
 }
 
 unsafe impl Send for BytesTerminal {}
@@ -23,12 +23,12 @@ pub struct BytesTerminalOps {
     pub project: extern "C" fn(BytesTerminal, ttx::Abstract, ttx::Abstract, BytesSink),
 }
 
+pub enum BytesSinkSelf {}
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct BytesSink {
     pub operations: *const BytesSinkOps,
-    pub owner: u64,
-    pub value: u64,
+    pub self_: *mut BytesSinkSelf,
 }
 
 #[repr(C)]
@@ -56,13 +56,6 @@ struct Contracts {
     terminal: BytesTerminal,
 }
 
-#[derive(Copy, Clone)]
-struct StoredEcho {
-    candidate: ttx::Abstract,
-    value: ttx::Abstract,
-    viewable: bool,
-}
-
 #[repr(C)]
 struct Projection {
     operations: BytesSinkOps,
@@ -79,13 +72,12 @@ struct ValueCall {
 }
 
 static CONTRACTS: OnceLock<Contracts> = OnceLock::new();
-static STORED_ECHOES: Mutex<Vec<StoredEcho>> = Mutex::new(Vec::new());
 
 fn projection(value: BytesSink) -> &'static Projection {
     if value.operations.is_null() {
         std::process::abort();
     }
-    unsafe { &*value.operations.cast::<Projection>() }
+    unsafe { &*value.self_.cast::<Projection>() }
 }
 
 extern "C" fn bytes_rejected(value: BytesSink) {
@@ -121,7 +113,7 @@ fn value_call(value: ttx::PackResult) -> &'static ValueCall {
     if value.operations.is_null() {
         std::process::abort();
     }
-    unsafe { &*value.operations.cast::<ValueCall>() }
+    unsafe { &*value.self_.cast::<ValueCall>() }
 }
 
 extern "C" fn value_unknown(value: ttx::PackResult) {
@@ -176,8 +168,9 @@ extern "C" fn value_packed(value: ttx::PackResult, pack: ttx::Pack) {
     };
     let callback = BytesSink {
         operations: &projection.operations,
-        owner: producer.owner,
-        value: producer.value,
+        self_: (&projection as *const Projection)
+            .cast_mut()
+            .cast::<BytesSinkSelf>(),
     };
     unsafe {
         ((*call.contracts.terminal.operations).project)(
@@ -239,8 +232,9 @@ fn invoke_stored_echo(
     };
     let callback = ttx::PackResult {
         operations: &call.operations,
-        owner: value.owner,
-        value: value.value,
+        self_: (&call as *const ValueCall)
+            .cast_mut()
+            .cast::<ttx::PackResultSelf>(),
     };
     ttx::invoke(
         value,
@@ -252,55 +246,22 @@ fn invoke_stored_echo(
     );
 }
 
-extern "C" fn echo_provider_project(
-    provider: BytesTerminal,
-    candidate: ttx::Abstract,
-    requirement: ttx::Abstract,
-    result: BytesSink,
-) {
-    let contracts = *CONTRACTS.get().unwrap_or_else(|| std::process::abort());
-    let _ = provider;
-    if !ttx::same(requirement, contracts.view_bytes) {
-        unsafe { ((*result.operations).rejected)(result) }
-        return;
-    }
-    let stored = STORED_ECHOES
-        .lock()
-        .unwrap()
-        .iter()
-        .find(|stored| ttx::same(stored.candidate, candidate))
-        .copied();
-    let Some(stored) = stored.filter(|stored| stored.viewable) else {
-        unsafe { ((*result.operations).rejected)(result) }
-        return;
-    };
-    unsafe {
-        ((*contracts.terminal.operations).project)(
-            contracts.terminal,
-            stored.value,
-            contracts.view_bytes,
-            result,
-        )
-    }
-}
-
-pub fn create(authority: u64, terminal: BytesTerminal) -> Exports {
-    ttx::install(authority);
+pub fn create(terminal: BytesTerminal) -> Exports {
     if terminal.operations.is_null() {
         std::process::abort();
     }
 
-    let print = ttx::register_abstract(ttx::AbstractModel::plain(b"print"));
-    let to_string = ttx::register_abstract(ttx::AbstractModel::plain(b"to_string"));
+    let print = ttx::retain_abstract(ttx::AbstractModel::plain(b"print"));
+    let to_string = ttx::retain_abstract(ttx::AbstractModel::plain(b"to_string"));
 
     let mut echo = ttx::AbstractModel::plain(b"Echo");
     echo.concepts.push((b"print", print));
     echo.domain = Arc::new(|_| ttx::DomainProjection::SelfWith(ttx::empty_layout()));
-    let echo = ttx::register_abstract(echo);
+    let echo = ttx::retain_abstract(echo);
 
     let mut value = ttx::AbstractModel::plain(b"Value");
     value.concepts.push((b"to_string", to_string));
-    let value = ttx::register_abstract(value);
+    let value = ttx::retain_abstract(value);
 
     let view_layout = Arc::new(OnceLock::new());
     let view_layout_for_domain = Arc::clone(&view_layout);
@@ -312,8 +273,8 @@ pub fn create(authority: u64, terminal: BytesTerminal) -> Exports {
                 .unwrap_or_else(|| std::process::abort()),
         )
     });
-    let view = ttx::register_abstract(view);
-    let layout = ttx::register_layout(ttx::LayoutModel {
+    let view = ttx::retain_abstract(view);
+    let layout = ttx::retain_layout(ttx::LayoutModel {
         entries: vec![(vec![b'0'], view)],
         receiving_domains: Some(vec![view]),
     });
@@ -355,6 +316,7 @@ pub extern "C" fn rust_echo_create(value: ttx::Abstract) -> ttx::Abstract {
     let mut model = ttx::AbstractModel::plain(b"rust_stored_echo");
     model.concepts.push((b"value", value));
     model.domain = Arc::new(|_| ttx::DomainProjection::Unknown);
+    model.bytes = Arc::new(move |candidate, result| ttx::forward_bytes(value, candidate, result));
     model.interface = Arc::new(move |_, requirement| {
         if ttx::same(requirement, contracts.echo) {
             let invoke: ttx::Invocation = Arc::new(
@@ -369,7 +331,10 @@ pub extern "C" fn rust_echo_create(value: ttx::Abstract) -> ttx::Abstract {
                 relation: ttx::InterfaceRelation::Satisfied,
                 invoke: Some(invoke),
             }
-        } else if ttx::same(requirement, contracts.view_bytes) && viewable {
+        } else if (ttx::same(requirement, contracts.view_bytes)
+            || ttx::same(requirement, ttx::bytes_requirement()))
+            && viewable
+        {
             ttx::InterfaceModel {
                 relation: ttx::InterfaceRelation::Satisfied,
                 invoke: None,
@@ -378,30 +343,6 @@ pub extern "C" fn rust_echo_create(value: ttx::Abstract) -> ttx::Abstract {
             ttx::InterfaceModel::rejected()
         }
     });
-    let candidate = ttx::register_abstract(model);
-    STORED_ECHOES.lock().unwrap().push(StoredEcho {
-        candidate,
-        value,
-        viewable,
-    });
+    let candidate = ttx::retain_abstract(model);
     candidate
 }
-
-#[no_mangle]
-pub extern "C" fn rust_echo_bytes_provider() -> BytesTerminal {
-    let contracts = *CONTRACTS.get().unwrap_or_else(|| std::process::abort());
-    BytesTerminal {
-        operations: &ECHO_PROVIDER_OPS,
-        owner: contracts.echo.owner,
-        value: 1,
-    }
-}
-
-static ECHO_PROVIDER_OPS: BytesTerminalOps = BytesTerminalOps {
-    header: ttx::AbiHeader {
-        size: std::mem::size_of::<BytesTerminalOps>() as u32,
-        abi_major: ttx::ABI_MAJOR,
-        abi_minor: ttx::ABI_MINOR,
-    },
-    project: echo_provider_project,
-};

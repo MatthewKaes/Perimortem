@@ -6,22 +6,14 @@ products to the owners that understand them. It owns no Package request model,
 artifact inventory, target graph, provider map, or semantic sidecar.
 
 ```text
-puffer <one-source.ttx>
+puffer <one-source.ttx> [dialect-owned arguments...]
 puffer -lsp=<pipe-name>
 ```
 
-A source command may add:
-
-```text
--package_repository=<read-only-root>
--terminal_repository=<output-root>
--dump_graph
--generate_cxx
-```
-
-The terminal repository defaults to the current directory. Dependency lookup
-checks completed Package products there first and then the optional read-only
-Package repository. Publication writes only to the terminal repository.
+Puffer interprets the first source and raises every remaining byte into one
+immutable invocation authority. The selected Dialect decides whether names such
+as `release`, `graph`, or `profile=debug` have meaning. Puffer has no build,
+run, graph-dump, binding, backend, profile, repository, or output switches.
 
 ## Source sessions and products
 
@@ -34,9 +26,9 @@ package(.name = "Example.Memory", .version = "1.0");
 
 Workspace discovers every source and Package edge from common Import Aliases.
 Puffer supplies no source list, dependency table, coordinate override, ABI
-manifest, native provider, or Bazel artifact path. Missing Package coordinates
-are acquired from the two repository roots and restored through their real
-Dialects before the source completes.
+manifest, native provider, or Bazel artifact path. The invocation Environment
+owns reachable repositories and restores any source-free dependencies through
+their real Dialects before the source completes.
 
 After completion, the selected Dialect may return one named Pack of immutable
 byte products. The Package producer emits exactly:
@@ -52,16 +44,16 @@ through Puffer.
 Product publication validates every relative name, rejects escapes and
 collisions, stages the complete Pack, and exposes no partial product set.
 
-## Independent Terminals
+Invoking a Package root directly publishes its host-independent archive:
 
-Graph text and C++ production are independent observations of the same graph.
-`-dump_graph` writes versioned, dialect-neutral graph text to stdout while
-diagnostics remain on stderr. It can describe the strongest retained partial
-graph and Puffer still returns failure when compilation did not complete.
+```text
+puffer package.ttx
+```
 
-`-generate_cxx` asks the completed graph for canonical `api.hpp`, `api.cpp`, and
-any required ABI siblings. A graph without that producer fails explicitly.
-Default and C++ products never run over incomplete meaning.
+That archive is optional for a local Build. `puffer build.ttx` lets Build source
+the live Package graph inside its Environment-owned child Workspace and request
+native, Graph Text, binding, GPU, or archive products independently. Product
+selection belongs to Build mappings rather than Puffer command modes.
 
 ## Build-tool integration
 
@@ -72,7 +64,6 @@ ttx_source(
     name = "memory",
     src = "package.ttx",
     deps = [":core"],
-    generate_cxx = False,
 )
 ```
 

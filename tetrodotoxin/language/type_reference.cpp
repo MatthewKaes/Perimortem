@@ -5,9 +5,9 @@
 
 #include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -24,8 +24,8 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
         return import.resolve();
       },
       [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+        return candidate.visit<Tetrodotoxin::Language::Binding>(
+            [](const Tetrodotoxin::Language::Binding& alias) -> const Abstract& {
               return alias.resolve();
             },
             [](const Abstract& direct) -> const Abstract& { return direct; });
@@ -55,7 +55,7 @@ static auto resolve_route(
     Option<Cursor&> cursor,
     Anchor anchor,
     Option<const Abstract&> supplied_root = {})
-    -> Option<const Ttx::Model::Type&> {
+    -> Option<const Ttx::Model::Domain&> {
   const Abstract* selected = &context;
   Count start = 0;
   Count segment = 0;
@@ -85,7 +85,7 @@ static auto resolve_route(
 
     const Abstract& represented = resolve_alias(*queried);
     const Abstract* candidate =
-        queried->is<Ttx::Model::Type>() && !queried->is<Language::Import>()
+        queried->is<Ttx::Model::Domain>() && !queried->is<Language::Import>()
             ? queried
             : &represented;
     if (is_missing(*candidate)) {
@@ -126,7 +126,7 @@ static auto resolve_route(
     }
   }
   const Abstract& resolved = resolve_alias(*selected);
-  auto type = resolved.select<Ttx::Model::Type>();
+  auto type = resolved.select<Ttx::Model::Domain>();
   if (!type) {
     if (cursor) {
       auto report = cursor->create_report(anchor);
@@ -145,23 +145,23 @@ static auto resolve_route(
 }
 
 auto Language::TypeReference::resolve(Cursor& cursor, const Abstract& context)
-    const -> Option<const Ttx::Model::Type&> {
+    const -> Option<const Ttx::Model::Domain&> {
   return resolve_route(route, context, cursor, anchor);
 }
 
 auto Language::TypeReference::resolve_selected(
     Cursor& cursor,
-    const Abstract& selected_root) const -> Option<const Ttx::Model::Type&> {
+    const Abstract& selected_root) const -> Option<const Ttx::Model::Domain&> {
   return resolve_route(route, selected_root, cursor, anchor, selected_root);
 }
 
 auto Language::TypeReference::resolve_restored(const Abstract& context) const
-    -> Option<const Ttx::Model::Type&> {
+    -> Option<const Ttx::Model::Domain&> {
   return resolve_route(route, context, {}, anchor);
 }
 
 auto Language::TypeReference::resolve_restored_selected(
-    const Abstract& selected_root) const -> Option<const Ttx::Model::Type&> {
+    const Abstract& selected_root) const -> Option<const Ttx::Model::Domain&> {
   return resolve_route(route, selected_root, {}, anchor, selected_root);
 }
 

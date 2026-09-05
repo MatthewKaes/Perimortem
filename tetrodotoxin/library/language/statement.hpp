@@ -8,10 +8,10 @@
 
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -24,7 +24,7 @@ namespace Tetrodotoxin::Library::Language {
 //
 // Leading Documentation belongs here because it describes participation in an
 // executable sequence. The underlying semantic owner need not counterfeit a
-// declaration merely to retain that presentation fact backed by source.
+// declaration merely to retain source-backed presentation.
 class Statement {
  private:
   class Continue {

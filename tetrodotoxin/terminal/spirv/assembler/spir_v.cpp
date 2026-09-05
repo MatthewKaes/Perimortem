@@ -120,8 +120,9 @@ auto Assembler::SpirV::entry_point(
 
 auto Assembler::SpirV::execution_mode(U32 entry_point_id, ExecutionMode mode)
     -> void {
-  // OpExecutionMode adds stage specific facts. Fragment shaders commonly need
-  // OriginUpperLeft so coordinates match the Vulkan framebuffer convention.
+  // OpExecutionMode adds stage-specific requirements. Fragment shaders commonly
+  // need OriginUpperLeft so coordinates match the Vulkan framebuffer
+  // convention.
   instruction(Op::ExecutionMode, 3);
   word(entry_point_id);
   word(U32(mode));
@@ -542,8 +543,8 @@ auto Assembler::SpirV::literal_string_word_count(View::Bytes text) -> Count {
 }
 
 auto Assembler::SpirV::is_valid_module(View::Bytes words) -> Bool {
-  // This is intentionally shallow. It catches broken writers and truncated
-  // modules without pretending to be a SPIR V semantic validator.
+  // This deliberately shallow check catches broken writers and truncated
+  // modules without pretending to perform SPIR V semantic validation.
   BAIL_IF(words.get_size() < 20 || words.get_size() % 4 != 0);
 
   BAIL_IF(read_word(words, 0) != magic);

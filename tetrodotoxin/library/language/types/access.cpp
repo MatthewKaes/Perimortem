@@ -7,7 +7,7 @@
 #include "tetrodotoxin/library/builtin/view/size.hpp"
 #include "tetrodotoxin/library/builtin/view/slice.hpp"
 #include "tetrodotoxin/library/language/constants/bytes.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library::Language;
@@ -29,7 +29,7 @@ Types::Access::Access(
   publish_callable(domain, slice, True);
 }
 
-auto Types::Access::create_default(
+auto Types::Access::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::Bytes::create_synthetic(arena, *this, {});
 }

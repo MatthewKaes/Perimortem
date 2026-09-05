@@ -11,11 +11,12 @@
 
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -33,8 +34,8 @@ namespace Tetrodotoxin::Library::Language::Model {
 class Layout final : public Ttx::Concept::Layout {
  public:
   // Slot is the retained source description for one Layout entry. Its Type
-  // route and Anchor are model facts while interpretation alone decides how
-  // punctuation produces this value.
+  // route and Anchor are retained source metadata, while interpretation decides
+  // how punctuation produces this value.
   class Slot {
    public:
     constexpr Slot(
@@ -64,7 +65,7 @@ class Layout final : public Ttx::Concept::Layout {
       return name;
     }
 
-    // Attributes remain uninterpreted source facts on the exact Layout slot.
+    // Attributes remain uninterpreted source metadata on the exact Layout slot.
     // Library execution ignores keys it does not own, while an embedding
     // Dialect can use the same slot to express a richer interface contract.
     constexpr auto get_attributes() const
@@ -124,11 +125,11 @@ class Layout final : public Ttx::Concept::Layout {
   auto operator=(const Layout&) -> Layout& = delete;
   auto operator=(Layout&&) -> Layout& = delete;
 
-  // Both paths resolve the same authored TypeReference facts. Parameter slots
-  // materialize real Layout-owned Addressables, results retain selected Types,
-  // and the reserved scalar result `self` retains parameter entry zero itself.
-  // Every authored Type slot must provide a value. Only `[]` carries an empty
-  // descriptor.
+  // Both paths resolve the same authored TypeReference relationships. Parameter
+  // slots materialize real Layout-owned Addressables, results retain selected
+  // Types, and the reserved scalar result `self` retains parameter entry zero
+  // itself. Every authored Type slot must provide a value. Only `[]` carries an
+  // empty descriptor.
   auto link_parameters(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& host) -> Bool;
@@ -189,13 +190,71 @@ class Layout final : public Ttx::Concept::Layout {
           const Ttx::Concept::Abstract&,
           Ttx::Concept::Layout::Errors> override;
 
+  void named(ttx_named_result result) const override;
+
  private:
+  class RouteIdentity final : public Ttx::Concept::Constant {
+   public:
+    explicit RouteIdentity(Perimortem::Core::View::Bytes bytes);
+
+    TTX_NAME(bytes);
+    TTX_EMPTY_DOCUMENTATION();
+
+    void route(ttx_abstract self, ttx_route_result result) const override;
+
+   protected:
+    auto negotiate(ttx_abstract requirement) const
+        -> ttx_interface_relation override;
+
+   private:
+    struct Binding {
+      ttx_route_ops operations;
+    };
+
+    static auto select(ttx_route self) -> const RouteIdentity&;
+    static auto TTX_CALL candidate(ttx_route self) -> ttx_abstract;
+    static auto TTX_CALL route_bytes(ttx_route self) -> ttx_borrowed_bytes;
+
+    Perimortem::Core::View::Bytes bytes;
+    Binding binding;
+  };
+
+  class RouteLayout final : public Ttx::Concept::Layout {
+   public:
+    explicit RouteLayout(
+        const Tetrodotoxin::Library::Language::Model::Layout& owner)
+        : owner(owner) {}
+
+    auto get_size() const -> Count override;
+    auto get_abstract(Count index) const
+        -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
+    auto fits_entry(
+        const Ttx::Concept::Layout& target,
+        Count source_index,
+        Count target_index) const -> Bool override;
+    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
+        -> Bool override;
+    auto get_fitted_at(
+        const Ttx::Concept::Layout& target,
+        Count target_offset,
+        Count target_index) const
+        -> Perimortem::Utility::Result<
+            const Ttx::Concept::Abstract&,
+            Ttx::Concept::Layout::Errors> override;
+
+   private:
+    const Tetrodotoxin::Library::Language::Model::Layout& owner;
+  };
+
+  struct NamedBinding {
+    ttx_named_ops operations;
+  };
+
   Layout(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Memory::Managed::Vector<Slot> slots,
       Ttx::Lexical::Anchor anchor,
-      Bool parameters)
-      : domain(domain), slots(slots), anchor(anchor), parameters(parameters) {}
+      Bool parameters);
 
   auto link(
       Ttx::Lexical::Cursor& cursor,
@@ -210,9 +269,24 @@ class Layout final : public Ttx::Concept::Layout {
       Count source_index,
       Count target_index) const -> Bool;
   auto has_unique_names() const -> Bool;
+  void retain_route(Perimortem::Core::View::Bytes route);
+
+  static auto select(ttx_named self) -> const Layout&;
+  static auto TTX_CALL named_candidate(ttx_named self) -> ttx_layout;
+  static auto TTX_CALL named_source(ttx_named self) -> ttx_layout;
+  static auto TTX_CALL named_routes(ttx_named self) -> ttx_layout;
+  static void TTX_CALL
+      visit_named_routes(ttx_named self, ttx_named_route_sink result);
+  static void TTX_CALL select_named_route(
+      ttx_named self,
+      ttx_borrowed_bytes route,
+      ttx_named_selection_result result);
 
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<Slot> slots;
+  Perimortem::Memory::Managed::Vector<RouteIdentity*> route_identities;
+  RouteLayout route_layout;
+  NamedBinding named_binding;
   Ttx::Lexical::Anchor anchor;
   Bool parameters;
 };

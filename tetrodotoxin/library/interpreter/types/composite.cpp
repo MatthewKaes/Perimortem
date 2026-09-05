@@ -47,7 +47,8 @@ auto Interpreter::Types::Composite::parse_body(
       continue;
     }
     if (!structure.retain_authored_definition(
-            member->get_semantic(), *nested, member->get_category(), cursor)) {
+            member->get_semantic(), *nested, member->get_category(), cursor,
+            member->get_completion())) {
       state = ParseState::Rejected;
     }
     if (!member->is_accepted()) {

@@ -53,11 +53,12 @@ and only then does Rust negotiate `View::Bytes` against the Pack's exact
 producer. This proves that `Value`, the returned producer, and its byte
 representation need not share an identity or native object model.
 
-After semantic negotiation succeeds, the installed bytes Terminal asks a
-dynamic provider chain for the concrete borrowed pointer-and-size view. C, C++,
-and Rust providers can join that chain without changing the Terminal, the Rust
-`Echo` implementation, or either existing value owner. Representation therefore
-leaves at an explicit Terminal edge rather than leaking into Pack or Interface.
+After semantic negotiation succeeds, the bytes Terminal asks the candidate for
+its typed byte projection. Each value supplies that projection through its own
+operations. The Terminal assembles borrowed chunks and passes the complete bytes
+to Rust for printing. Adding a value needs no provider inventory or native
+object lookup in the consumer. The C++ value returns a separate text producer,
+while the C values return themselves, so the path exercises both relationships.
 
 The expected output is:
 
@@ -72,24 +73,25 @@ C++ Simulacra layering: C++ Simulacra points to Unknown
 ## The drivers do not own the domains
 
 `rust/ttx.rs` translates Rust mechanics into the C17 handles, sinks, immutable
-operation tables, Layouts, and Packs. The C++ owners use the canonical
-`ttx/abstract.*` binding and `ttx/fluid.*` Layout instead. Their operation tables
-carry private pointers to the native owners while authority and value remain the
-complete public identity, so dispatch needs no token-to-object registry. Neither
-language driver switches over `Echo`, `Value`, `View::Bytes`, or `Visibility`
-identities.
+operation tables, Layouts, and Packs. The C++ owners use `ttx/concept/abstract.*`,
+`ttx/concept/interface.*`, and the standard Layout implementations under
+`ttx/model/layouts/`. Both Abstract and Interface cross the ABI as one pointer
+to a capability containing its operation table. Private state belongs to that
+capability's implementation, and only its callbacks recover that state. Neither
+language driver switches over Echo, Value, View::Bytes, or Visibility identities.
 
-The C support owner retains every Pack in the caller's Context. The integer and
+The canonical C++ Context retains every Pack for its caller. The integer and
 Boolean live in separate source files over a reusable value owner, so adding the
 Boolean did not change the integer. The second Rust Abstract is registered from
-`rust/registry.rs`, which lets a new owner join without editing the ABI driver or
+`rust/providers.rs`, which lets a new owner join without editing the ABI driver or
 the original `Echo` owner.
 
 The C++ Echo simulacrum keeps its selected child behind a private C++ pointer.
-That storage choice remains unobservable. Alias forwarding, Interface witnesses,
-and identity comparison expose only host-assigned `(authority, value)` tokens.
-The test also re-dispatches one Rust identity through a C++ operation table to
-prove that dispatch addresses do not participate in semantic identity.
+That storage choice remains unobservable. Alias forwards negotiation to the
+referent, while an Addressable preserves its visible candidate when it projects
+that referent's capabilities. The test places a C++ Addressable around a Rust
+Echo and verifies that the new identity satisfies the same requirement. The
+proxy's independent identity remains distinct from behavioral substitution.
 
 C, C++, and Rust all keep synchronous callback state in the requesting call
 frame. The borrowed sink operation table is each implementation's private route
@@ -113,11 +115,20 @@ exact route at their original paths. Composite snapshots preserve their two
 child boundaries, retain partial fitted children, and reject an implicit
 reassociation even when the enumerable leaves match. Ranged proves repeated,
 zero, mismatched, and unsettled cardinalities through the narrow Extent
-Constant contract. Reindexed remains the next conformance case, but it does not
-have to be flattened into Context-owned storage to cross the lifetime boundary.
+Constant contract. Reindexed preserves repeated, reordered producer occurrences
+and their mappings after the original source Layout has ended. An additional
+Rust module constructs a temporary Layout whose vectors are destroyed before
+C++ inspects the retained Pack. Graph Text observes the same mixed graph and
+preserves its structured projections in deterministic output.
 
-Run the proof with:
+The Interface cases separately cover Unknown and rejection without execution,
+changed policies, mismatched witness candidates, transparent Alias forwarding,
+temporary Callable views, support allocation failures, and Addressable Route
+and Extent views. The query helpers copy transient support inside the callback,
+while Packs continue to borrow the original semantic producers.
+
+The proof runs with the rest of the repository contract suite:
 
 ```sh
-bazel test //validation:ttx_cross_language --test_output=all
+bazel run //validation:unit_tests
 ```

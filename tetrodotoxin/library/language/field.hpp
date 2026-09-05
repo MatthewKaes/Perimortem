@@ -11,6 +11,7 @@
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/writability.hpp"
 #include "ttx/lexical/anchor.hpp"
@@ -44,9 +45,8 @@ class Field : public Model::Addressable {
         initializer_linked(!initializer) {}
 
  public:
-  TTX_CONTRACT(Field, Model::Addressable);
 
-  // Source interpretation supplies the declaration facts it could establish
+  // Source interpretation supplies the declaration state it could establish
   // from the authored form. Keeping construction independent from Cursor lets
   // the same Field model participate in another Dialect without borrowing its
   // grammar machinery.
@@ -123,7 +123,7 @@ class Field : public Model::Addressable {
       return Bool(
           get_definition().get_visibility() ==
               Tetrodotoxin::Language::Visibility::Public ||
-          access_scope.has_private_access_to(get_host()));
+          Model::has_private_access_to(access_scope, get_host()));
     case Writability::Constant:
       return False;
     }
@@ -200,8 +200,8 @@ class Field : public Model::Addressable {
   Perimortem::Core::Option<Model::Pack&> initializer;
   Perimortem::Core::Option<const Model::Type*> type;
   Bool generated;
-  mutable const ttx_abstract* folded_input = nullptr;
-  mutable const ttx_abstract* folded_result = nullptr;
+  mutable const Ttx::Concept::Abstract* folded_input = nullptr;
+  mutable const Ttx::Concept::Abstract* folded_result = nullptr;
   Bool initializer_linked;
 };
 

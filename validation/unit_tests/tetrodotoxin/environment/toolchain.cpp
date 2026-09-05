@@ -107,6 +107,10 @@ PERIMORTEM_UNIT_TEST(EnvironmentToolchain, installs_dialects) {
   auto lower = toolchain.install<LowerDialect>("Lower"_view);
   ASSERT(independent);
   ASSERT(lower);
+  EXPECT_EQ(
+      Ttx::relation(
+          independent->get_handle(), tetrodotoxin_dialect_requirement()),
+      TTX_INTERFACE_SATISFIED);
   auto middle = toolchain.install<MiddleDialect>("Middle"_view, *lower);
 
   ASSERT(middle);

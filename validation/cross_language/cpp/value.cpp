@@ -7,20 +7,10 @@
 #include <cstdlib>
 #include <mutex>
 
-struct CppBytesProjection {
-  ttx_abstract candidate = {};
-  ttx_abstract requirement = {};
-  std::shared_ptr<TtxTest::Route> bytes;
-};
-
-static std::mutex cpp_bytes_mutex;
-static std::vector<CppBytesProjection> cpp_bytes_projections;
-static uint64_t cpp_bytes_provider_authority;
-
 class CppBytes final : public TtxTest::AbstractModel {
  public:
   CppBytes(ttx_abstract view_bytes, std::shared_ptr<TtxTest::Route> bytes)
-      : view_bytes(view_bytes), bytes(std::move(bytes)) {}
+      : view_bytes(view_bytes), payload(std::move(bytes)) {}
 
   auto name() const -> ttx_borrowed_bytes override {
     static const uint8_t value[] = "C++ string representation";
@@ -35,7 +25,8 @@ class CppBytes final : public TtxTest::AbstractModel {
         {
           .requirement = requirement,
           .candidate = self,
-          .relation = ttx_abstract_same(requirement, view_bytes)
+          .relation = (ttx_abstract_same(requirement, view_bytes) ||
+                       ttx_abstract_same(requirement, ttx_bytes_requirement()))
                           ? TTX_INTERFACE_SATISFIED
                           : TTX_INTERFACE_REJECTED,
           .invoke = {},
@@ -47,9 +38,33 @@ class CppBytes final : public TtxTest::AbstractModel {
     result.operations->unknown(result);
   }
 
+  void bytes(ttx_abstract, ttx_bytes_result result) const override {
+    static const ttx_bytes_ops ops = {
+      .header = {sizeof(ttx_bytes_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+      .candidate =
+          [](ttx_bytes v) {
+            return reinterpret_cast<const CppBytes*>(v.self)->get_abi();
+          },
+      .size = [](ttx_bytes v) -> uint64_t {
+        return reinterpret_cast<const CppBytes*>(v.self)->payload->size();
+      },
+      .visit =
+          [](ttx_bytes v, ttx_bytes_sink sink) {
+            const auto& data =
+                *reinterpret_cast<const CppBytes*>(v.self)->payload;
+            sink.operations->bytes(sink, {data.data(), data.size()});
+            sink.operations->completed(sink);
+          },
+    };
+    result.operations->resolved(
+        result, {.operations = &ops,
+                 .self = reinterpret_cast<ttx_bytes_self*>(
+                     const_cast<CppBytes*>(this))});
+  }
+
  private:
   ttx_abstract view_bytes;
-  std::shared_ptr<TtxTest::Route> bytes;
+  std::shared_ptr<TtxTest::Route> payload;
 };
 
 class CppValue final : public TtxTest::AbstractModel {
@@ -58,11 +73,13 @@ class CppValue final : public TtxTest::AbstractModel {
       ttx_abstract value,
       ttx_abstract view_bytes,
       ttx_abstract to_string,
-      ttx_abstract text)
+      ttx_abstract text,
+      std::shared_ptr<TtxTest::Route> payload)
       : value(value),
         view_bytes(view_bytes),
         to_string(to_string),
-        text(text) {}
+        text(text),
+        payload(std::move(payload)) {}
 
   auto name() const -> ttx_borrowed_bytes override {
     static const uint8_t value[] = "C++ Value";
@@ -81,7 +98,8 @@ class CppValue final : public TtxTest::AbstractModel {
       ttx_abstract self,
       ttx_abstract requirement,
       ttx_interface_sink result) const override {
-    if (ttx_abstract_same(requirement, view_bytes)) {
+    if (ttx_abstract_same(requirement, view_bytes) ||
+        ttx_abstract_same(requirement, ttx_bytes_requirement())) {
       TtxTest::answer_interface(
           {
             .requirement = requirement,
@@ -119,44 +137,36 @@ class CppValue final : public TtxTest::AbstractModel {
         result);
   }
 
+  void bytes(ttx_abstract, ttx_bytes_result result) const override {
+    static const ttx_bytes_ops ops = {
+      .header = {sizeof(ttx_bytes_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+      .candidate =
+          [](ttx_bytes v) {
+            return reinterpret_cast<const CppValue*>(v.self)->get_abi();
+          },
+      .size = [](ttx_bytes v) -> uint64_t {
+        return reinterpret_cast<const CppValue*>(v.self)->payload->size();
+      },
+      .visit =
+          [](ttx_bytes v, ttx_bytes_sink sink) {
+            const auto& data =
+                *reinterpret_cast<const CppValue*>(v.self)->payload;
+            sink.operations->bytes(sink, {data.data(), data.size()});
+            sink.operations->completed(sink);
+          },
+    };
+    result.operations->resolved(
+        result, {.operations = &ops,
+                 .self = reinterpret_cast<ttx_bytes_self*>(
+                     const_cast<CppValue*>(this))});
+  }
+
  private:
   ttx_abstract value;
   ttx_abstract view_bytes;
   ttx_abstract to_string;
   ttx_abstract text;
-};
-
-static void TTX_CALL cpp_bytes_project(
-    ttx_test_bytes_terminal,
-    ttx_abstract producer,
-    ttx_abstract requirement,
-    ttx_test_bytes_sink result) {
-  std::lock_guard lock(cpp_bytes_mutex);
-  const auto found = std::find_if(
-      cpp_bytes_projections.begin(), cpp_bytes_projections.end(),
-      [producer, requirement](const CppBytesProjection& projection) {
-        return ttx_abstract_same(projection.candidate, producer) &&
-               ttx_abstract_same(projection.requirement, requirement);
-      });
-  if (found == cpp_bytes_projections.end()) {
-    result.operations->rejected(result);
-    return;
-  }
-  result.operations->projected(
-      result, {
-                .data = found->bytes->data(),
-                .size = found->bytes->size(),
-              });
-}
-
-static const ttx_test_bytes_terminal_ops cpp_bytes_provider_operations = {
-  .header =
-      {
-        .size = sizeof(ttx_test_bytes_terminal_ops),
-        .abi_major = TTX_ABI_MAJOR,
-        .abi_minor = TTX_ABI_MINOR,
-      },
-  .project = cpp_bytes_project,
+  std::shared_ptr<TtxTest::Route> payload;
 };
 
 auto TtxTest::create_value(
@@ -166,24 +176,8 @@ auto TtxTest::create_value(
     Route bytes) -> ttx_abstract {
   auto retained = std::make_shared<Route>(std::move(bytes));
   const ttx_abstract text =
-      register_abstract(std::make_shared<CppBytes>(view_bytes, retained));
-  const ttx_abstract result = register_abstract(
-      std::make_shared<CppValue>(value, view_bytes, to_string, text));
-  std::lock_guard lock(cpp_bytes_mutex);
-  cpp_bytes_projections.push_back(
-      {.candidate = text, .requirement = view_bytes, .bytes = retained});
-  cpp_bytes_projections.push_back(
-      {.candidate = result, .requirement = view_bytes, .bytes = retained});
+      retain_abstract(std::make_shared<CppBytes>(view_bytes, retained));
+  const ttx_abstract result = retain_abstract(
+      std::make_shared<CppValue>(value, view_bytes, to_string, text, retained));
   return result;
-}
-
-auto TtxTest::value_bytes_provider() -> ttx_test_bytes_terminal {
-  if (cpp_bytes_provider_authority == 0) {
-    cpp_bytes_provider_authority = ttx_authority_create();
-  }
-  return {
-    .operations = &cpp_bytes_provider_operations,
-    .owner = cpp_bytes_provider_authority,
-    .value = 1,
-  };
 }

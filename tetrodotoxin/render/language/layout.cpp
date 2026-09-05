@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/declarations.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -41,7 +41,7 @@ auto Language::Layout::link(Cursor& cursor, const Abstract& context) -> Bool {
     if (retained) {
       auto parameter = retained->select<Ttx::Model::Addressable>();
       Bool stable =
-          parameters ? Bool(parameter && &parameter->get_type() == &*selected)
+          parameters ? Bool(parameter && &parameter->get_domain() == &*selected)
                      : &*retained == &*selected;
       if (!stable) {
         cursor.create_expression_error(
@@ -154,7 +154,7 @@ auto Language::Layout::get_name(Count index) const -> Option<View::Bytes> {
 
 static auto represented_type(const Abstract& value) -> const Abstract& {
   auto addressable = value.select<Ttx::Model::Addressable>();
-  return addressable ? static_cast<const Abstract&>(addressable->get_type())
+  return addressable ? static_cast<const Abstract&>(addressable->get_domain())
                      : value.resolve();
 }
 

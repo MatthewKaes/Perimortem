@@ -16,7 +16,7 @@
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Core;
@@ -122,7 +122,9 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
       domain(domain),
       storage_reference(storage_reference),
       source_cases(domain),
-      cases(domain) {}
+      cases(domain),
+      iteration(*this),
+      initialization(*this) {}
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::create_authored(
     Allocator::Arena& domain,
@@ -169,7 +171,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::retain_restored_case(
   const Abstract& constant =
       Constants::Enumeration::create_synthetic(domain, *this, value);
   cases.insert(
-      &domain.construct<Ttx::Model::Alias>(name, constant, documentation));
+      &domain.construct<Tetrodotoxin::Language::Binding>(name, constant, documentation));
   return True;
 }
 
@@ -359,7 +361,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
                              : value.unsigned_value;
     const Abstract& constant = Constants::Enumeration::create_authored(
         domain, *this, representation, source_case.value_anchor);
-    const Ttx::Model::Alias& alias = domain.construct<Ttx::Model::Alias>(
+    const Tetrodotoxin::Language::Binding& alias = domain.construct<Tetrodotoxin::Language::Binding>(
         source_case.name, constant, source_case.documentation);
     cases.insert(&alias);
   }
@@ -385,14 +387,20 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_concept(
   if (route == "instance"_view) {
     return Model::Type::resolve_concept("instance"_view);
   }
+  if (route == "initialization"_view && stage >= Stage::StorageLinked) {
+    return initialization;
+  }
 
   if (stage != Stage::Finalized) {
     return Unknown::get_unknown();
   }
+  if (route == "iteration"_view) {
+    return iteration;
+  }
 
   auto case_view = cases.get_view();
   for (Count i = 0; i < cases.get_size(); i++) {
-    const Ttx::Model::Alias& alias = *case_view.get_data()[i];
+    const Tetrodotoxin::Language::Binding& alias = *case_view.get_data()[i];
     if (alias.get_name() == route) {
       return alias;
     }
@@ -405,7 +413,18 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_concept(
   return None::get_none();
 }
 
-auto Tetrodotoxin::Library::Language::Types::Enumeration::create_default(
+void Tetrodotoxin::Library::Language::Types::Enumeration::visit_concepts(
+    ttx_named_abstract_callable* visitor) const {
+  Model::Type::visit_concepts(visitor);
+  if (stage >= Stage::StorageLinked) {
+    visit_concept(visitor, "initialization"_view, initialization);
+  }
+  if (stage == Stage::Finalized) {
+    visit_concept(visitor, "iteration"_view, iteration);
+  }
+}
+
+auto Tetrodotoxin::Library::Language::Types::Enumeration::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   BAIL_IF(!storage_type);
   return Constants::Enumeration::create_synthetic(arena, *this, 0);
@@ -421,7 +440,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
-    -> Core::View::Vector<const Ttx::Model::Alias*> {
+    -> Core::View::Vector<const Tetrodotoxin::Language::Binding*> {
   return cases;
 }
 
@@ -457,7 +476,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::find_case_name(
   return {};
 }
 
-auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_iteration(
+auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_binding(
     const Layout& bindings) const -> Bool {
   auto value_entry = bindings.get_abstract(0);
   auto value = value_entry ? value_entry->select<Ttx::Model::Addressable>()
@@ -468,11 +487,11 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_iteration(
   }
 
   if (bindings.get_size() == 1) {
-    return &value->get_type().resolve() == &resolve();
+    return &value->get_domain().resolve() == &resolve();
   }
 
   if (bindings.get_size() != 2 || !storage_type ||
-      &value->get_type().resolve() != &(**storage_type).resolve()) {
+      &value->get_domain().resolve() != &(**storage_type).resolve()) {
     return False;
   }
 
@@ -480,7 +499,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::accepts_iteration(
   auto name = name_entry ? name_entry->select<Ttx::Model::Addressable>()
                          : Option<const Ttx::Model::Addressable&>();
   auto name_name = bindings.get_name(1);
-  auto view = name ? name->get_type().resolve().select<Types::View>()
+  auto view = name ? name->get_domain().resolve().select<Types::View>()
                    : Option<const Types::View&>();
   auto byte_type = select_intrinsic_type(*this, "U8"_view);
   return name_name && *name_name == "name"_view && view && byte_type &&

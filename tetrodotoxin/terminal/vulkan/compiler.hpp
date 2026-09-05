@@ -15,7 +15,7 @@ namespace Tetrodotoxin::Terminal::Vulkan {
 
 // Compiler owns the Vulkan generation boundary over one completed Shader
 // Program. Module generation produces its SPIR V words, while description
-// generation derives the matching CPU pipeline facts from the same graph.
+// generation derives the matching CPU pipeline description from the same graph.
 class Compiler {
  public:
   auto compile_module(

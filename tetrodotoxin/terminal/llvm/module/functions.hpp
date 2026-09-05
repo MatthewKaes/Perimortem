@@ -13,9 +13,9 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/emission.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Module {
 
@@ -55,7 +55,7 @@ class Functions {
     Perimortem::Core::Option<LLVMTypeRef> sret_type;
   };
 
-  // ConstructionField is one target lowering fact supplied by the aggregate
+  // ConstructionField is one target lowering entry supplied by the aggregate
   // Type that owns the Field order and default. It retains only original graph
   // identities. LLVM neither discovers Fields nor manufactures a semantic
   // construction model.
@@ -99,23 +99,23 @@ class Functions {
 
   auto reserve_construction(
       Emission& program,
-      const Ttx::Model::Type& owner,
+      const Ttx::Model::Domain& owner,
       Bool provider,
       Perimortem::Core::View::Vector<const Ttx::Model::Addressable*> parameters)
       const -> Bool;
 
-  auto complete_construction(Emission& program, const Ttx::Model::Type& owner)
+  auto complete_construction(Emission& program, const Ttx::Model::Domain& owner)
       const -> Bool;
 
   auto lower_construction(
       Emission& program,
-      const Ttx::Model::Type& owner,
+      const Ttx::Model::Domain& owner,
       Perimortem::Core::View::Vector<ConstructionField> fields) const -> Bool;
 
   auto call_construction(
       Emission& body,
       const Tetrodotoxin::Library::Language::Model::Pack& result,
-      const Ttx::Model::Type& owner,
+      const Ttx::Model::Domain& owner,
       const Tetrodotoxin::Library::Language::Model::Pack& arguments) const
       -> Bool;
 
@@ -218,7 +218,7 @@ class Functions {
   mutable Perimortem::Memory::Dynamic::Map<const Ttx::Model::Callable*, Record>
       records;
   mutable Perimortem::Memory::Dynamic::
-      Map<const Ttx::Model::Type*, ConstructionRecord>
+      Map<const Ttx::Model::Domain*, ConstructionRecord>
           constructions;
   mutable Perimortem::Memory::Dynamic::Vector<const Ttx::Model::Callable*>
       foreign_callables;

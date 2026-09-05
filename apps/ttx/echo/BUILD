@@ -13,3 +13,5 @@ ttx_source(
     visibility = ["//visibility:public"],
     deps = ["//packages/ttx:perimortem_system"],
 )
+
+exports_files(["build.ttx"])

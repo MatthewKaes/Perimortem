@@ -19,7 +19,7 @@ namespace Tetrodotoxin::Terminal::Spirv::Module {
 
 // Interface derives entry point variables and decorations from one Shader
 // Program and its completed Render agreement. The records are request local
-// target facts rather than another interface graph.
+// target requirements rather than another interface graph.
 class Interface {
  public:
   class Variable {

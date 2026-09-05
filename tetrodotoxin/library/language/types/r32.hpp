@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/types/real.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -16,7 +16,7 @@ class R32 : public Model::Types::Real {
 
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
   constexpr auto get_width() const -> Count override { return 32; }
   constexpr auto get_size() const -> Count override { return sizeof(::R32); }
@@ -25,7 +25,7 @@ class R32 : public Model::Types::Real {
   }
 
  private:
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "R32 is stored as a 4 byte IEEE floating value."_view,
   };
 };

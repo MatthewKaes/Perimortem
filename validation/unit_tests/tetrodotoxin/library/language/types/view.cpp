@@ -12,8 +12,8 @@
 
 #include "tetrodotoxin/library/language/generics/view.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,7 +30,7 @@ PERIMORTEM_UNIT_TEST(LibraryView, direct_contract) {
   Types::View view("View[U8]"_view, element);
 
   EXPECT(view.is<Types::View>());
-  EXPECT(view.is<Ttx::Model::Type>());
+  EXPECT(view.is<Ttx::Model::Domain>());
   EXPECT(view.is<Abstract>());
   EXPECT_NOT(view.is<Generic>());
   EXPECT_TEXT(view.get_name(), "View[U8]"_view);

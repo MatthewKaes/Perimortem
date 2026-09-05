@@ -9,8 +9,8 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -319,7 +319,8 @@ auto Types::Source::resolve_concept(View::Bytes route) const
   if (route == "foreign"_view && foreign.is_authored()) {
     return foreign;
   }
-  if (route == "static"_view || route == "instance"_view) {
+  if (route == "static"_view || route == "instance"_view ||
+      route == "visibility"_view) {
     return Composite::resolve_concept(route);
   }
 
@@ -339,13 +340,6 @@ auto Types::Source::resolve_lexical_context(View::Bytes route) const
 auto Types::Source::resolve_public_context(View::Bytes route) const
     -> const Abstract& {
   return resolve_local(route, Visibility::Public);
-}
-
-auto Types::Source::create_default(Allocator::Arena&) const
-    -> Option<Model::Pack&> {
-  // Source is an empty contextual root and never enters value flow. Absence
-  // keeps that fact distinct from a completed Pack that produces zero values.
-  return {};
 }
 
 auto Types::Source::resolve_imports(View::Bytes route) const

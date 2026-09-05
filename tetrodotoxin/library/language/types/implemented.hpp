@@ -18,7 +18,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // meaning.
 class Implemented : public Object {
  public:
-  TTX_CONTRACT(Implemented, Object);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

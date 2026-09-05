@@ -10,9 +10,9 @@
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/block.hpp"
+#include "ttx/model/documentations/block.hpp"
 #include "ttx/lexical/anchor.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -226,7 +226,7 @@ auto Shader::Archive::Reader::read_documentation(Allocator::Arena& arena)
     BAIL_IF(!line);
     lines.get_data()[index] = arena.proxy(*line);
   }
-  return arena.construct<Ttx::Model::Documentations::Block>(
+  return arena.construct<Ttx::Documentations::Block>(
       View::Vector<View::Bytes>(lines.get_data(), lines.get_size()));
 }
 

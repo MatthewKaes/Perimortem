@@ -7,7 +7,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 

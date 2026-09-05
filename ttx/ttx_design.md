@@ -168,11 +168,18 @@ preserves the exact object it receives and carries no absent state. Alias is the
 transparent indirection that forwards every observation to one required
 referent without becoming a policy boundary.
 
-The graph owner guarantees each handle lifetime. One authority token and one
-value token identify the semantic subject, while the operations pointer carries
-only borrowed dispatch machinery. A bridge may replace that pointer without
-changing identity. A concrete same lifetime inventory stores typed handles
-directly instead of laundering them through another semantic category.
+The graph owner guarantees each handle lifetime. An Abstract handle is one
+pointer to a capability whose first member points to its immutable operation
+table. The implementation may place any private state behind that prefix, but a
+caller cannot detach the table from its subject or recover a C++, Rust, or other
+native object from the shared handle. A concrete same-lifetime inventory stores
+those handles directly instead of laundering them through another semantic
+category.
+
+A process or language bridge constructs a local capability that forwards the
+same questions. That proxy has its own exact identity. When it must stand in for
+another object, the relevant Interface proves the substitution instead of
+pretending that addresses from separate implementations are equal.
 
 This avoids copying a semantic object into every context that retains it and
 avoids treating a spelling or structural hash as durable identity. The cost is
@@ -305,14 +312,19 @@ the physical meaning for every later consumer.
 Layout fitting stops where data flow stops. It can prove that values move
 through compatible shapes, but that projection intentionally forgets behavior
 and richer domain meaning. Interface is the higher order companion that
-negotiates whether two real Abstracts satisfy the same semantic role. A
-Callable negotiator can build on parameter and result Layouts. A rendering or
-lifecycle negotiator can add meaning that Layout never carried.
+negotiates whether two real Abstracts satisfy the same semantic role. The
+candidate receives the exact requirement and may synthesize a call-scoped
+witness from its local policy, a delegated capability, or behavior assembled
+for that observation. The witness always retains the visible candidate, so a
+restrictive layer cannot be bypassed by exposing the object behind it. A
+Callable negotiator can build on parameter and result Layouts, while a
+rendering or lifecycle negotiator can add meaning that Layout never carried.
 
 This does not make structural similarity into identity. Interface may leave the
 relationship Unknown, reject it, satisfy the requested direction, or record a
-stronger equivalence established by that exact requirement. It retains no
-copied declaration model and creates no graph object around either participant.
+stronger equivalence established by that exact requirement. The returned
+capability exists only for its synchronous callback and retains no copied
+declaration model or graph object around either participant.
 
 Negotiation and runtime erasure remain separate choices. A known candidate can
 be lowered directly after its relation is proven. When a language needs one

@@ -17,17 +17,15 @@
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
-// Block is one authored Function body or nested lexical scope. It retains
-// Statement memberships carry no identity while every entry keeps its exact
-// graph object and Documentation backed by source. Its lexical parent,
-// owning Function, and host Type remain independent facts.
-// `{` admits an empty or multi Statement body, while `:` admits exactly one
-// Statement without constructing a different semantic owner.
-// This is not a lowered basic block and owns no predecessor arguments, result
-// Layout, SSA edges, or target control flow.
+// Block is one authored Function body or nested lexical scope. Statement
+// membership carries no identity, leaving every entry to retain its exact
+// graph object and source-backed Documentation. The lexical parent, owning
+// Function, and host Type remain independent relationships. `{` admits an
+// empty or multi-Statement body, while `:` admits exactly one Statement
+// without constructing another semantic owner. Lowered predecessor arguments,
+// result Layouts, SSA edges, and target control flow belong to a Terminal.
 class Block : public Scope {
  public:
-  TTX_CONTRACT(Block, Scope);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -4,23 +4,29 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
+#include "perimortem/core/view/vector.hpp"
 
-#include "ttx/concept/pack.h"
+#include "ttx/abi.h"
 
 namespace Puffer {
 
-// Publisher commits one complete named Product Pack beneath a single output
-// root. It owns filesystem validation and atomic replacement, never semantic
-// traversal or product naming.
+// Publisher commits the union of every requested product Pack beneath one
+// output root. Each request remains alive while its Named routes and immutable
+// ArtifactFiles are inspected, allowing the filesystem transition to stay
+// independent from every Terminal implementation.
 class Publisher {
  public:
-  constexpr explicit Publisher(Perimortem::Core::View::Bytes root)
-      : root(root) {}
+  constexpr Publisher(
+      Perimortem::Core::View::Bytes root,
+      Perimortem::Core::View::Bytes publication_root)
+      : root(root), publication_root(publication_root) {}
 
-  auto publish(const ttx_pack* products) const -> Bool;
+  auto publish(ttx_pack products) const -> Bool;
+  auto publish(Perimortem::Core::View::Vector<ttx_pack> products) const -> Bool;
 
  private:
   Perimortem::Core::View::Bytes root;
+  Perimortem::Core::View::Bytes publication_root;
 };
 
 }  // namespace Puffer

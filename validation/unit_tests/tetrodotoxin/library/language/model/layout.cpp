@@ -13,8 +13,8 @@
 #include "tetrodotoxin/library/interpreter/layout.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
 using namespace Perimortem::Core;
@@ -77,7 +77,7 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
   EXPECT(layout->declares_self());
   EXPECT_NOT(layout->is_linked());
   ASSERT(layout->link_parameters(
-      link_cursor, static_cast<const Ttx::Model::Type&>(box)));
+      link_cursor, static_cast<const Ttx::Model::Domain&>(box)));
 
   ASSERT_EQ(layout->get_size(), Count(2));
   ASSERT(layout->get_name(0) && layout->get_name(1));
@@ -89,10 +89,10 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
   ASSERT(self.is<Ttx::Model::Layouts::Addressable>());
   ASSERT(input.is<Ttx::Model::Layouts::Addressable>());
   EXPECT(
-      &static_cast<const Ttx::Model::Layouts::Addressable&>(self).get_type() ==
+      &static_cast<const Ttx::Model::Layouts::Addressable&>(self).get_domain() ==
       &box);
   EXPECT(
-      &static_cast<const Ttx::Model::Layouts::Addressable&>(input).get_type() ==
+      &static_cast<const Ttx::Model::Layouts::Addressable&>(input).get_domain() ==
       &monograph->resolve_concept("Bool"_view));
   EXPECT(parse_errors.is_empty());
   EXPECT(errors.is_empty());

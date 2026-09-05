@@ -8,7 +8,7 @@
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin::Library::Language;
 
-static constexpr Ttx::Model::Layouts::Named interface_layout;
+static const Ttx::Model::Layouts::Named interface_layout;
 
 auto Types::Interface::create_authored(
     Allocator::Arena& domain,
@@ -21,16 +21,6 @@ auto Types::Interface::create_restored(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition) -> Interface& {
   return create_authored(domain, definition);
-}
-
-auto Types::Interface::create_default(Allocator::Arena&) const
-    -> Perimortem::Core::Option<Model::Pack&> {
-  return {};
-}
-
-auto Types::Interface::create_fitted(Allocator::Arena&, Model::Pack&) const
-    -> Perimortem::Core::Option<Model::Pack&> {
-  return {};
 }
 
 auto Types::Interface::get_layout() const -> const Ttx::Model::Layouts::Named& {

@@ -8,7 +8,6 @@
 #error LLVM IRBuilder is required by the Scene native Terminal
 #endif
 
-#include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/scene.hpp"
 
@@ -32,14 +31,12 @@ auto Llvm::Lowering::Scene::lower(
   BAIL_IF(!callable || callable->get_parameters().get_size() == 0);
   auto parameter = callable->get_parameters().get_abstract(0);
   auto self =
-      parameter
-          ? parameter
-                ->select<Tetrodotoxin::Library::Language::Model::Addressable>()
-          : Core::Option<
-                const Tetrodotoxin::Library::Language::Model::Addressable&>();
+      parameter ? parameter->select<Ttx::Model::Addressable>()
+                : Core::Option<const Ttx::Model::Addressable&>();
   auto address = self ? body.find_address(*self) : Core::Option<LLVMValueRef>();
-  auto type = self ? self->get_type().select<Ttx::Model::Type>()
-                   : Core::Option<const Ttx::Model::Type&>();
+  auto type = self
+                  ? self->get_domain().resolve().select<Ttx::Model::Domain>()
+                  : Core::Option<const Ttx::Model::Domain&>();
   auto native = type ? execution.get_program().get_carriers().get_type(*type)
                      : Core::Option<LLVMTypeRef>();
   BAIL_IF(!address || !type || !native);

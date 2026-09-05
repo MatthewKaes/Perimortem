@@ -27,7 +27,6 @@ class Function : public Model::Callable {
       Signature& signature);
 
  public:
-  TTX_CONTRACT(Function, Model::Callable);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

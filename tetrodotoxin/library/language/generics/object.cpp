@@ -32,8 +32,7 @@ static auto materialize_contiguous(
 }
 
 auto Generics::Object::create(
-    Perimortem::Core::View::Vector<Argument> arguments) const
-    -> Perimortem::Core::Option<const Language::Model::Type&> {
+    Perimortem::Core::View::Vector<Argument> arguments) const -> Creation {
   auto& arena = get_domain();
   if (arguments.get_size() != 1) {
     return {};
@@ -61,6 +60,7 @@ auto Generics::Object::create(
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Types::ObjectStorage>(
-      arena, name.get_view(), *element, *size_type, *flag_type, *view, *access);
+  return created(arena.construct<Types::ObjectStorage>(
+      arena, name.get_view(), *element, *size_type, *flag_type, *view,
+      *access));
 }

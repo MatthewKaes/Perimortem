@@ -27,6 +27,7 @@ class Bytes {
   constexpr Bytes() : source_block(nullptr), size(0) {}
 
   constexpr Bytes(const View::Bytes&) = default;
+  constexpr auto operator=(const View::Bytes&) -> Bytes& = default;
 
   template <Count N>
   constexpr Bytes(const U8 (&source)[N]) : source_block(&source[0]), size(N) {}

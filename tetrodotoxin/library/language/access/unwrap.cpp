@@ -5,9 +5,10 @@
 
 #include "tetrodotoxin/library/language/constants/option.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -70,7 +71,7 @@ auto Language::Access::Unwrap::link(
   // Pack here makes later folding independent from mutable declaration state
   // without teaching Unwrap how any concrete Type constructs its value.
   auto selected_fallback =
-      option->get_element_type().create_default(cursor.get_arena());
+      Model::initialize_default(option->get_element_type(), cursor.get_arena());
   BAIL_IF(!selected_fallback);
   fallback = &*selected_fallback;
   return Expression::link(cursor, lexical_context, access_scope);

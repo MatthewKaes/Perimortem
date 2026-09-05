@@ -6,6 +6,8 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/model/admission.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -15,7 +17,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // single source for its name, Documentation, Attributes, modifiers, and kind.
 class Structure : public Composite {
  public:
-  TTX_CONTRACT(Structure, Composite);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -32,14 +33,29 @@ class Structure : public Composite {
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+  void visit_concepts(ttx_named_abstract_callable* visitor) const override;
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+  virtual auto initialize_default(Perimortem::Memory::Allocator::Arena& arena)
+      const -> Perimortem::Core::Option<Model::Pack&>;
 
-  auto create_fitted(
+  virtual auto initialize_supplied(
+      Ttx::Lexical::Cursor& cursor,
+      Model::Pack& source,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
+      Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
+      -> Perimortem::Core::Option<Model::Pack&>;
+
+  virtual auto initialize_supplied_restored(
       Perimortem::Memory::Allocator::Arena& arena,
-      Model::Pack& source) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+      Model::Pack& source,
+      Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)
+      const -> Perimortem::Core::Option<Model::Pack&>;
+
+  auto accepts(const Model::Pack& source) const -> Bool;
+
+  auto create_admitted(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Model::Pack& source) const -> Perimortem::Core::Option<Model::Pack&>;
 
   constexpr auto has_initialization_provider() const -> Bool {
     return provides_initialization;
@@ -56,14 +72,22 @@ class Structure : public Composite {
       Tetrodotoxin::Language::Definition& definition,
       Bool provides_initialization = True)
       : Composite(domain, definition),
-        provides_initialization(provides_initialization) {}
+        provides_initialization(provides_initialization),
+        admission(*this),
+        initialization(*this) {}
 
   constexpr auto owns_initialization() const -> Bool {
     return provides_initialization;
   }
 
+  virtual constexpr auto supports_initialization() const -> Bool {
+    return True;
+  }
+
  private:
   Bool provides_initialization;
+  Model::OwnedAdmission<Structure> admission;
+  Model::OwnedInitialization<Structure> initialization;
   mutable Bool creating_default = False;
 };
 

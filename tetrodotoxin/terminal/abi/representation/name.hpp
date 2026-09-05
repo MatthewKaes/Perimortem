@@ -7,13 +7,13 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi::Representation {
 
-// Name gives a native producer one readable spelling for a representation
-// fact. The semantic path and its ABI role remain shared even when individual
-// producers realize that fact differently.
+// Name gives a native producer one readable spelling for a generated
+// representation. The semantic path and ABI role stay shared even when
+// individual producers choose different native spellings.
 class Name {
  public:
   enum class Kind : U8 {

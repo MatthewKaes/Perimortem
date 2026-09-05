@@ -16,9 +16,11 @@
 #include "tetrodotoxin/package/archive/member.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/terminal/artifact_request.hpp"
+#include "tetrodotoxin/terminal/query.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,7 +32,6 @@ using namespace Validation;
 
 class WorkspaceMonograph final : public Language::Monograph {
  public:
-  TTX_CONTRACT(WorkspaceMonograph, Language::Monograph);
 
   WorkspaceMonograph(
       Allocator::Arena& arena,
@@ -298,6 +299,29 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, retains_source) {
   EXPECT(errors.is_empty());
 }
 
+PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, lends_source_revisions) {
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
+  Environment::Workspace workspace(toolchain);
+  Errors errors;
+  auto source = make_source("complete"_view);
+  ASSERT(workspace.interpret_source(
+      errors, "Observed"_view, "observed.ttx"_view, source));
+
+  auto request = Terminal::ArtifactRequest::create(
+      {'o', 'u', 't'}, {'o', 'k'}, false, workspace.get_provider_handle());
+  ASSERT(request);
+  const Terminal::ProductObservation product = Terminal::observe(*request);
+  ASSERT(product.state == Terminal::ProductState::Produced);
+  const Terminal::ClosureObservation closure =
+      Terminal::observe_closure(product.closure);
+  ASSERT(closure.valid);
+  ASSERT_EQ(closure.authorities.size(), size_t(1));
+  EXPECT(closure.authorities[0].current);
+  EXPECT_EQ(closure.authorities[0].revision, uint64_t(1));
+  request->operations->release(request->self);
+}
+
 PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, links_retained_source) {
   Environment::Toolchain toolchain;
   ASSERT(toolchain.install<WorkspaceDialect>("Trace"_view));
@@ -359,7 +383,7 @@ PERIMORTEM_UNIT_TEST(EnvironmentWorkspace, imports_package) {
   EXPECT(hidden.is<None>());
   EXPECT(repeated.is<Library::Language::Types::Source>());
   EXPECT(second.is<Library::Language::Types::Source>());
-  EXPECT(deep.is<Ttx::Model::Type>());
+  EXPECT(deep.is<Ttx::Model::Domain>());
   EXPECT_EQ(package.get_resources().get_values().get_size(), Count(2));
   EXPECT(&workspace.resolve_concept("Resources"_view) == &package);
   EXPECT(&workspace.resolve_concept("SharedA"_view) == &Unknown::get_unknown());

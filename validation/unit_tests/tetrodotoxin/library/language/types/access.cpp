@@ -12,8 +12,8 @@
 
 #include "tetrodotoxin/library/language/generics/access.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -30,7 +30,7 @@ PERIMORTEM_UNIT_TEST(LibraryAccess, direct_contract) {
   Types::Access access("Access[U8]"_view, element);
 
   EXPECT(access.is<Types::Access>());
-  EXPECT(access.is<Ttx::Model::Type>());
+  EXPECT(access.is<Ttx::Model::Domain>());
   EXPECT(access.is<Abstract>());
   EXPECT_NOT(access.is<Generic>());
   EXPECT_TEXT(access.get_name(), "Access[U8]"_view);

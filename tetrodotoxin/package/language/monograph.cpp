@@ -3,10 +3,10 @@
 
 #include "tetrodotoxin/package/language/monograph.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -27,11 +27,12 @@ auto Package::Language::Monograph::create_authored(
     View::Bytes identity,
     Perimortem::System::Version version,
     Abstract& context,
-    const Abstract& library_language) -> Monograph& {
+    const Abstract& library_language,
+    Managed::Vector<RequiredDialect> requirements) -> Monograph& {
   return arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
         arena, language, documentation, source_anchor, identity, version,
-        context, library_language, {}, False);
+        context, library_language, requirements, {}, False);
   });
 }
 
@@ -46,7 +47,8 @@ auto Package::Language::Monograph::create_synthetic(
   Monograph& monograph = arena.construct_from<Monograph>([&]() -> Monograph {
     return Monograph(
         arena, language, Documentation::get_empty(), Anchor::create(Span()),
-        identity, version, context, library_language, restored_resources, True);
+        identity, version, context, library_language,
+        Managed::Vector<RequiredDialect>(arena), restored_resources, True);
   });
   return monograph;
 }
@@ -60,6 +62,7 @@ Package::Language::Monograph::Monograph(
     Perimortem::System::Version version,
     Abstract& context,
     const Abstract& library_language,
+    Managed::Vector<RequiredDialect> requirements,
     View::Vector<Package::Resource*> restored_resources,
     Bool resources_sealed)
     : Tetrodotoxin::Language::Monograph(
@@ -70,6 +73,7 @@ Package::Language::Monograph::Monograph(
       resources(domain, restored_resources, resources_sealed),
       identity(identity),
       version(version),
+      requirements(requirements),
       library(
           Library::Language::Monograph::create_authored(
               domain,

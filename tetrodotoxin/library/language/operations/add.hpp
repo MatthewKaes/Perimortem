@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 
 // Add owns one ordered scalar sum. It retains the exact left and right
 // Expression edges and selects their shared Type during semantic linking.
-// Folding projects a sum without changing those authored facts.
+// Folding projects a sum without changing those authored inputs.
 class Add : public Operation {
  public:
   BINARY_OP_CONTRACT(Add);

@@ -11,7 +11,7 @@
 namespace Tetrodotoxin::Terminal::Llvm::Lowering {
 
 // Types owns target carrier preparation for exact Library identities. The
-// semantic graph supplies category, width, Layout, and declaration facts while
+// semantic graph supplies category, width, Layout, and declarations while
 // this Terminal owns every physical representation and completion record.
 class Types {
  public:

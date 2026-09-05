@@ -10,7 +10,7 @@
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/terminal/spirv/assembler/spir_v.hpp"
 #include "tetrodotoxin/terminal/spirv/module/ids.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 

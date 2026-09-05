@@ -8,10 +8,10 @@
 #include "tetrodotoxin/app/language/route.hpp"
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/scene/language/monograph.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::App::Language {
 
@@ -20,7 +20,6 @@ namespace Tetrodotoxin::App::Language {
 // route with relationships to the real Scene and Signal graph identities.
 class Scene : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Scene, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,

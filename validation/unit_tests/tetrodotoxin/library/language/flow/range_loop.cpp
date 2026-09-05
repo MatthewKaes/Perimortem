@@ -19,8 +19,8 @@
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
 #include "tetrodotoxin/library/language/types/range.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -114,12 +114,12 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, binding_identity) {
   auto binding = get_binding(loop, 0);
   ASSERT(binding);
   EXPECT_TEXT(binding->get_name(), "entry"_view);
-  EXPECT(binding->get_type().is<Language::Model::Types::Unsigned>());
+  EXPECT(binding->get_domain().is<Language::Model::Types::Unsigned>());
   const Abstract& range_type = loop.get_input().get_type().resolve();
   ASSERT(range_type.is<Language::Types::Range>());
   EXPECT(
       &static_cast<const Language::Types::Range&>(range_type)
-           .get_element_type() == &binding->get_type());
+           .get_element_type() == &binding->get_domain());
   EXPECT(&loop.resolve_concept("entry"_view) == &*binding);
   EXPECT(&loop.get_body().resolve_concept("entry"_view) == &*binding);
   EXPECT(
@@ -195,7 +195,7 @@ PERIMORTEM_UNIT_TEST(RangeLoopTests, iterable_ranges) {
     ASSERT(input_type.is<Language::Types::Contiguous>());
     EXPECT(
         &static_cast<const Language::Types::Contiguous&>(input_type)
-             .get_element_type() == &binding->get_type());
+             .get_element_type() == &binding->get_domain());
   }
   EXPECT(errors.is_empty());
 }

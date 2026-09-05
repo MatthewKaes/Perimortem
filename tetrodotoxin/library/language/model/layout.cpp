@@ -3,12 +3,16 @@
 
 #include "tetrodotoxin/library/language/model/layout.hpp"
 
+#include <cstdlib>
+#include <utility>
+
+#include "perimortem/core/data.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -18,36 +22,40 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto select_entry_type(const Abstract& entry) -> Option<const Type&> {
-  auto type = entry.select<Type>();
+static auto select_entry_type(const Abstract& entry)
+    -> Option<const Language::Model::Type&> {
+  auto type = entry.select<Language::Model::Type>();
   if (type) {
     return *type;
   }
 
   return entry.select<Addressable>().visit(
-      []() -> Option<const Type&> { return {}; },
-      [](const Addressable& addressable) -> Option<const Type&> {
-        return addressable.get_type().select<Type>();
+      []() -> Option<const Language::Model::Type&> { return {}; },
+      [](const Addressable& addressable)
+          -> Option<const Language::Model::Type&> {
+        return addressable.get_domain().select<Language::Model::Type>();
       });
 }
 
 static auto resolves_for_fitting(const Abstract& entry) -> const Abstract& {
-  // Authored Layouts retain direct Type and Parameter edges before every Type
-  // necessarily resolves. Those identities are already canonical. Resolving
-  // first would collapse distinct staged Types to the shared Unknown object.
-  if (entry.is<Type>()) {
+  // Authored Layouts retain direct Library Type and parameter edges while
+  // declarations are still settling. The identity of each edge already tells
+  // fitting which domain occupies that position; resolving first would erase
+  // the distinction between two staged declarations by turning both into the
+  // shared Unknown object.
+  if (entry.is<Language::Model::Type>()) {
     return entry;
   }
 
   auto direct_addressable = entry.select<Addressable>();
   if (direct_addressable) {
-    return direct_addressable->get_type();
+    return direct_addressable->get_domain();
   }
 
   const Abstract& represented = entry.resolve();
   return represented.visit<Addressable>(
       [](const Addressable& addressable) -> const Abstract& {
-        return addressable.get_type();
+        return addressable.get_domain();
       },
       [](const Abstract& abstract) -> const Abstract& { return abstract; });
 }
@@ -66,6 +74,97 @@ static auto get_slot_name(const Ttx::Concept::Layout& layout, Count index)
         return name.is_empty() ? Option<View::Bytes>()
                                : Option<View::Bytes>(name);
       });
+}
+
+Language::Model::Layout::RouteIdentity::RouteIdentity(View::Bytes bytes)
+    : bytes(bytes),
+      binding({
+        .operations =
+            {
+              .header =
+                  {
+                    .size = sizeof(ttx_route_ops),
+                    .abi_major = TTX_ABI_MAJOR,
+                    .abi_minor = TTX_ABI_MINOR,
+                  },
+              .candidate = candidate,
+              .bytes = route_bytes,
+            },
+      }) {}
+
+auto Language::Model::Layout::RouteIdentity::select(ttx_route self)
+    -> const RouteIdentity& {
+  if (self.operations == nullptr || self.self == nullptr) {
+    std::abort();
+  }
+  return *reinterpret_cast<const RouteIdentity*>(self.self);
+}
+
+auto Language::Model::Layout::RouteIdentity::candidate(ttx_route self)
+    -> ttx_abstract {
+  return select(self).get_handle();
+}
+
+auto Language::Model::Layout::RouteIdentity::route_bytes(ttx_route self)
+    -> ttx_borrowed_bytes {
+  const View::Bytes bytes = select(self).bytes;
+  return {.data = bytes.get_data(), .size = bytes.get_size()};
+}
+
+void Language::Model::Layout::RouteIdentity::route(
+    ttx_abstract self,
+    ttx_route_result result) const {
+  (void)self;
+  result.operations->resolved(
+      result, {
+                .operations = &binding.operations,
+                .self = reinterpret_cast<ttx_route_self*>(
+                    const_cast<RouteIdentity*>(this)),
+              });
+}
+
+auto Language::Model::Layout::RouteIdentity::negotiate(
+    ttx_abstract requirement) const -> ttx_interface_relation {
+  return ttx_abstract_same(requirement, ttx_route_requirement())
+             ? TTX_INTERFACE_SATISFIED
+             : Ttx::Concept::Constant::negotiate(requirement);
+}
+
+Language::Model::Layout::Layout(
+    Allocator::Arena& domain,
+    Managed::Vector<Slot> slots,
+    Anchor anchor,
+    Bool parameters)
+    : domain(domain),
+      slots(slots),
+      route_identities(domain),
+      route_layout(*this),
+      named_binding({
+        .operations =
+            {
+              .header =
+                  {
+                    .size = sizeof(ttx_named_ops),
+                    .abi_major = TTX_ABI_MAJOR,
+                    .abi_minor = TTX_ABI_MINOR,
+                  },
+              .candidate = named_candidate,
+              .source = named_source,
+              .routes = named_routes,
+              .visit_routes = visit_named_routes,
+              .select = select_named_route,
+            },
+      }),
+      anchor(anchor),
+      parameters(parameters) {
+  for (const Slot& slot : this->slots.get_view()) {
+    retain_route(slot.name);
+  }
+}
+
+void Language::Model::Layout::retain_route(View::Bytes route) {
+  route_identities.insert(
+      route.is_empty() ? nullptr : &domain.construct<RouteIdentity>(route));
 }
 
 auto Language::Model::Layout::create_authored(
@@ -95,6 +194,7 @@ auto Language::Model::Layout::retain_generated_slot(
   }
 
   slots.insert(Slot(type_reference, Anchor::create(Span()), name, attributes));
+  retain_route(name);
   return True;
 }
 
@@ -117,6 +217,7 @@ auto Language::Model::Layout::retain_generated_slot(
     slot.edge = &type;
   }
   slots.insert(slot);
+  retain_route(name);
   return True;
 }
 
@@ -324,7 +425,7 @@ auto Language::Model::Layout::link(
 
     if (slot.edge) {
       auto parameter = (**slot.edge).select<Ttx::Model::Layouts::Addressable>();
-      if (!parameter || &parameter->get_type() != &*type) {
+      if (!parameter || &parameter->get_domain() != &*type) {
         cursor.create_expression_error(
             slot.get_type_anchor(),
             "Repeated parameter linking selected a different semantic edge."_view,
@@ -643,4 +744,161 @@ auto Language::Model::Layout::get_fitted_at(
   }
 
   return Errors::IncompatibleFit;
+}
+
+void Language::Model::Layout::named(ttx_named_result result) const {
+  if (!is_named() || !has_unique_names()) {
+    result.operations->rejected(result);
+    return;
+  }
+  result.operations->satisfied(
+      result, {
+                .operations = &named_binding.operations,
+                .self = reinterpret_cast<ttx_named_self*>(
+                    const_cast<Layout*>(this)),
+              });
+}
+
+auto Language::Model::Layout::RouteLayout::get_size() const -> Count {
+  return owner.route_identities.get_size();
+}
+
+auto Language::Model::Layout::RouteLayout::get_abstract(Count index) const
+    -> Option<const Abstract&> {
+  if (index >= owner.route_identities.get_size()) {
+    return {};
+  }
+  RouteIdentity* route = owner.route_identities.get_view()[index];
+  return route == nullptr ? Option<const Abstract&>(Unknown::get_unknown())
+                          : Option<const Abstract&>(*route);
+}
+
+auto Language::Model::Layout::RouteLayout::fits_entry(
+    const Ttx::Concept::Layout& target,
+    Count source_index,
+    Count target_index) const -> Bool {
+  auto source = get_abstract(source_index);
+  auto candidate = target.get_abstract(target_index);
+  if (!source || !candidate) {
+    return False;
+  }
+  const Ttx::RouteObservation left = Ttx::resolve_route(source->get_handle());
+  const Ttx::RouteObservation right =
+      Ttx::resolve_route(candidate->get_handle());
+  if (left.state != Ttx::Observation::Resolved ||
+      right.state != Ttx::Observation::Resolved ||
+      left.bytes.size != right.bytes.size) {
+    return False;
+  }
+  return Bool(
+      left.bytes.size == 0 ||
+      Perimortem::Core::Data::compare(
+          left.bytes.data, right.bytes.data, left.bytes.size));
+}
+
+auto Language::Model::Layout::RouteLayout::fits_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset) const -> Bool {
+  BAIL_IF(
+      target_offset > target.get_size() ||
+      get_size() > target.get_size() - target_offset);
+  for (Count index = 0; index < get_size(); ++index) {
+    BAIL_IF(!fits_entry(target, index, target_offset + index));
+  }
+  return True;
+}
+
+auto Language::Model::Layout::RouteLayout::get_fitted_at(
+    const Ttx::Concept::Layout& target,
+    Count target_offset,
+    Count target_index) const -> Result<const Abstract&, Errors> {
+  if (target_index >= get_size()) {
+    return Errors::IndexOutOfBounds;
+  }
+  if (!fits_at(target, target_offset)) {
+    return Errors::IncompatibleFit;
+  }
+  return get_abstract(target_index)
+      .visit(
+          []() -> Result<const Abstract&, Errors> {
+            return Errors::IncompatibleFit;
+          },
+          [](const Abstract& selected) -> Result<const Abstract&, Errors> {
+            return selected;
+          });
+}
+
+auto Language::Model::Layout::select(ttx_named self) -> const Layout& {
+  if (self.operations == nullptr || self.self == nullptr) {
+    std::abort();
+  }
+  return *reinterpret_cast<const Layout*>(self.self);
+}
+
+auto Language::Model::Layout::named_candidate(ttx_named self) -> ttx_layout {
+  return select(self).get_handle();
+}
+
+auto Language::Model::Layout::named_source(ttx_named self) -> ttx_layout {
+  return select(self).get_handle();
+}
+
+auto Language::Model::Layout::named_routes(ttx_named self) -> ttx_layout {
+  return select(self).route_layout.get_handle();
+}
+
+void Language::Model::Layout::visit_named_routes(
+    ttx_named self,
+    ttx_named_route_sink result) {
+  const Layout& layout = select(self);
+  for (Count index = 0; index < layout.route_identities.get_size(); ++index) {
+    uint8_t path[sizeof(uint64_t)];
+    for (uint64_t byte = 0; byte < sizeof(path); ++byte) {
+      path[byte] = uint8_t(uint64_t(index) >> (byte * 8));
+    }
+    RouteIdentity* route = layout.route_identities.get_view()[index];
+    if (route == nullptr) {
+      result.operations->unknown(result, {path, sizeof(path)});
+      continue;
+    }
+    const Ttx::RouteObservation observed =
+        Ttx::resolve_route(route->get_handle());
+    if (observed.state == Ttx::Observation::Resolved) {
+      result.operations->route(result, {path, sizeof(path)}, observed.bytes);
+    } else if (observed.state == Ttx::Observation::None) {
+      result.operations->none(result, {path, sizeof(path)});
+    } else {
+      result.operations->unknown(result, {path, sizeof(path)});
+    }
+  }
+  result.operations->completed(result);
+}
+
+void Language::Model::Layout::select_named_route(
+    ttx_named self,
+    ttx_borrowed_bytes requested,
+    ttx_named_selection_result result) {
+  const Layout& layout = select(self);
+  for (Count index = 0; index < layout.route_identities.get_size(); ++index) {
+    RouteIdentity* route = layout.route_identities.get_view()[index];
+    if (route == nullptr) {
+      continue;
+    }
+    const Ttx::RouteObservation observed =
+        Ttx::resolve_route(route->get_handle());
+    if (observed.state != Ttx::Observation::Resolved ||
+        observed.bytes.size != requested.size ||
+        (requested.size != 0 &&
+         !Perimortem::Core::Data::compare(
+             observed.bytes.data, requested.data, requested.size))) {
+      continue;
+    }
+    uint8_t path[sizeof(uint64_t)];
+    for (uint64_t byte = 0; byte < sizeof(path); ++byte) {
+      path[byte] = uint8_t(uint64_t(index) >> (byte * 8));
+    }
+    result.operations->selected(result, {path, sizeof(path)});
+    return;
+  }
+  result.operations->none(result);
 }

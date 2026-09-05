@@ -19,8 +19,8 @@
 namespace Tetrodotoxin::Terminal::Spirv::Module {
 
 // Program coordinates the ordered SPIR V sections for one request. Its helper
-// owners share ids and derived physical facts without acquiring a second
-// semantic body, Type graph, or Shader relationship inventory.
+// owners share ids and derived physical representations without acquiring a
+// second semantic body, Type graph, or Shader relationship inventory.
 class Program {
  public:
   Program(Perimortem::Memory::Allocator::Arena& arena, const Request& request)

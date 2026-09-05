@@ -18,7 +18,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // separate bracket access form.
 class Slice : public Expression {
  public:
-  TTX_CONTRACT(Slice, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -45,7 +44,7 @@ class Slice : public Expression {
       -> const Ttx::Concept::Abstract& override;
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto resolve() const -> const Ttx::Concept::Abstract& override;
-  auto fits(const Ttx::Model::Type& target) const -> Bool override;
+  auto fits(const Ttx::Model::Domain& target) const -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;

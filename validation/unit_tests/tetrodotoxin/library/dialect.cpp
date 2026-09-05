@@ -14,6 +14,7 @@
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
@@ -50,11 +51,10 @@
 #include "tetrodotoxin/library/language/types/u8.hpp"
 #include "tetrodotoxin/library/language/types/view.hpp"
 #include "tetrodotoxin/terminal/llvm/compiler.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -65,6 +65,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
+using Tetrodotoxin::Language::Binding;
 using namespace Validation;
 
 static auto find_return(const Language::Function& function)
@@ -137,10 +138,6 @@ class FutureType : public Language::Model::Type {
   }
   auto resolve_concept(View::Bytes) const -> const Abstract& override {
     return Unknown::get_unknown();
-  }
-  auto create_default(Perimortem::Memory::Allocator::Arena&) const
-      -> Option<Language::Model::Pack&> override {
-    return {};
   }
 
  private:
@@ -517,10 +514,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_aliases) {
   ++type;
   EXPECT(type == types.end());
   ASSERT(hidden.is<Language::Model::Type>());
-  ASSERT(public_identity.is<Alias>());
-  ASSERT(private_identity.is<Alias>());
-  const auto& public_alias = static_cast<const Alias&>(public_identity);
-  const auto& private_alias = static_cast<const Alias&>(private_identity);
+  ASSERT(public_identity.is<Binding>());
+  ASSERT(private_identity.is<Binding>());
+  const auto& public_alias = static_cast<const Binding&>(public_identity);
+  const auto& private_alias = static_cast<const Binding&>(private_identity);
 
   ASSERT(monograph.link(cursor));
   ASSERT(monograph.finalize(cursor));
@@ -803,11 +800,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   const Abstract& packet_identity = source_type.resolve_concept("Packet"_view);
   const Abstract& session_identity =
       source_type.resolve_concept("Session"_view);
-  ASSERT(count_identity.is<Alias>());
+  ASSERT(count_identity.is<Binding>());
   ASSERT(mode_identity.is<Language::Types::Enumeration>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
   ASSERT(session_identity.is<Language::Types::Object>());
-  const auto& count_alias = static_cast<const Alias&>(count_identity);
+  const auto& count_alias = static_cast<const Binding&>(count_identity);
   const auto& mode =
       static_cast<const Language::Types::Enumeration&>(mode_identity);
   const auto& packet =

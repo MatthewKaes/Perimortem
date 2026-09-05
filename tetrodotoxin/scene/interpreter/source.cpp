@@ -68,7 +68,8 @@ auto Scene::Interpreter::Source::parse(
       continue;
     }
     instance.retain_authored_definition(
-        member->get_semantic(), *definition, member->get_category(), cursor);
+        member->get_semantic(), *definition, member->get_category(), cursor,
+        member->get_completion());
     if (member->needs_recovery()) {
       cursor.recover_to_statement();
     }

@@ -7,9 +7,9 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/layout.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language {

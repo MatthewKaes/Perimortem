@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Shader {
 // are selected through ordinary graph routes rather than manufactured children.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
   Dialect(
       Perimortem::Core::View::Bytes name,

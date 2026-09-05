@@ -101,6 +101,7 @@ auto Archive::read_declarations(
     }
 
     Option<Abstract&> restored;
+    Language::Model::Completion* completion = nullptr;
     Language::Types::Composite::Category category =
         Language::Types::Composite::Category::Addressable;
     switch (Tag(record->get_tag())) {
@@ -128,6 +129,7 @@ auto Archive::read_declarations(
       auto selected = read_structure(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -135,6 +137,7 @@ auto Archive::read_declarations(
       auto selected = read_interface(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -142,6 +145,7 @@ auto Archive::read_declarations(
       auto selected = read_namespace(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -149,6 +153,7 @@ auto Archive::read_declarations(
       auto selected = read_object(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -156,6 +161,7 @@ auto Archive::read_declarations(
       auto selected = read_implemented(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -163,6 +169,7 @@ auto Archive::read_declarations(
       auto selected = read_enumeration(reader, arena, composite);
       BAIL_IF(!selected);
       restored = *selected;
+      completion = &*selected;
       category = Language::Types::Composite::Category::Type;
       break;
     }
@@ -171,8 +178,9 @@ auto Archive::read_declarations(
     }
 
     BAIL_IF(
-        !restored || !composite.retain_definition(
-                         *restored, category, is_published(*restored)));
+        !restored ||
+        !composite.retain_definition(
+            *restored, category, is_published(*restored), completion));
   }
   return True;
 }
@@ -332,7 +340,7 @@ auto Archive::write(
   auto cases = enumeration.get_cases();
   for (Count index = 0; index < enumeration.get_case_count(); index++) {
     auto case_record = writer.begin(Tag::EnumerationCase);
-    const Ttx::Model::Alias& selected = *cases.get_data()[index];
+    const Tetrodotoxin::Language::Binding& selected = *cases.get_data()[index];
     auto value = enumeration.get_case_value(index);
     BAIL_IF(
         !writer.write(selected.get_documentation()) ||

@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Language::Operations {
@@ -16,7 +16,6 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // to deduplicate a hidden Subtract expression before writing the address.
 class SubtractAssignment : public Expression {
  public:
-  TTX_CONTRACT(SubtractAssignment, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

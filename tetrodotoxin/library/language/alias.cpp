@@ -3,9 +3,9 @@
 
 #include "tetrodotoxin/library/language/alias.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/merged.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/model/documentations/merged.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -39,7 +39,7 @@ auto Alias::link() -> Bool {
           [](const TypeReference::Failure&) {});
   BAIL_IF(!selected);
 
-  auto target = selected->select<Ttx::Model::Type>();
+  auto target = selected->select<Ttx::Model::Domain>();
   BAIL_IF(!target);
 
   if (!bind_target(*target)) {
@@ -47,13 +47,13 @@ auto Alias::link() -> Bool {
   }
 
   // Alias never copies or exposes its target. Documentation is the one local
-  // fact it can extend, so the merged view preserves both authored explanations
-  // while every semantic query still observes only resolve().
+  // description it can extend, so the merged view preserves both authored
+  // explanations while every semantic query still observes only resolve().
   const Documentation& local = get_definition().get_documentation();
   if (local.is_empty()) {
     documentation = target->get_documentation();
   } else {
-    documentation = domain.construct<Ttx::Model::Documentations::Merged>(
+    documentation = domain.construct<Ttx::Documentations::Merged>(
         local, target->get_documentation());
   }
 
@@ -73,7 +73,7 @@ auto Alias::report_unresolved(Cursor& cursor) const -> void {
     return;
   }
 
-  if (selected && selected->is<Ttx::Model::Type>()) {
+  if (selected && selected->is<Ttx::Model::Domain>()) {
     return;
   }
   cursor.create_expression_error(

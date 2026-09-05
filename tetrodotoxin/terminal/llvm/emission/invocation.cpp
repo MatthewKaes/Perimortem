@@ -51,14 +51,14 @@ static auto call_fail_toolchain(
 }
 
 static auto call_select_type(const Ttx::Concept::Abstract& answer)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = answer.select<Ttx::Model::Type>();
-  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+    -> Core::Option<const Ttx::Model::Domain&> {
+  auto direct = answer.select<Ttx::Model::Domain>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Domain>();
 }
 
 static auto call_select_result_type(
     const Ttx::Concept::Layout& layout,
-    Count index) -> Core::Option<const Ttx::Model::Type&> {
+    Count index) -> Core::Option<const Ttx::Model::Domain&> {
   auto entry = layout.get_abstract(index);
   if (!entry) {
     return {};
@@ -66,7 +66,7 @@ static auto call_select_result_type(
 
   auto addressable = entry->select<Ttx::Model::Addressable>();
   if (addressable) {
-    return call_select_type(addressable->get_type());
+    return call_select_type(addressable->get_domain());
   }
 
   return call_select_type(*entry);
@@ -102,7 +102,7 @@ static auto call_assemble_input(
     return {};
   }
 
-  auto type = call_select_type(parameter.get_type());
+  auto type = call_select_type(parameter.get_domain());
   BAIL_IF(!type);
   Bool complete_source =
       Bool(offset == 0 && size == source.get_layout().get_size());
@@ -114,7 +114,7 @@ static auto call_assemble_input(
 static auto call_release_owned(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value) -> Bool {
   if (!body.take_owned(value)) {
     return True;
@@ -233,8 +233,8 @@ auto Llvm::Emission::Invocation::invoke(
     auto addressable = parameter
                            ? parameter->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-    auto type = addressable ? call_select_type(addressable->get_type())
-                            : Core::Option<const Ttx::Model::Type&>();
+    auto type = addressable ? call_select_type(addressable->get_domain())
+                            : Core::Option<const Ttx::Model::Domain&>();
     auto native =
         type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
     if (!addressable || !type || !native ||
@@ -248,7 +248,7 @@ auto Llvm::Emission::Invocation::invoke(
   Llvm::Module::Body::NativeValues native_arguments(inputs.get_size() + 1);
   auto sret_type = functions->find_sret_type(callable);
   Core::Option<LLVMValueRef> returned_storage;
-  Core::Option<const Ttx::Model::Type&> temporary_self_type;
+  Core::Option<const Ttx::Model::Domain&> temporary_self_type;
   Core::Option<LLVMValueRef> temporary_self_address;
   if (sret_type) {
     returned_storage =
@@ -273,7 +273,7 @@ auto Llvm::Emission::Invocation::invoke(
         return False;
       }
 
-      auto type = call_select_type(addressable->get_type());
+      auto type = call_select_type(addressable->get_domain());
       auto native =
           type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
       if (!type || !native) {
@@ -378,7 +378,7 @@ auto Llvm::Emission::Invocation::invoke(
   }
 
   if (self_result) {
-    auto self_type = call_select_type(self_result->get_type());
+    auto self_type = call_select_type(self_result->get_domain());
     if (returns_void || returned_storage || !self_type ||
         LLVMGetTypeKind(LLVMTypeOf(invoked)) != LLVMPointerTypeKind ||
         !native_body.publish_target_address(result, *self_type, invoked)) {
@@ -432,8 +432,8 @@ auto Llvm::Emission::Invocation::invoke(
 
 auto Llvm::Emission::Invocation::get_size(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = call_select_carriers(body);
@@ -464,8 +464,8 @@ auto Llvm::Emission::Invocation::get_size(
 
 auto Llvm::Emission::Invocation::contiguous_is_empty(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = call_select_carriers(body);
@@ -499,7 +499,7 @@ auto Llvm::Emission::Invocation::contiguous_is_empty(
 static auto object_element_size(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& receiver_type) -> Core::Option<Count> {
+    const Ttx::Model::Domain& receiver_type) -> Core::Option<Count> {
   auto element = carriers.get_element(receiver_type);
   auto native =
       element ? carriers.get_type(*element) : Core::Option<LLVMTypeRef>();
@@ -516,7 +516,7 @@ static auto object_element_size(
 static auto object_capacity_value(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver) -> Core::Option<LLVMValueRef> {
   auto element_size = object_element_size(body, carriers, receiver_type);
   if (!element_size || *element_size == 0) {
@@ -542,8 +542,8 @@ static auto object_capacity_value(
 
 auto Llvm::Emission::Invocation::object_capacity(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto native_result =
@@ -565,8 +565,8 @@ auto Llvm::Emission::Invocation::object_capacity(
 
 auto Llvm::Emission::Invocation::object_is_shared(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
@@ -613,7 +613,7 @@ auto Llvm::Emission::Invocation::object_is_shared(
 
 auto Llvm::Emission::Invocation::object_clone(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
@@ -656,8 +656,8 @@ auto Llvm::Emission::Invocation::object_clone(
 
 auto Llvm::Emission::Invocation::object_view(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver) const -> Bool {
   auto carriers = call_select_carriers(body);
   auto native_result =
@@ -684,7 +684,7 @@ auto Llvm::Emission::Invocation::object_view(
 static auto reserve_object(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
@@ -742,8 +742,8 @@ static auto publish_object_access(
     Llvm::Module::Body& body,
     const Llvm::Module::Carriers& carriers,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef data) -> Bool {
   auto native_result = carriers.get_type(result_type);
   auto capacity = object_capacity_value(body, carriers, receiver_type, data);
@@ -764,8 +764,8 @@ static auto publish_object_access(
 
 auto Llvm::Emission::Invocation::object_access(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     const Library::Language::Model::Pack& element_default) const -> Bool {
@@ -785,8 +785,8 @@ auto Llvm::Emission::Invocation::object_access(
 
 auto Llvm::Emission::Invocation::object_reserve(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver,
     LLVMValueRef count,
@@ -808,8 +808,8 @@ auto Llvm::Emission::Invocation::object_reserve(
 static auto create_fixed_borrow(
     Llvm::Module::Body& body,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) -> Bool {
   auto& native_body = body;
@@ -819,7 +819,7 @@ static auto create_fixed_borrow(
   }
 
   auto storage = native_body.find_target_address(receiver_source);
-  const Ttx::Model::Type& fixed_type = receiver_type;
+  const Ttx::Model::Domain& fixed_type = receiver_type;
   auto fixed_native = carriers->get_type(fixed_type);
   auto extent = carriers->get_extent(fixed_type);
   auto view_native = carriers->get_type(result_type);
@@ -887,8 +887,8 @@ static auto create_fixed_borrow(
 
 auto Llvm::Emission::Invocation::borrow_fixed(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     const Tetrodotoxin::Library::Language::Model::Pack& receiver_source,
     LLVMValueRef receiver) const -> Bool {
   return create_fixed_borrow(
@@ -897,8 +897,8 @@ auto Llvm::Emission::Invocation::borrow_fixed(
 
 auto Llvm::Emission::Invocation::slice_view(
     const Tetrodotoxin::Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& result_type,
-    const Ttx::Model::Type& receiver_type,
+    const Ttx::Model::Domain& result_type,
+    const Ttx::Model::Domain& receiver_type,
     LLVMValueRef receiver,
     LLVMValueRef start,
     LLVMValueRef count) const -> Bool {
@@ -976,7 +976,7 @@ auto Llvm::Emission::Invocation::slice_view(
 
 auto Llvm::Emission::Invocation::construct(
     const Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Library::Language::Model::Pack& values) const -> Bool {
   Llvm::Module::Body& native_body = body;
   Llvm::Module::Program& native_program = body.get_program();
@@ -999,7 +999,7 @@ auto Llvm::Emission::Invocation::construct(
 
 auto Llvm::Emission::Invocation::construct_provider(
     const Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Library::Language::Model::Pack& arguments,
     Core::View::Vector<const Ttx::Model::Addressable*> parameters) const
     -> Bool {

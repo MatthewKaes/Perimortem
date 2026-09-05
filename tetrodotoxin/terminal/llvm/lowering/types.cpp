@@ -216,9 +216,9 @@ static auto reserve_layout(
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
-    auto addressable = entry->select<Model::Addressable>();
+    auto addressable = entry->select<Ttx::Model::Addressable>();
     const Ttx::Concept::Abstract& answer =
-        addressable ? addressable->get_type() : *entry;
+        addressable ? addressable->get_domain() : *entry;
     BAIL_IF(!reserve_value(program, answer));
   }
   return True;
@@ -230,9 +230,9 @@ static auto complete_layout(
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
-    auto addressable = entry->select<Model::Addressable>();
+    auto addressable = entry->select<Ttx::Model::Addressable>();
     const Ttx::Concept::Abstract& answer =
-        addressable ? addressable->get_type() : *entry;
+        addressable ? addressable->get_domain() : *entry;
     BAIL_IF(!complete_value(program, answer));
   }
   return True;
@@ -301,7 +301,7 @@ auto Llvm::Lowering::Types::complete_declaration(
   auto storage = enumeration->get_storage_type();
   BAIL_IF(!storage);
   for (Count index = 0; index < enumeration->get_case_count(); index++) {
-    const Ttx::Model::Alias& alias =
+    const Tetrodotoxin::Language::Binding& alias =
         *enumeration->get_cases().get_data()[index];
     auto value = enumeration->get_case_value(index);
     BAIL_IF(!value);

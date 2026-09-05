@@ -8,11 +8,11 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
-#include "ttx/concept/pack.h"
 #include "ttx/lexical/anchor.hpp"
+#include "ttx/query.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -32,9 +32,9 @@ class Pack {
 
   virtual constexpr auto get_layout() const -> const Ttx::Concept::Layout& = 0;
 
-  constexpr auto get_abi() const -> const ttx_pack* { return &abi.pack; }
-
-  static auto from_abi(const ttx_pack* pack) -> const Pack&;
+  auto retain(ttx_context context) const -> Ttx::PackObservation {
+    return Ttx::pack(context, get_layout().get_handle());
+  }
 
   static auto from(Ttx::Concept::Abstract& identity)
       -> Perimortem::Core::Option<Pack&>;
@@ -53,14 +53,14 @@ class Pack {
       -> Bool;
 
   // The scalar output query is a convenience over the Pack's completed Layout.
-  // It is Unknown for empty or multiple value flow and never materializes an
+  // Empty and multiple value flow return Unknown instead of materializing an
   // aggregate Type merely to make the query succeed.
   virtual auto get_type() const -> const Ttx::Concept::Abstract&;
 
   virtual auto get_result() const -> const Ttx::Concept::Abstract&;
 
   // Completion belongs to the concrete semantic identities referenced by the
-  // Layout. It is not represented by resolving the Pack itself.
+  // Layout rather than a resolution state added to the Pack itself.
   virtual auto is_complete() const -> Bool = 0;
 
   virtual auto get_anchor() const
@@ -122,12 +122,12 @@ class Pack {
   // A general Pack fits a Type through both complete Layouts. Scalar contextual
   // conversions belong to Expression and Constant. Applying them here would
   // let single entry grouped flow ignore the rest of a structural Type Layout.
-  virtual auto fits(const Ttx::Model::Type& target) const -> Bool;
+  virtual auto fits(const Ttx::Model::Domain& target) const -> Bool;
 
   // Receiving a Pack is target Type policy. Ordinary source fitting runs
   // first, then the selected Library Type may admit another complete flow
   // shape without changing the source Pack or its Layout.
-  auto fits_into(const Ttx::Model::Type& target) const -> Bool;
+  auto fits_into(const Ttx::Model::Domain& target) const -> Bool;
 
   // Finalization visits the real child Packs in evaluation order. It does not
   // imply that empty or multiple value flow can be folded into one value.
@@ -173,23 +173,12 @@ class Pack {
       -> Pack&;
 
  protected:
-  constexpr Pack() : abi{{&abi_operations}, this} {}
+  constexpr Pack() = default;
 
   Pack(const Pack&) = delete;
   Pack(Pack&&) = delete;
   auto operator=(const Pack&) -> Pack& = delete;
   auto operator=(Pack&&) -> Pack& = delete;
-
- private:
-  struct Abi {
-    ttx_pack pack;
-    const Pack* owner;
-  };
-
-  static auto layout_abi(const ttx_pack* pack) -> const ttx_layout*;
-  static const ttx_pack_operations abi_operations;
-
-  Abi abi;
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

@@ -39,7 +39,7 @@ auto Llvm::Module::Debug::release() -> void {
   builder = {};
 }
 
-auto Llvm::Module::Debug::find_type(const Ttx::Model::Type& type) const
+auto Llvm::Module::Debug::find_type(const Ttx::Model::Domain& type) const
     -> Core::Option<LLVMMetadataRef> {
   auto found = types.find(&type);
   return found ? Core::Option<LLVMMetadataRef>(found->value)
@@ -47,7 +47,7 @@ auto Llvm::Module::Debug::find_type(const Ttx::Model::Type& type) const
 }
 
 auto Llvm::Module::Debug::publish_type(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   if (types.contains(&type) || !metadata) {
     return False;
@@ -58,7 +58,7 @@ auto Llvm::Module::Debug::publish_type(
 }
 
 auto Llvm::Module::Debug::replace_type(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   auto found = types.find(&type);
   if (!found || !metadata) {
@@ -69,7 +69,7 @@ auto Llvm::Module::Debug::replace_type(
   return True;
 }
 
-auto Llvm::Module::Debug::find_payload(const Ttx::Model::Type& type) const
+auto Llvm::Module::Debug::find_payload(const Ttx::Model::Domain& type) const
     -> Core::Option<LLVMMetadataRef> {
   auto found = payloads.find(&type);
   return found ? Core::Option<LLVMMetadataRef>(found->value)
@@ -77,7 +77,7 @@ auto Llvm::Module::Debug::find_payload(const Ttx::Model::Type& type) const
 }
 
 auto Llvm::Module::Debug::publish_payload(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   if (payloads.contains(&type) || !metadata) {
     return False;
@@ -88,7 +88,7 @@ auto Llvm::Module::Debug::publish_payload(
 }
 
 auto Llvm::Module::Debug::replace_payload(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   auto found = payloads.find(&type);
   if (!found || !metadata) {
@@ -100,7 +100,7 @@ auto Llvm::Module::Debug::replace_payload(
 }
 
 auto Llvm::Module::Debug::publish_enumerator(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   if (!metadata) {
     return False;
@@ -121,14 +121,14 @@ auto Llvm::Module::Debug::publish_enumerator(
   return True;
 }
 
-auto Llvm::Module::Debug::get_enumerators(const Ttx::Model::Type& type) const
+auto Llvm::Module::Debug::get_enumerators(const Ttx::Model::Domain& type) const
     -> Core::View::Vector<LLVMMetadataRef> {
   auto found = enumerators.find(&type);
   return found ? found->value.get_view()
                : Core::View::Vector<LLVMMetadataRef>();
 }
 
-auto Llvm::Module::Debug::find_scope(const Ttx::Model::Type& type) const
+auto Llvm::Module::Debug::find_scope(const Ttx::Model::Domain& type) const
     -> Core::Option<LLVMMetadataRef> {
   auto found = scopes.find(&type);
   return found ? Core::Option<LLVMMetadataRef>(found->value)
@@ -136,7 +136,7 @@ auto Llvm::Module::Debug::find_scope(const Ttx::Model::Type& type) const
 }
 
 auto Llvm::Module::Debug::publish_scope(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   if (scopes.contains(&type) || !metadata) {
     return False;
@@ -148,7 +148,7 @@ auto Llvm::Module::Debug::publish_scope(
 }
 
 auto Llvm::Module::Debug::replace_scope(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   auto found = scopes.find(&type);
   if (!found || !metadata) {
@@ -160,12 +160,12 @@ auto Llvm::Module::Debug::replace_scope(
 }
 
 auto Llvm::Module::Debug::get_scope_types() const
-    -> Core::View::Vector<const Ttx::Model::Type*> {
+    -> Core::View::Vector<const Ttx::Model::Domain*> {
   return scope_types.get_view();
 }
 
 auto Llvm::Module::Debug::publish_member(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMMetadataRef metadata) -> Bool {
   if (!metadata) {
     return False;
@@ -186,7 +186,7 @@ auto Llvm::Module::Debug::publish_member(
   return True;
 }
 
-auto Llvm::Module::Debug::get_members(const Ttx::Model::Type& type) const
+auto Llvm::Module::Debug::get_members(const Ttx::Model::Domain& type) const
     -> Core::View::Vector<LLVMMetadataRef> {
   auto found = members.find(&type);
   return found ? found->value.get_view()
@@ -307,26 +307,26 @@ static auto set_location(Llvm::Module::Body& body, Ttx::Lexical::Anchor anchor)
 }
 
 static auto select_type(const Ttx::Concept::Abstract& answer)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = answer.select<Ttx::Model::Type>();
-  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+    -> Core::Option<const Ttx::Model::Domain&> {
+  auto direct = answer.select<Ttx::Model::Domain>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Domain>();
 }
 
 static auto select_type(const Ttx::Concept::Layout& layout, Count index)
-    -> Core::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto entry = layout.get_abstract(index);
   if (!entry) {
     return {};
   }
 
-  auto type = entry->select<Ttx::Model::Type>();
+  auto type = entry->select<Ttx::Model::Domain>();
   if (type) {
     return *type;
   }
 
   auto addressable = entry->select<Ttx::Model::Addressable>();
-  return addressable ? select_type(addressable->get_type())
-                     : Core::Option<const Ttx::Model::Type&>();
+  return addressable ? select_type(addressable->get_domain())
+                     : Core::Option<const Ttx::Model::Domain&>();
 }
 
 static auto native_module(Llvm::Module::Program& program) -> llvm::Module& {
@@ -372,9 +372,9 @@ static auto create_member(
 
 static auto create_debug_type(
     Llvm::Module::Program& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Count line = 0) -> Core::Option<llvm::DIType&> {
-  auto create = [&](auto& create_type, const Ttx::Model::Type& selected,
+  auto create = [&](auto& create_type, const Ttx::Model::Domain& selected,
                     Count selected_line) -> Core::Option<llvm::DIType&> {
     auto existing = program.get_debug().find_type(selected);
     if (existing) {
@@ -527,7 +527,7 @@ static auto create_debug_type(
           return {};
         }
 
-        auto field_type = select_type(field->get_type());
+        auto field_type = select_type(field->get_domain());
         auto debug_field = field_type ? create_type(create_type, *field_type, 0)
                                       : Core::Option<llvm::DIType&>();
         if (!field_type || !debug_field) {
@@ -753,7 +753,7 @@ static auto create_debug_type(
             return {};
           }
 
-          auto field_type = select_type(field->get_type());
+          auto field_type = select_type(field->get_domain());
           auto debug_field = field_type
                                  ? create_type(create_type, *field_type, 0)
                                  : Core::Option<llvm::DIType&>();
@@ -797,7 +797,7 @@ static auto create_debug_type(
 
 static auto reserve_debug_scope(
     Llvm::Module::Program& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Count line,
     Bool complete) -> Core::Option<llvm::DIScope&> {
   auto builder = native_builder(program);
@@ -893,7 +893,7 @@ static auto create_local_variable(
   auto builder = native_builder(program);
   auto file = native_file(program);
   auto scope = native_scope(body);
-  auto semantic_type = select_type(addressable.get_type());
+  auto semantic_type = select_type(addressable.get_domain());
   auto type = semantic_type ? create_debug_type(program, *semantic_type)
                             : Core::Option<llvm::DIType&>();
   BAIL_IF(!builder || !file || !scope || !semantic_type || !type);
@@ -1010,7 +1010,7 @@ static auto describe_local_value(
 }
 
 auto Llvm::Module::Debug::type(
-    const Ttx::Model::Type&,
+    const Ttx::Model::Domain&,
     Core::Option<Ttx::Lexical::Anchor>) -> Bool {
   return True;
 }
@@ -1023,7 +1023,7 @@ auto Llvm::Module::Debug::field(
 
 auto Llvm::Module::Debug::signed_enumerator(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Ttx::Concept::Abstract& enumerator,
     S64 value) -> Bool {
   auto selected = select_program(program);
@@ -1041,7 +1041,7 @@ auto Llvm::Module::Debug::signed_enumerator(
 
 auto Llvm::Module::Debug::unsigned_enumerator(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Ttx::Concept::Abstract& enumerator,
     U64 value) -> Bool {
   auto selected = select_program(program);
@@ -1089,7 +1089,7 @@ auto Llvm::Module::Debug::global(
   }
 
   Ttx::Lexical::Anchor anchor = definition.get_anchor();
-  auto semantic_type = select_type(addressable.get_type());
+  auto semantic_type = select_type(addressable.get_domain());
   auto type = semantic_type
                   ? create_debug_type(*selected_program, *semantic_type)
                   : Core::Option<llvm::DIType&>();
@@ -1098,7 +1098,7 @@ auto Llvm::Module::Debug::global(
         "LLVM cannot describe the completed Static carrier."_view);
   }
 
-  auto host = definition.get_host().select<Ttx::Model::Type>();
+  auto host = definition.get_host().select<Ttx::Model::Domain>();
   auto scope = host ? reserve_debug_scope(
                           *selected_program, *host, source_line(anchor), False)
                     : Core::Option<llvm::DIScope&>(*file);
@@ -1165,7 +1165,7 @@ auto Llvm::Module::Debug::begin_function(
   llvm::Function& function =
       *llvm::unwrap<llvm::Function>(selected_body->get_function());
   Ttx::Lexical::Anchor anchor = definition.get_anchor();
-  auto host = definition.get_host().select<Ttx::Model::Type>();
+  auto host = definition.get_host().select<Ttx::Model::Domain>();
   auto owner_scope =
       host ? reserve_debug_scope(
                  *selected_program, *host, source_line(anchor), True)
@@ -1362,8 +1362,8 @@ auto Llvm::Module::Debug::finalize(Llvm::Module::Emission& program) -> Bool {
     return True;
   }
 
-  for (const Ttx::Model::Type* retained : get_scope_types()) {
-    const Ttx::Model::Type& type = *retained;
+  for (const Ttx::Model::Domain* retained : get_scope_types()) {
+    const Ttx::Model::Domain& type = *retained;
     auto kind = selected->get_carriers().get_kind(type);
     Bool source = type.get_name() == "<source>"_view;
 

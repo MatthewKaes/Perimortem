@@ -8,6 +8,7 @@
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/resources.hpp"
 #include "ttx/lexical/span.hpp"
 
@@ -28,12 +29,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
       const Ttx::Concept::Abstract& library_language,
+      Perimortem::Memory::Managed::Vector<RequiredDialect> requirements,
       Perimortem::Core::View::Vector<Tetrodotoxin::Package::Resource*>
           resources,
       Bool resources_sealed);
 
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,
@@ -43,7 +44,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
       Perimortem::Core::View::Bytes identity,
       Perimortem::System::Version version,
       Ttx::Concept::Abstract& context,
-      const Ttx::Concept::Abstract& library_language) -> Monograph&;
+      const Ttx::Concept::Abstract& library_language,
+      Perimortem::Memory::Managed::Vector<RequiredDialect> requirements)
+      -> Monograph&;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,
@@ -102,6 +105,11 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
     return version;
   }
 
+  constexpr auto get_required_dialects() const
+      -> Perimortem::Core::View::Vector<RequiredDialect> {
+    return requirements;
+  }
+
   auto get_resources() -> Tetrodotoxin::Package::Resources&;
   auto get_resources() const -> const Tetrodotoxin::Package::Resources&;
 
@@ -109,6 +117,7 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   mutable Tetrodotoxin::Package::Resources resources;
   Perimortem::Core::View::Bytes identity;
   Perimortem::System::Version version;
+  Perimortem::Memory::Managed::Vector<RequiredDialect> requirements;
   Tetrodotoxin::Library::Language::Monograph& library;
 };
 

@@ -21,7 +21,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // alive for the Tetrodotoxin::Library::Language::Constant.
 class Bytes : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Bytes, Tetrodotoxin::Library::Language::Constant);
   using Value = Perimortem::Core::View::Bytes;
 
   static auto create_authored(

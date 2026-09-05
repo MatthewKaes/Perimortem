@@ -6,7 +6,7 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
-#include "ttx/bootstrap/model/documentations/merged.hpp"
+#include "ttx/model/documentations/merged.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -53,7 +53,7 @@ auto Language::Definition::parse(
         retained_documentation = &continued;
       } else {
         retained_documentation =
-            &cursor.get_arena().construct<Ttx::Model::Documentations::Merged>(
+            &cursor.get_arena().construct<Ttx::Documentations::Merged>(
                 *retained_documentation, continued);
       }
     }
@@ -115,7 +115,7 @@ auto Language::Definition::parse(
   View::Bytes name = name_token.caculate_text(cursor.get_source_text());
   // Documentation, Attributes, Tokens, and the name remain source backed. The
   // Cursor Arena gives the Definition exactly the lifetime of its candidate
-  // semantic graph without copying those facts into another owner.
+  // semantic graph without copying that source-backed state into another owner.
   Definition& definition =
       cursor.get_arena().construct_from<Definition>([&]() -> Definition {
         return Definition(

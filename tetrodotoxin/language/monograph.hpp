@@ -9,15 +9,15 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/import.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Language {
 
 // A Monograph is the lasting semantic root created for one source transaction.
-// It shares that Arena with source bytes, presentation facts, and every graph
-// identity established by interpretation. Workspace retains the whole
+// It shares that Arena with source bytes, authored presentation, and every
+// graph identity established by interpretation. Workspace retains the whole
 // transaction whenever this root exists, including an incomplete edit that is
 // useful to editor tooling.
 //
@@ -25,9 +25,8 @@ namespace Tetrodotoxin::Language {
 // completed semantic island to Terminal production. A fixed child Monograph is
 // appropriate only when the source directly authors meaning owned by that
 // child language, as Shader does for its executable Library body.
-class Monograph : public Ttx::Model::Type {
+class Monograph : public Ttx::Model::Domain {
  public:
-  TTX_CONTRACT(Monograph, Ttx::Model::Type);
 
   virtual ~Monograph() = 0;
 
@@ -92,14 +91,14 @@ class Monograph : public Ttx::Model::Type {
   auto get_layout() const -> const Ttx::Concept::Layout& override;
 
  protected:
-  // Concrete source roots can compose their owned lookup surface with common
-  // imports without falling through to the outer context. This keeps a fixed
-  // child layer from recursing through its owning Monograph.
+  // Concrete source roots compose their own lookup surface with common imports
+  // at this boundary, preventing a fixed child layer from falling through and
+  // recursing into its owning Monograph.
   auto resolve_type(Perimortem::Core::View::Bytes route, Visibility visibility)
       const -> const Ttx::Concept::Abstract&;
 
-  // Keeping concrete facts in the Monograph's lifetime domain lets graph edges
-  // remain valid for as long as Workspace exposes the source result.
+  // Semantic owners created from this source stay in the Monograph's Arena, so
+  // their graph edges remain valid while Workspace exposes the source result.
   Perimortem::Memory::Allocator::Arena& domain;
 
   // Parsed Documentation shares the retained source Arena.

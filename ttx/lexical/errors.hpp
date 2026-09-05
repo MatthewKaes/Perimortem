@@ -25,10 +25,10 @@ namespace Ttx::Lexical {
 class Errors {
  public:
   // Report accumulates a complete message before publishing it at scope exit.
-  // This keeps partially streamed messages out of Errors and gives every early
-  // return the same publication behavior. Every context argument is explicit
-  // because an absent body or range must be a deliberate choice by an owner
-  // that actually has textual context.
+  // Accumulating it this way keeps partially streamed messages out of Errors
+  // and gives every early return the same publication behavior. Every context
+  // argument remains explicit because only its textual owner can deliberately
+  // choose an absent body or range.
   class Report {
    public:
     Report(

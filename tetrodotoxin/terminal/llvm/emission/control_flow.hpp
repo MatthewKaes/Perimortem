@@ -9,10 +9,10 @@
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/terminal/llvm/module/body.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Emission {
@@ -136,7 +136,7 @@ class ControlFlow {
   auto begin_sequence(
       const Ttx::Concept::Abstract& owner,
       const Ttx::Model::Addressable& binding,
-      const Ttx::Model::Type& input_type,
+      const Ttx::Model::Domain& input_type,
       const Tetrodotoxin::Library::Language::Model::Pack& input) const -> Bool;
   auto begin_enumeration(
       const Ttx::Concept::Abstract& owner,

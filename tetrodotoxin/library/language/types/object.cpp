@@ -8,8 +8,9 @@
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -37,7 +38,8 @@ static auto select_accessible_field(
         [](const Abstract& selected) {
           return selected.select<Model::Type>();
         });
-    BAIL_IF(!caller || !caller->has_private_access_to(field->get_host()));
+    BAIL_IF(
+        !caller || !Model::has_private_access_to(*caller, field->get_host()));
   }
 
   // Object construction shares ordinary receiver visibility. This admits
@@ -117,15 +119,15 @@ auto Types::Object::create_restored(
       [&]() -> Object { return Object(domain, definition, False); });
 }
 
-auto Types::Object::create_default(Allocator::Arena& arena) const
+auto Types::Object::initialize_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   // Object owns this override so managed identity cannot become an accidental
   // invariant of inline Structure construction. The retained initialization
   // Pack remains the semantic input to the runtime allocation boundary.
-  return Structure::create_default(arena);
+  return Structure::initialize_default(arena);
 }
 
-auto Types::Object::create_supplied(
+auto Types::Object::initialize_supplied(
     Cursor& cursor,
     Model::Pack& arguments,
     Option<const Abstract&> access_scope,
@@ -158,8 +160,8 @@ auto Types::Object::create_supplied(
 
   // Object assembles only its owned mutable instance Fields in authored order.
   // A fitted supplied value wins, then the declaration initializer, then the
-  // exact Field Type default. Const and Static facts never enter this inventory
-  // and therefore cannot become construction inputs by accident.
+  // exact Field Type default. Const and Static declarations never enter this
+  // inventory and therefore cannot become construction inputs by accident.
   Managed::Vector<Model::Pack*> values(arena);
   values.reset(get_layout().get_size());
   for (const Abstract* selected : get_addressables()) {
@@ -182,8 +184,8 @@ auto Types::Object::create_supplied(
     }
 
     auto field_type = field->get_type().select<Model::Type>();
-    auto fallback =
-        field_type ? field_type->create_default(arena) : Option<Model::Pack&>();
+    auto fallback = field_type ? Model::initialize_default(*field_type, arena)
+                               : Option<Model::Pack&>();
     if (!fallback) {
       cursor.create_expression_error(
           anchor,
@@ -198,7 +200,7 @@ auto Types::Object::create_supplied(
   return Model::Pack::create_group(arena, values.get_view());
 }
 
-auto Types::Object::create_supplied_restored(
+auto Types::Object::initialize_supplied_restored(
     Allocator::Arena& arena,
     Model::Pack& arguments,
     Option<const Abstract&> access_scope) const -> Option<Model::Pack&> {
@@ -237,8 +239,8 @@ auto Types::Object::create_supplied_restored(
       continue;
     }
     auto field_type = field->get_type().select<Model::Type>();
-    auto fallback =
-        field_type ? field_type->create_default(arena) : Option<Model::Pack&>();
+    auto fallback = field_type ? Model::initialize_default(*field_type, arena)
+                               : Option<Model::Pack&>();
     BAIL_IF(!fallback);
     values.insert(&*fallback);
   }

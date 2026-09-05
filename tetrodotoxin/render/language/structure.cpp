@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/render/language/structure.hpp"
 
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -113,10 +113,10 @@ auto Language::Structure::InstanceLayout::fits_entry(
   auto source_value = source->select<Ttx::Model::Addressable>();
   auto target_value = destination->select<Ttx::Model::Addressable>();
   const Abstract& source_type =
-      source_value ? static_cast<const Abstract&>(source_value->get_type())
+      source_value ? static_cast<const Abstract&>(source_value->get_domain())
                    : source->resolve();
   const Abstract& target_type =
-      target_value ? static_cast<const Abstract&>(target_value->get_type())
+      target_value ? static_cast<const Abstract&>(target_value->get_domain())
                    : destination->resolve();
   return &source_type == &target_type;
 }

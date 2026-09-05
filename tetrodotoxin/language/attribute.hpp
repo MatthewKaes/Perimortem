@@ -12,7 +12,7 @@
 
 namespace Tetrodotoxin::Language {
 
-// Attribute is one authored optional prefix fact. Its key and source shaped
+// Attribute is one authored optional prefix. Its key and source-shaped
 // value storage remain in the Cursor's transaction Arena with the source bytes
 // and Anchor, while its consumer owns the meaning of the key.
 class Attribute {

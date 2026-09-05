@@ -8,11 +8,12 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
-#include "tetrodotoxin/library/language/model/invocation.h"
+#include "tetrodotoxin/library/language/model/invocation.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/bootstrap/concept/constant.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -57,7 +58,7 @@ static auto select_result_type(const Abstract& result)
     -> Core::Option<const Language::Model::Type&> {
   auto addressable = result.select<Ttx::Model::Addressable>();
   if (addressable) {
-    return select_type(addressable->get_type());
+    return select_type(addressable->get_domain());
   }
 
   auto direct = result.select<Language::Model::Type>();
@@ -67,7 +68,7 @@ static auto select_result_type(const Abstract& result)
 
   const Abstract& resolved = result.resolve();
   addressable = resolved.select<Ttx::Model::Addressable>();
-  return addressable ? select_type(addressable->get_type())
+  return addressable ? select_type(addressable->get_domain())
                      : select_type(resolved);
 }
 
@@ -271,7 +272,7 @@ auto Language::Access::Call::link(
       [&](const Abstract& receiver) -> const Abstract& {
         auto addressable = receiver.resolve().select<Ttx::Model::Addressable>();
         if (addressable) {
-          return addressable->get_type()
+          return addressable->get_domain()
               .resolve()
               .resolve_concept("instance"_view)
               .resolve_concept(name);
@@ -300,9 +301,7 @@ auto Language::Access::Call::link(
   auto function = selected->select<Language::Function>();
   if (function && function->get_definition().get_visibility() ==
                       Tetrodotoxin::Language::Visibility::Private) {
-    auto caller_type = host.select<Language::Model::Type>();
-    if (!caller_type ||
-        !caller_type->has_private_access_to(function->get_host())) {
+    if (!Language::Model::has_private_access_to(host, function->get_host())) {
       cursor.create_expression_error(
           get_anchor(), "Callable is private to its declaring Type."_view,
           "Invoke it only from code hosted by that Type."_view);
@@ -408,7 +407,7 @@ auto Language::Access::Call::link_restored(
       [&](const Abstract& selected) -> const Abstract& {
         auto addressable = selected.resolve().select<Ttx::Model::Addressable>();
         if (addressable) {
-          return addressable->get_type()
+          return addressable->get_domain()
               .resolve()
               .resolve_concept("instance"_view)
               .resolve_concept(name);
@@ -425,10 +424,8 @@ auto Language::Access::Call::link_restored(
   auto function = selected->select<Language::Function>();
   if (function && function->get_definition().get_visibility() ==
                       Tetrodotoxin::Language::Visibility::Private) {
-    auto caller_type = host.select<Language::Model::Type>();
     BAIL_IF(
-        !caller_type ||
-        !caller_type->has_private_access_to(function->get_host()));
+        !Language::Model::has_private_access_to(host, function->get_host()));
   }
 
   const Layout& parameters = selected->get_parameters();
@@ -607,8 +604,8 @@ auto Language::Access::Call::evaluate_fold()
     return Core::Option<Language::Model::Pack&>();
   }
 
-  ttx_library_invocation_view invocable;
-  if (!ttx_library_invocation_prove(selected->get_abi(), &invocable)) {
+  if (Ttx::relation(selected->get_handle(), Model::Invocation::requirement()) !=
+      TTX_INTERFACE_SATISFIED) {
     return Core::Option<Language::Model::Pack&>();
   }
 
@@ -626,15 +623,46 @@ auto Language::Access::Call::evaluate_fold()
     return Core::Option<Language::Model::Pack&>();
   }
 
-  const ttx_pack* answer = ttx_library_invoke(
-      &invocable, folded_receiver ? folded_receiver->get_abi() : nullptr,
-      folded_arguments->get_abi());
-  if (!answer) {
+  Memory::Managed::Vector<Model::Pack*> input_entries(domain);
+  if (folded_receiver) {
+    input_entries.insert(&*folded_receiver);
+  }
+  input_entries.insert(&*folded_arguments);
+  Model::Pack& input =
+      Model::Pack::create_completed(domain, input_entries.get_view());
+  const ttx_context context = ttx_context_create();
+  if (context.operations == nullptr) {
     return Core::Option<Language::Model::Pack&>();
   }
-
-  auto& result = const_cast<Model::Pack&>(Model::Pack::from_abi(answer));
-  return query_folded_pack(domain, result);
+  const Ttx::PackObservation projected_input = input.retain(context);
+  if (projected_input.state != Ttx::PackObservationState::Packed) {
+    context.operations->release(context);
+    return Core::Option<Language::Model::Pack&>();
+  }
+  const Ttx::PackObservation answer = Model::Invocation::call(
+      selected->get_handle(), projected_input.pack, context);
+  if (answer.state != Ttx::PackObservationState::Packed) {
+    context.operations->release(context);
+    return Core::Option<Language::Model::Pack&>();
+  }
+  auto outputs = Model::Invocation::local_inputs(answer.pack);
+  if (!outputs) {
+    context.operations->release(context);
+    return Core::Option<Language::Model::Pack&>();
+  }
+  if (outputs->size() == 1) {
+    auto folded = query_folded_pack(*const_cast<Model::Pack*>((*outputs)[0]));
+    context.operations->release(context);
+    return folded;
+  }
+  Memory::Managed::Vector<Model::Pack*> output_entries(domain);
+  for (const Model::Pack* output : *outputs) {
+    output_entries.insert(const_cast<Model::Pack*>(output));
+  }
+  Model::Pack& result =
+      Model::Pack::create_folded(domain, output_entries.get_view());
+  context.operations->release(context);
+  return query_folded_pack(result);
 }
 
 auto Language::Access::Call::get_callable() const

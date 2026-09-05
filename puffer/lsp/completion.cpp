@@ -8,42 +8,44 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 
 #include "puffer/lsp/hover.hpp"
-#include "ttx/concept/none.h"
-#include "ttx/concept/unknown.h"
-#include "ttx/model/addressable.h"
-#include "ttx/model/callable.h"
-#include "ttx/model/type.h"
+#include "ttx/query.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Serialization;
 using namespace Puffer;
 using namespace Ttx;
 
-static auto name(const ttx_abstract* candidate) -> Core::View::Bytes {
-  perimortem_bytes value = ttx_abstract_name(candidate);
+static auto name(ttx_abstract candidate) -> Core::View::Bytes {
+  const ttx_borrowed_bytes value = candidate.operations->name(candidate);
   return Core::View::Bytes(value.data, value.size);
 }
 
-static auto query_concept(
-    const ttx_abstract* candidate,
-    Core::View::Bytes query) -> const ttx_abstract* {
-  return ttx_abstract_resolve_concept(
-      candidate,
-      perimortem_bytes{.data = query.get_data(), .size = query.get_size()});
+static auto query_concept(ttx_abstract candidate, Core::View::Bytes query)
+    -> ttx_abstract {
+  return Ttx::resolve_concept(
+      candidate, ttx_borrowed_bytes{
+                   .data = query.get_data(),
+                   .size = query.get_size(),
+                 });
 }
 
 static auto completion_item(
     Memory::Allocator::Arena& arena,
-    const ttx_abstract* candidate) -> Json::Node {
+    ttx_abstract candidate) -> Json::Node {
   S64 kind = 6;
-  ttx_callable_view callable;
-  ttx_addressable_view addressable;
-  ttx_type_view type;
-  if (ttx_callable_prove(candidate, &callable)) {
+  const Ttx::CallableObservation callable = Ttx::resolve_callable(candidate);
+  const ttx_interface_relation addressable =
+      Ttx::relation(candidate, ttx_addressable_requirement());
+  const Ttx::DomainObservation domain = Ttx::resolve_domain(candidate);
+  if (callable.state == Ttx::Observation::Resolved) {
     kind = 3;
-  } else if (ttx_addressable_prove(candidate, &addressable)) {
+  } else if (
+      addressable == TTX_INTERFACE_SATISFIED ||
+      addressable == TTX_INTERFACE_EQUIVALENT) {
     kind = 5;
-  } else if (ttx_type_prove(candidate, &type)) {
+  } else if (
+      domain.state == Ttx::Observation::Resolved &&
+      ttx_abstract_same(domain.domain, Ttx::resolve(candidate))) {
     kind = 7;
   }
 
@@ -69,66 +71,78 @@ static constexpr auto is_suffix(Core::View::Bytes source) -> Bool {
 }
 
 static auto select_authority(
-    const ttx_abstract* authored,
-    Ttx::Lexical::Code::Type operation) -> const ttx_abstract* {
-  ttx_addressable_view addressable;
-  if (ttx_addressable_prove(authored, &addressable)) {
-    return query_concept(ttx_addressable_type(&addressable), "instance"_view);
+    ttx_abstract authored,
+    Ttx::Lexical::Code::Type operation) -> ttx_abstract {
+  const ttx_interface_relation addressable =
+      Ttx::relation(authored, ttx_addressable_requirement());
+  Ttx::DomainObservation domain = Ttx::resolve_domain(authored);
+  if ((addressable == TTX_INTERFACE_SATISFIED ||
+       addressable == TTX_INTERFACE_EQUIVALENT) &&
+      domain.state == Ttx::Observation::Resolved) {
+    return query_concept(domain.domain, "instance"_view);
   }
 
-  ttx_type_view type;
-  if (ttx_type_prove(authored, &type)) {
+  if (domain.state == Ttx::Observation::Resolved &&
+      ttx_abstract_same(domain.domain, Ttx::resolve(authored))) {
     return query_concept(authored, "static"_view);
   }
 
-  const ttx_abstract* authored_static = query_concept(authored, "static"_view);
-  ttx_unknown_view unknown;
-  ttx_none_view none;
-  if (!ttx_unknown_prove(authored_static, &unknown) &&
-      !ttx_none_prove(authored_static, &none)) {
+  const ttx_abstract authored_static = query_concept(authored, "static"_view);
+  if (!ttx_abstract_same(authored_static, ttx_unknown()) &&
+      !ttx_abstract_same(authored_static, ttx_none())) {
     return authored_static;
   }
 
-  const ttx_abstract* represented = ttx_abstract_resolve(authored);
-  if (ttx_addressable_prove(represented, &addressable)) {
-    return query_concept(ttx_addressable_type(&addressable), "instance"_view);
+  const ttx_abstract represented = Ttx::resolve(authored);
+  const ttx_interface_relation represented_addressable =
+      Ttx::relation(represented, ttx_addressable_requirement());
+  domain = Ttx::resolve_domain(represented);
+  if ((represented_addressable == TTX_INTERFACE_SATISFIED ||
+       represented_addressable == TTX_INTERFACE_EQUIVALENT) &&
+      domain.state == Ttx::Observation::Resolved) {
+    return query_concept(domain.domain, "instance"_view);
   }
-  if (ttx_type_prove(represented, &type)) {
+  if (domain.state == Ttx::Observation::Resolved &&
+      ttx_abstract_same(domain.domain, represented)) {
     return query_concept(represented, "static"_view);
   }
 
-  const ttx_abstract* selected_type =
-      ttx_abstract_resolve(ttx_abstract_type(authored));
+  const ttx_abstract selected_domain =
+      domain.state == Ttx::Observation::Resolved ? domain.domain
+                                                 : ttx_unknown();
   return operation == Ttx::Lexical::Code::Type::TypeAccessOp
-             ? query_concept(selected_type, "static"_view)
-             : query_concept(selected_type, "instance"_view);
+             ? query_concept(selected_domain, "static"_view)
+             : query_concept(selected_domain, "instance"_view);
 }
 
-static auto accepts(
-    const ttx_abstract* candidate,
-    Ttx::Lexical::Code::Type operation) -> Bool {
-  ttx_callable_view callable;
-  ttx_addressable_view addressable;
+static auto accepts(ttx_abstract candidate, Ttx::Lexical::Code::Type operation)
+    -> Bool {
+  const Ttx::CallableObservation callable = Ttx::resolve_callable(candidate);
+  const ttx_interface_relation addressable =
+      Ttx::relation(candidate, ttx_addressable_requirement());
   if (operation == Ttx::Lexical::Code::Type::CallOp) {
-    return Bool(ttx_callable_prove(candidate, &callable));
+    return callable.state == Ttx::Observation::Resolved ? True : False;
   }
   if (operation == Ttx::Lexical::Code::Type::AddressOp) {
-    return Bool(ttx_addressable_prove(candidate, &addressable));
+    return addressable == TTX_INTERFACE_SATISFIED ||
+                   addressable == TTX_INTERFACE_EQUIVALENT
+               ? True
+               : False;
   }
-  return Bool(
-      !ttx_callable_prove(candidate, &callable) &&
-      !ttx_addressable_prove(candidate, &addressable));
+  return callable.state != Ttx::Observation::Resolved &&
+                 addressable != TTX_INTERFACE_SATISFIED &&
+                 addressable != TTX_INTERFACE_EQUIVALENT
+             ? True
+             : False;
 }
 
 static auto complete(
     Memory::Allocator::Arena& arena,
     Memory::Managed::Vector<Json::Node>& items,
-    const ttx_abstract* authority,
+    ttx_abstract authority,
     Ttx::Lexical::Code::Type operation) -> void {
-  ttx_unknown_view unknown;
-  ttx_none_view none;
-  if (ttx_unknown_prove(authority, &unknown) ||
-      ttx_none_prove(authority, &none)) {
+  if (ttx_abstract_same(authority, ttx_unknown()) ||
+      ttx_abstract_same(authority, ttx_none())) {
     return;
   }
 
@@ -138,31 +152,45 @@ static auto complete(
         Memory::Allocator::Arena& arena,
         Memory::Managed::Vector<Json::Node>& items,
         Ttx::Lexical::Code::Type operation)
-        : callable{&operations},
-          operations{.call = call},
+        : operations{
+            .header =
+                {
+                  .size = sizeof(ttx_concept_sink_ops),
+                  .abi_major = TTX_ABI_MAJOR,
+                  .abi_minor = TTX_ABI_MINOR,
+                },
+            .item = call,
+            .completed = completed,
+          },
+          sink{
+            .operations = &operations,
+            .self = reinterpret_cast<ttx_concept_sink_self*>(this),
+          },
           arena(arena),
           items(items),
           operation(operation) {}
 
-    ttx_named_abstract_callable callable;
+    ttx_concept_sink_ops operations;
+    ttx_concept_sink sink;
 
    private:
     static auto call(
-        ttx_named_abstract_callable* callable,
-        perimortem_bytes,
-        const ttx_abstract* candidate) -> void {
-      auto& self = *reinterpret_cast<Visitor*>(callable);
+        ttx_concept_sink sink,
+        ttx_borrowed_bytes,
+        ttx_abstract candidate) -> void {
+      auto& self = *reinterpret_cast<Visitor*>(sink.self);
       if (accepts(candidate, self.operation)) {
         self.items.insert(completion_item(self.arena, candidate));
       }
     }
 
-    ttx_named_abstract_callable_operations operations;
+    static auto completed(ttx_concept_sink) -> void {}
+
     Memory::Allocator::Arena& arena;
     Memory::Managed::Vector<Json::Node>& items;
     Ttx::Lexical::Code::Type operation;
   } visitor(arena, items, operation);
-  ttx_abstract_visit_concepts(authority, &visitor.callable);
+  authority.operations->visit_concepts(authority, visitor.sink);
 }
 
 auto Puffer::Lsp::completion(Documents& documents, const Rpc::Message& message)
@@ -217,8 +245,8 @@ auto Puffer::Lsp::completion(Documents& documents, const Rpc::Message& message)
   auto semantic = associations->find_at(
       Count(receiver.get_offset()) + receiver.get_size() - 1);
   if (semantic) {
-    const ttx_abstract* authority =
-        select_authority(semantic->get_abi(), operation.get_code().get_type());
+    const ttx_abstract authority = select_authority(
+        semantic->get_handle(), operation.get_code().get_type());
     complete(arena, items, authority, operation.get_code().get_type());
   }
   return message.report_result(Json::Node(items.get_view()));

@@ -7,26 +7,24 @@
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/constant.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
 #include "ttx/lexical/anchor.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Constant is an immutable semantic fact already in normal form. It defines no
-// parser, operator set, evaluation engine, or lowering representation. Concrete
-// value domains expose their payload through derived contracts without
-// extending a central tag.
+// Constant marks one completed immutable answer. Concrete value domains expose
+// the represented payload through their own contracts; Constant adds no parser,
+// operator set, evaluator, lowering representation, or central value tag.
 //
 // Equality includes resolved Type identity as well as the derived value,
 // preserving the distinction between equal bits interpreted by different
 // Types.
 class Constant : public Ttx::Concept::Constant, public Model::Pack {
  public:
-  TTX_CONTRACT(Constant, Ttx::Concept::Constant);
 
   // Concrete Constant domains override this with the canonical spelling of
-  // the fact they represent. The Type name remains only a safe fallback for
+  // their payload. The Type name remains only a safe fallback for
   // external Constant domains that have not selected a value spelling.
   TTX_NAME(get_type().get_name());
 
@@ -36,6 +34,21 @@ class Constant : public Ttx::Concept::Constant, public Model::Pack {
 
   virtual constexpr auto get_type() const -> const Model::Type& override = 0;
   virtual constexpr auto equals(const Constant& rhs) const -> Bool = 0;
+
+  // Folding is a Library route over this completed value, not a consequence
+  // of proving the host-neutral Constant contract. Keeping the route here
+  // allows another language to use Constants without inheriting Library's
+  // evaluator vocabulary.
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(ttx_named_abstract_callable* visitor) const
+      -> void override;
+
+  // A Library Constant produces one scalar value in its concrete Library
+  // Type. Publishing that relationship here keeps other Constant domains free
+  // to choose their own value model while every TTX consumer sees the same
+  // Domain operation.
+  void domain(ttx_abstract self, ttx_domain_result result) const override;
 
   constexpr auto get_result() const -> const Ttx::Concept::Abstract& override {
     return *this;
@@ -79,7 +92,7 @@ class Constant : public Ttx::Concept::Constant, public Model::Pack {
     return Model::Pack::fits(target);
   }
 
-  auto fits(const Ttx::Model::Type& target) const -> Bool override {
+  auto fits(const Ttx::Model::Domain& target) const -> Bool override {
     const Ttx::Concept::Abstract& source = get_type().resolve();
     auto type = source.select<Model::Type>();
     return type && type->get_layout().fits(target.get_layout());

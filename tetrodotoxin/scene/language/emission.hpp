@@ -10,7 +10,7 @@
 #include "tetrodotoxin/library/language/flow/scope.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/scene/language/signal.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -23,7 +23,6 @@ namespace Tetrodotoxin::Scene::Language {
 // queue in either language graph.
 class Emission : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Emission, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

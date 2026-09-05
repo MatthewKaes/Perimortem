@@ -12,9 +12,9 @@
 
 namespace Tetrodotoxin::Terminal::Spirv {
 
-// Request selects one completed Program from its Shader owner. Source facts
-// stay borrowed only for actionable diagnostics while target policy remains a
-// separate request fact.
+// Request selects one completed Program from its Shader owner. Source
+// identities stay borrowed only for actionable diagnostics while target policy
+// remains a separate request choice.
 class Request {
  public:
   constexpr Request(

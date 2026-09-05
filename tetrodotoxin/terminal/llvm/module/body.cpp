@@ -144,7 +144,7 @@ auto Llvm::Module::Body::find_target_address(
 
 auto Llvm::Module::Body::publish_target_address(
     const Tetrodotoxin::Library::Language::Model::Pack& pack,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef address) -> Bool {
   if (target_addresses.contains(&pack) || !address) {
     return False;
@@ -164,7 +164,7 @@ auto Llvm::Module::Body::find_indexed_target(
 
 auto Llvm::Module::Body::publish_indexed_target(
     const Tetrodotoxin::Library::Language::Model::Pack& pack,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMTypeRef native_type,
     LLVMValueRef data,
     LLVMValueRef length,
@@ -204,7 +204,7 @@ auto Llvm::Module::Body::get_storage_depth() const -> Count {
 }
 
 auto Llvm::Module::Body::register_storage(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef address) -> Bool {
   auto carriers = select_carriers(*this);
   if (!carriers || !address) {
@@ -231,7 +231,7 @@ auto Llvm::Module::Body::resize_storage(Count size) -> Bool {
 }
 
 auto Llvm::Module::Body::mark_owned(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value) -> void {
   auto carriers = select_carriers(*this);
   if (!carriers || !value || !carriers->owns_resources(type)) {
@@ -258,7 +258,7 @@ auto Llvm::Module::Body::take_owned(LLVMValueRef value) -> Bool {
 }
 
 auto Llvm::Module::Body::acquire(
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value) -> Bool {
   if (!value) {
     return False;

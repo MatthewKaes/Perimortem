@@ -4,11 +4,11 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Object {
 
@@ -17,7 +17,6 @@ class Clone : public Language::Model::Callable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "clone"_view;
 
-  TTX_CONTRACT(Clone, Language::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -45,7 +44,7 @@ class Clone : public Language::Model::Callable {
 
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Named results;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Replaces this Object handle with an independent copy of its buffer."_view,
   };
 };

@@ -19,13 +19,13 @@ cc_library(
     ]),
     includes = ["."],
     deps = [
+        ":environment_provider_abi",
         ":linker",
         "//perimortem:headless",
-        "//tetrodotoxin/library",
         "//tetrodotoxin/language",
-        "//ttx:bootstrap_concept",
-        "//ttx:lexical",
-        "//ttx:bootstrap_model",
+        "//tetrodotoxin/library",
+        "//tetrodotoxin/terminal:provider",
+        "//ttx",
     ],
 )
 
@@ -55,7 +55,7 @@ cc_library(
     deps = [
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:lexical",
+        "//ttx",
     ],
 )
 
@@ -79,19 +79,72 @@ cc_library(
 )
 
 cc_library(
+    name = "environment_provider_abi",
+    hdrs = ["environment/provider.h"],
+    deps = [
+        "//tetrodotoxin/terminal:provider_abi",
+        "//ttx:abi",
+    ],
+)
+
+cc_library(
     name = "environment",
     srcs = glob([
         "environment/**/*.cpp",
     ]),
     hdrs = glob([
+        "environment/**/*.h",
         "environment/**/*.hpp",
     ]),
     includes = ["."],
     deps = [
         ":package",
+        ":plugin",
         "//perimortem:headless",
         "//tetrodotoxin/language",
-        "//ttx:bootstrap_concept",
-        "//ttx:bootstrap_model",
+        "//tetrodotoxin/terminal:native_toolchain",
+        "//tetrodotoxin/terminal:provider",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "build",
+    srcs = glob(["build/**/*.cpp"]),
+    hdrs = glob(["build/**/*.hpp"]),
+    includes = ["."],
+    deps = [
+        ":environment",
+        "//perimortem:headless",
+        "//tetrodotoxin/language",
+        "//ttx",
+    ],
+)
+
+cc_library(
+    name = "plugin_abi",
+    hdrs = ["plugin/abi.h"],
+    deps = [
+        "//tetrodotoxin/language:provider_abi",
+        "//tetrodotoxin/terminal:provider_abi",
+        "//ttx:abi",
+    ],
+)
+
+cc_library(
+    name = "plugin",
+    srcs = glob(["plugin/**/*.cpp"]),
+    hdrs = glob([
+        "plugin/**/*.h",
+        "plugin/**/*.hpp",
+    ]),
+    includes = ["."],
+    linkopts = ["-ldl"],
+    deps = [
+        ":plugin_abi",
+        "//tetrodotoxin/language",
+        "//tetrodotoxin/language:provider_abi",
+        "//tetrodotoxin/terminal:provider_abi",
+        "//ttx",
     ],
 )

@@ -35,7 +35,7 @@ static auto validate_function(
     return False;
   }
 
-  // Attributes remain source facts until the consumer of one key assigns its
+  // Attributes remain source metadata until the consumer of one key assigns its
   // meaning. Function grammar therefore leaves extension policy open while it
   // validates only the declaration shape it owns.
   return True;

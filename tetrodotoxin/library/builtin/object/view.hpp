@@ -4,10 +4,10 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Object {
 
@@ -15,7 +15,6 @@ class View : public Language::Model::Callable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "get_view"_view;
 
-  TTX_CONTRACT(View, Language::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -42,7 +41,7 @@ class View : public Language::Model::Callable {
 
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Ranged results;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Borrows every element currently allocated by this Object buffer."_view,
   };
 };

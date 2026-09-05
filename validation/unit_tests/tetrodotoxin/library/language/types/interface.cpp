@@ -13,6 +13,7 @@
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/implementation.hpp"
 #include "tetrodotoxin/library/language/types/implemented.hpp"
@@ -113,7 +114,8 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
   EXPECT(&erased.get_requirement().resolve() == &requirement);
 
   Allocator::Arena values;
-  auto concrete = sprite.create_default(values);
+  auto concrete = Tetrodotoxin::Library::Language::Model::initialize_default(
+      sprite, values);
   ASSERT(concrete);
   EXPECT(erased.accepts(*concrete));
 }

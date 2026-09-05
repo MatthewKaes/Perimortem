@@ -14,7 +14,7 @@
 #include "tetrodotoxin/app/language/scene.hpp"
 #include "tetrodotoxin/app/language/transition.hpp"
 #include "tetrodotoxin/language/resource.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 
 using namespace Perimortem::Core;

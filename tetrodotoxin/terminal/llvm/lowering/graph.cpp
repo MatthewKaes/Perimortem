@@ -10,6 +10,8 @@
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/foreign.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -137,7 +139,7 @@ static auto reserve_type(
 
   auto structure = type.select<Types::Structure>();
   if (structure && !structure->get_layout().is_empty() &&
-      structure->is_externally_reachable(*structure)) {
+      Model::is_externally_reachable(*structure, *structure)) {
     Memory::Dynamic::Vector<const Ttx::Model::Addressable*> parameters;
     retain_construction_parameters(*structure, parameters);
     BAIL_IF(!program.get_functions().reserve_construction(
@@ -183,7 +185,7 @@ static auto complete_type(
   }
   auto structure = type.select<Types::Structure>();
   if (structure && !structure->get_layout().is_empty() &&
-      structure->is_externally_reachable(*structure) &&
+      Model::is_externally_reachable(*structure, *structure) &&
       !program.get_functions().complete_construction(program, *structure)) {
     return False;
   }
@@ -209,7 +211,7 @@ static auto emit_field(Llvm::Module::Program& program, const Field& field)
   if (!value) {
     auto type = field.get_type().select<Model::Type>();
     BAIL_IF(!type);
-    auto created = type->create_default(program.get_arena());
+    auto created = Model::initialize_default(*type, program.get_arena());
     BAIL_IF(!created);
     value = *created;
   }
@@ -254,7 +256,7 @@ static auto emit_structure(
     Llvm::Module::Program& program,
     const Types::Structure& structure) -> Bool {
   if (structure.get_layout().is_empty() ||
-      !structure.is_externally_reachable(structure)) {
+      !Model::is_externally_reachable(structure, structure)) {
     return True;
   }
   Memory::Dynamic::Vector<Llvm::Module::Functions::ConstructionField> fields;
@@ -267,7 +269,7 @@ static auto emit_structure(
     if (!value) {
       auto type = field->get_type().select<Model::Type>();
       BAIL_IF(!type);
-      auto created = type->create_default(program.get_arena());
+      auto created = Model::initialize_default(*type, program.get_arena());
       BAIL_IF(!created);
       value = *created;
     }

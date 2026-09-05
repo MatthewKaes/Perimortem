@@ -66,12 +66,12 @@ static auto align_up(Count value, Count alignment) -> Count {
 
 static auto select_type(const Ttx::Concept::Abstract& semantic)
     -> Core::Option<const Library::Language::Model::Type&> {
-  auto addressable = semantic.select<Library::Language::Model::Addressable>();
-  const Ttx::Concept::Abstract& answer =
-      addressable ? addressable->get_type() : semantic;
-  auto direct = answer.select<Library::Language::Model::Type>();
-  return direct ? direct
-                : answer.resolve().select<Library::Language::Model::Type>();
+  const Ttx::DomainObservation observation =
+      Ttx::resolve_domain(semantic.get_handle());
+  BAIL_IF(observation.state != Ttx::Observation::Resolved);
+  auto owner = Ttx::Concept::Abstract::from_handle(observation.domain);
+  return owner ? owner->select<Library::Language::Model::Type>()
+               : Core::Option<const Library::Language::Model::Type&>();
 }
 
 static auto uses_float64(const Library::Language::Model::Type& type) -> Bool {

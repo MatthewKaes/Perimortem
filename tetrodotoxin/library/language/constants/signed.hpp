@@ -17,7 +17,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // prove that the value is in range for another Signed width.
 class Signed : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Signed, Tetrodotoxin::Library::Language::Constant);
   using Value = S64;
 
   static auto create_authored(
@@ -63,7 +62,7 @@ class Signed : public Tetrodotoxin::Library::Language::Constant {
         [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
-  constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
+  constexpr auto fits(const Ttx::Model::Domain& target) const -> Bool override {
     if (!get_type()
              .resolve()
              .is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {

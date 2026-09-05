@@ -10,7 +10,7 @@
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/stage.hpp"
-#include "ttx/model/interfaces/callable.h"
+#include "ttx/query.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -75,8 +75,8 @@ class Evaluation {
   static auto compatible_binding_type(
       const Abstract& requirement,
       const Abstract& candidate) -> Bool {
-    auto requirement_type = requirement.select<Ttx::Model::Type>();
-    auto candidate_type = candidate.select<Ttx::Model::Type>();
+    auto requirement_type = requirement.select<Ttx::Model::Domain>();
+    auto candidate_type = candidate.select<Ttx::Model::Domain>();
     BAIL_IF(!requirement_type || !candidate_type);
     const Abstract& required = requirement_type->resolve();
     const Abstract& supplied = candidate_type->resolve();
@@ -117,7 +117,8 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
           TTX_INTERFACE_REJECTED,
           "The restored Shader is missing one required Stage Function."_view);
     }
-    if (ttx_callable_negotiate(required->get_abi(), supplied->get_abi()) ==
+    if (Ttx::compare_call_shape(
+            required->get_handle(), supplied->get_handle()) ==
         TTX_INTERFACE_REJECTED) {
       return Evaluation(
           TTX_INTERFACE_REJECTED,
@@ -156,7 +157,7 @@ static auto evaluate(const Abstract& requirement, const Abstract& candidate)
     if (supplied->get_kind() != required->get_kind() ||
         supplied->get_access() != required->get_access() ||
         !Evaluation::compatible_binding_type(
-            required->get_type(), field.get_type())) {
+            required->get_domain(), field.get_type())) {
       return Evaluation(
           TTX_INTERFACE_REJECTED,
           "The restored Shader Binding no longer has its required kind and Type."_view);

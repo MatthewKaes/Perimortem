@@ -4,14 +4,14 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/reference/concept/layout.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Diagnostics renders the semantic facts already owned by Abstract, Pack, and
-// Layout. It retains no parallel names or Type model. Each report queries the
-// exact graph identities available at the failure boundary.
+// Diagnostics renders the names, producers, and shapes already exposed by
+// Abstract, Pack, and Layout. It retains no parallel Type model; each report
+// queries the exact graph identities available at the failure boundary.
 class Diagnostics {
  public:
   static auto write_type(

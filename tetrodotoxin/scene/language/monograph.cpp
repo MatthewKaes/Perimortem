@@ -4,8 +4,8 @@
 #include "tetrodotoxin/scene/language/monograph.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -241,7 +241,7 @@ auto Scene::Language::Monograph::validate_lifecycle(Cursor& cursor) const
       update_function.get_parameters().get_size() != 2 ||
       !update_function.get_results().is_empty() || !delta_addressable ||
       delta_addressable->get_name() != "delta_time"_view ||
-      &delta_addressable->get_type().resolve() != &r64) {
+      &delta_addressable->get_domain().resolve() != &r64) {
     cursor.create_expression_error(
         update_function.get_anchor(),
         "Scene update requires `[self, .delta_time : R64] -> []`."_view);
@@ -276,5 +276,5 @@ auto Scene::Language::Monograph::validate_lifecycle_restored() const -> Bool {
          function.get_parameters().get_size() == 2 &&
          function.get_results().is_empty() && addressable &&
          addressable->get_name() == "delta_time"_view &&
-         &addressable->get_type().resolve() == &r64;
+         &addressable->get_domain().resolve() == &r64;
 }

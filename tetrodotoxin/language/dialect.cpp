@@ -6,7 +6,7 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/language/parser/import.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -18,21 +18,8 @@ Language::Dialect::Dialect(View::Bytes name) : name(name) {}
 
 Language::Dialect::~Dialect() {}
 
-auto Language::Dialect::find_installed(
-    View::Vector<Dialect*> installed,
-    View::Bytes name) -> Option<Dialect&> {
-  for (Count i = 0; i < installed.get_size(); i++) {
-    Dialect& dialect = *installed.get_data()[i];
-    if (dialect.get_name() == name) {
-      return dialect;
-    }
-  }
-
-  return {};
-}
-
 auto Language::Dialect::interpret_source(
-    View::Vector<Dialect*> installed,
+    View::Vector<InstalledDialect> installed,
     Cursor& cursor,
     Abstract& context) -> Option<Monograph&> {
   // The common envelope is consumed before protocol dispatch so every Dialect
@@ -63,8 +50,14 @@ auto Language::Dialect::interpret_source(
 
   Anchor source_anchor = Anchor::create(
       dialect_declaration, Span(source_opening, cursor.peek(-1)));
-  Option<Dialect&> dialect = find_installed(installed, dialect_name);
-  if (!dialect) {
+  const InstalledDialect* selected = nullptr;
+  for (const InstalledDialect& installed_dialect : installed) {
+    if (installed_dialect.get_name() == dialect_name) {
+      selected = &installed_dialect;
+      break;
+    }
+  }
+  if (selected == nullptr) {
     // Dispatch is exact installed name routing. Listing the same live instances
     // in the diagnostic avoids a second registry or an implied fallback rule.
     auto report = cursor.create_report(Span(dialect_declaration));
@@ -80,10 +73,18 @@ auto Language::Dialect::interpret_source(
         if (i != 0) {
           hint << ", "_view;
         }
-        hint << installed.get_data()[i]->get_name();
+        hint << installed.get_data()[i].get_name();
       }
     }
     hint << "."_view;
+    return {};
+  }
+  Dialect* dialect = selected->get_local();
+  if (dialect == nullptr) {
+    cursor.create_token_error(
+        dialect_declaration,
+        "Selected Dialect is provided through the portable language ABI."_view,
+        "Interpret this source through Workspace so it can retain the returned SourceGraph."_view);
     return {};
   }
 
@@ -125,14 +126,23 @@ auto Language::Dialect::restore(
   return {};
 }
 
-auto Language::Dialect::produce(
+void Language::Dialect::produce(
+    ttx_context,
     Allocator::Arena&,
-    const Abstract&,
-    const Monograph&) const -> const ttx_pack* {
-  return nullptr;
+    tetrodotoxin_workspace_view,
+    const Monograph&,
+    tetrodotoxin_production_result result) const {
+  result.operations->none(result.self);
 }
 
 auto Language::Dialect::resolve_concept(View::Bytes route) const
     -> const Abstract& {
   return Abstract::resolve_concept(route);
+}
+
+auto Language::Dialect::negotiate(ttx_abstract requirement) const
+    -> ttx_interface_relation {
+  return ttx_abstract_same(requirement, tetrodotoxin_dialect_requirement())
+             ? TTX_INTERFACE_SATISFIED
+             : Abstract::negotiate(requirement);
 }

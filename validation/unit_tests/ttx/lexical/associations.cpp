@@ -7,9 +7,9 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -26,8 +26,10 @@ PERIMORTEM_UNIT_TEST(TtxLexicalAssociations, precise_selection) {
       arena, "outer inner end"_view, "association.ttx"_view);
   Lexical::Associations associations(arena);
   const Lexical::Token* tokens = tokenizer.get_tokens().get_data();
-  Model::Alias outer("Outer"_view, Concept::Unknown::get_unknown());
-  Model::Alias inner("Inner"_view, Concept::Unknown::get_unknown());
+  Tetrodotoxin::Language::Binding outer(
+      "Outer"_view, Concept::Unknown::get_unknown());
+  Tetrodotoxin::Language::Binding inner(
+      "Inner"_view, Concept::Unknown::get_unknown());
 
   associations.create(
       Lexical::Anchor::create(tokens[0], Lexical::Span(tokens[0], tokens[2])),

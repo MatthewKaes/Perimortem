@@ -7,7 +7,7 @@
 
 #include "tetrodotoxin/library/interpreter/execution/statement_parser.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter::Execution {

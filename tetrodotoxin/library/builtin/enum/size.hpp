@@ -5,8 +5,8 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Enum {
 
@@ -15,7 +15,6 @@ class Size : public Language::Model::Addressable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "size"_view;
 
-  TTX_CONTRACT(Size, Language::Model::Addressable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -56,7 +55,7 @@ class Size : public Language::Model::Addressable {
   const Language::Model::Types::Unsigned& type;
   Language::Model::Pack& constant;
 
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Provides the compile time number of cases in this Enumeration."_view,
   };
 };

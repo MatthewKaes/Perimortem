@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/conversion.hpp"
@@ -63,8 +64,8 @@ static auto constant_conversion(
 static auto select_scalar_pack(
     const Library::Language::Model::Pack& pack,
     Count index) -> Core::Option<const Library::Language::Model::Pack&> {
-  if (pack.get_identity()) {
-    return index == 0 && pack.get_layout().get_size() == 1
+  if (pack.get_identity() && pack.get_layout().get_size() == 1) {
+    return index == 0
                ? Core::Option<const Library::Language::Model::Pack&>(pack)
                : Core::Option<const Library::Language::Model::Pack&>();
   }
@@ -200,6 +201,15 @@ auto Module::Body::prepare_expression(
   auto address = expression.select<Library::Language::Access::Address>();
   if (address) {
     return prepare_pack(address->get_receiver());
+  }
+  auto swizzle = expression.select<Library::Language::Access::Swizzle>();
+  if (swizzle) {
+    BAIL_IF(!prepare_pack(swizzle->get_receiver()));
+    for (const Library::Language::Model::Pack* projection :
+         swizzle->get_entries()) {
+      BAIL_IF(!prepare_pack(*projection));
+    }
+    return True;
   }
   auto call = expression.select<Library::Language::Access::Call>();
   if (call) {

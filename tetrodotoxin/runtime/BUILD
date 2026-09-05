@@ -3,13 +3,17 @@
 
 """Runtime realization for completed App products."""
 
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "application",
-    srcs = glob(["**/*.cpp"]),
+    srcs = glob(
+        ["**/*.cpp"],
+        exclude = ["system_plugin.cpp"],
+    ),
     hdrs = glob(["**/*.hpp"]),
     deps = [
         "//perimortem:core",
@@ -18,6 +22,14 @@ cc_library(
         "//perimortem:platform",
         "//perimortem:system",
         "//perimortem:vulkan",
-        "//tetrodotoxin/graphics/runtime:runtime",
+        "//tetrodotoxin/graphics",
     ],
+)
+
+cc_binary(
+    name = "system_plugin.so",
+    srcs = ["system_plugin.cpp"],
+    linkshared = True,
+    linkstatic = True,
+    deps = ["//tetrodotoxin:plugin"],
 )

@@ -6,9 +6,10 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expression.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
-#include "ttx/bootstrap/concept/constant.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/admission.hpp"
+#include "ttx/concept/constant.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -95,9 +96,10 @@ auto Language::Field::get_type() const -> const Abstract& {
   }
 
   Option<const Abstract&> selected;
-  type_reference->resolve_lexical(*this).visit(
-      [&](const Abstract& answer) { selected = answer; },
-      [](const TypeReference::Failure&) {});
+  type_reference->resolve_lexical(get_host())
+      .visit(
+          [&](const Abstract& answer) { selected = answer; },
+          [](const TypeReference::Failure&) {});
   auto selected_type = selected ? selected->select<Language::Model::Type>()
                                 : Option<const Language::Model::Type&>();
   return selected_type ? static_cast<const Abstract&>(*selected_type)
@@ -330,7 +332,8 @@ auto Language::Field::validate_publication(Cursor& cursor) const -> Bool {
         // An embedding Dialect has already selected this exact generated Type
         // edge from its public contract. Inferred Library Fields still prove
         // ordinary reachability through their real host.
-        return Bool(generated || host.is_externally_reachable(*field_type));
+        return Bool(
+            generated || Model::is_externally_reachable(host, *field_type));
       },
       [&](const TypeReference& reference) {
         Option<const Abstract&> selected;
@@ -359,10 +362,10 @@ auto Language::Field::finalize_declaration(Cursor& cursor) -> Bool {
 }
 
 auto Language::Field::resolve() const -> const Abstract& {
-  if (!type) {
+  const Abstract& selected = get_type();
+  if (selected.is<Unknown>()) {
     return Unknown::get_unknown();
   }
-
   return *this;
 }
 
@@ -387,7 +390,7 @@ auto Language::Field::resolve_fold() const -> const Abstract& {
     return Unknown::get_unknown();
   }
   if (source->get_layout().is_empty() && folded_input && folded_result) {
-    return Abstract::from_abi(folded_result);
+    return *folded_result;
   }
   auto input_pack =
       query_folded_pack(domain, const_cast<Model::Pack&>(*source));
@@ -395,20 +398,20 @@ auto Language::Field::resolve_fold() const -> const Abstract& {
     return query_fold(*source);
   }
   const Abstract& input = *input_pack->get_identity();
-  if (folded_input == input.get_abi() && folded_result) {
-    return Abstract::from_abi(folded_result);
+  if (folded_input == &input && folded_result) {
+    return *folded_result;
   }
   auto field_type = get_type().select<Model::Type>();
   if (!field_type) {
     return None::get_none();
   }
-  auto fitted = field_type->create_fitted(domain, *input_pack);
+  auto fitted = Model::admit(*field_type, domain, *input_pack);
   const Abstract& result =
       fitted ? fold_answer(Option<Model::Pack&>(*fitted)) : input;
   if (!Ttx::Concept::Constant::prove(result)) {
     return None::get_none();
   }
-  folded_input = input.get_abi();
-  folded_result = result.get_abi();
+  folded_input = &input;
+  folded_result = &result;
   return result;
 }

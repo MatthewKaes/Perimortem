@@ -8,7 +8,7 @@
 using namespace Perimortem::Core;
 using namespace Tetrodotoxin::Library::Language;
 
-auto Types::S16::create_default(
+auto Types::S16::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::Signed::create_synthetic(arena, *this, 0);
 }

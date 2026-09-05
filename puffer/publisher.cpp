@@ -3,237 +3,356 @@
 
 #include "puffer/publisher.hpp"
 
+#include <atomic>
 #include <cerrno>
-#include <cstdio>
+#include <dirent.h>
 #include <fcntl.h>
-#include <ftw.h>
 #include <linux/fs.h>
+#include <optional>
+#include <string>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 
-#include "perimortem/core/null_terminated.hpp"
-
-#include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/dynamic/bytes.hpp"
-#include "perimortem/memory/dynamic/vector.hpp"
-
-#include "perimortem/system/file.hpp"
-#include "perimortem/system/path.hpp"
-#include "perimortem/serialization/stream/textual.hpp"
-
-#include "tetrodotoxin/language/product.h"
-#include "tetrodotoxin/language/product.hpp"
+#include "tetrodotoxin/language/artifact_file.hpp"
+#include "ttx/query.hpp"
 
 using namespace Perimortem;
 
-class ProductVisitor {
- public:
-  explicit ProductVisitor(
-      Memory::Dynamic::Vector<tetrodotoxin_product_view>& products)
-      : callable{&operations}, operations{.call = retain}, products(products) {}
+struct Product {
+  Tetrodotoxin::Language::ArtifactObservation artifact;
+};
 
-  ttx_abstract_callable callable;
-  Bool valid = True;
+class Descriptor {
+ public:
+  explicit Descriptor(int value = -1) : value(value) {}
+  Descriptor(const Descriptor&) = delete;
+  Descriptor(Descriptor&& source) noexcept
+      : value(std::exchange(source.value, -1)) {}
+  ~Descriptor() {
+    if (value >= 0) {
+      close(value);
+    }
+  }
+
+  auto operator=(const Descriptor&) -> Descriptor& = delete;
+  auto operator=(Descriptor&& source) noexcept -> Descriptor& {
+    if (this != &source) {
+      if (value >= 0) {
+        close(value);
+      }
+      value = std::exchange(source.value, -1);
+    }
+    return *this;
+  }
+
+  explicit operator bool() const { return value >= 0; }
+  auto get() const -> int { return value; }
 
  private:
-  static auto retain(
-      ttx_abstract_callable* callable,
-      const ttx_abstract* abstract) -> void {
-    auto& self = *reinterpret_cast<ProductVisitor*>(callable);
-    tetrodotoxin_product_view product;
-    if (tetrodotoxin_product_prove(abstract, &product)) {
-      self.products.insert(product);
-    } else {
-      self.valid = False;
-    }
-  }
-
-  ttx_abstract_callable_operations operations;
-  Memory::Dynamic::Vector<tetrodotoxin_product_view>& products;
+  int value;
 };
-using namespace Perimortem::Core;
 
-static auto join(Core::View::Bytes root, Core::View::Bytes relative)
-    -> Memory::Dynamic::Bytes {
-  Memory::Dynamic::Bytes result(root);
-  if (!result.is_empty() && result[result.get_size() - 1] != '/') {
-    result.append('/');
+static auto text(Core::View::Bytes value) -> std::string {
+  return std::string(
+      reinterpret_cast<const char*>(value.get_data()), value.get_size());
+}
+
+static auto ascii_alphanumeric(unsigned char byte) -> bool {
+  return (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
+         (byte >= '0' && byte <= '9');
+}
+
+static auto ascii_upper(unsigned char byte) -> char {
+  return byte >= 'a' && byte <= 'z' ? char(byte - ('a' - 'A')) : char(byte);
+}
+
+static auto ascii_lower(unsigned char byte) -> char {
+  return byte >= 'A' && byte <= 'Z' ? char(byte + ('a' - 'A')) : char(byte);
+}
+
+static auto split(Core::View::Bytes route)
+    -> std::optional<std::vector<std::string>> {
+  if (route.is_empty() || route[0] == '/') {
+    return std::nullopt;
   }
-  result.concat(relative);
-  return result;
-}
-
-static auto terminate(Core::View::Bytes path) -> Memory::Dynamic::Bytes {
-  Memory::Dynamic::Bytes result(path);
-  result.append(0);
-  return result;
-}
-
-static auto is_relative_product(Core::View::Bytes name) -> Bool {
-  BAIL_IF(name.is_empty() || name[0] == '/');
+  std::vector<std::string> segments;
   Count start = 0;
-  for (Count index = 0; index <= name.get_size(); index++) {
-    if (index != name.get_size() && name[index] != '/') {
+  for (Count index = 0; index <= route.get_size(); ++index) {
+    if (index != route.get_size() && route[index] != '/') {
       continue;
     }
-    Core::View::Bytes segment = name.slice(start, index - start);
-    BAIL_IF(segment.is_empty() || segment == "."_view || segment == ".."_view);
+    Core::View::Bytes bytes = route.slice(start, index - start);
+    if (bytes.is_empty()) {
+      return std::nullopt;
+    }
+    std::string segment = text(bytes);
+    const auto first = static_cast<unsigned char>(segment.front());
+    if (!ascii_alphanumeric(first)) {
+      return std::nullopt;
+    }
+    for (unsigned char byte : segment) {
+      if (!ascii_alphanumeric(byte) && byte != '.' && byte != '_' &&
+          byte != '+' && byte != '-') {
+        return std::nullopt;
+      }
+    }
+    if (segment == "." || segment == ".." || segment.back() == '.') {
+      return std::nullopt;
+    }
+
+    std::string base;
+    for (unsigned char byte : segment) {
+      if (byte == '.') {
+        break;
+      }
+      base.push_back(ascii_upper(byte));
+    }
+    const bool reserved =
+        base == "CON" || base == "PRN" || base == "AUX" || base == "NUL" ||
+        (base.size() == 4 &&
+         (base.compare(0, 3, "COM") == 0 || base.compare(0, 3, "LPT") == 0) &&
+         base[3] >= '1' && base[3] <= '9');
+    if (reserved) {
+      return std::nullopt;
+    }
+    segments.push_back(std::move(segment));
     start = index + 1;
   }
-  return True;
+  return segments;
 }
 
-static auto coordinate(Core::View::Bytes name)
-    -> Core::Option<Core::View::Bytes> {
-  Count separators = 0;
-  for (Count index = 0; index < name.get_size(); index++) {
-    if (name[index] != '/') {
-      continue;
+static auto collision_key(const std::vector<std::string>& segments)
+    -> std::string {
+  std::string key;
+  for (size_t index = 0; index < segments.size(); ++index) {
+    if (index != 0) {
+      key.push_back('/');
     }
-    separators++;
-    if (separators == 2) {
-      BAIL_IF(index + 1 == name.get_size());
-      return name.slice(0, index);
+    for (unsigned char byte : segments[index]) {
+      key.push_back(ascii_lower(byte));
     }
   }
-  return {};
+  return key;
 }
 
-static auto create_directories(Core::View::Bytes path) -> Bool {
-  for (Count index = 1; index < path.get_size(); index++) {
-    if (path[index] != '/') {
-      continue;
-    }
-    Core::View::Bytes directory = path.slice(0, index);
-    if (directory.is_empty()) {
-      continue;
-    }
-    Memory::Dynamic::Bytes terminated = terminate(directory);
-    if (mkdir(
-            reinterpret_cast<const char*>(terminated.get_view().get_data()),
-            S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) != 0 &&
-        errno != EEXIST) {
-      return False;
-    }
+static auto open_directory(int parent, const std::string& name, bool create)
+    -> Descriptor {
+  if (create &&
+      mkdirat(
+          parent, name.c_str(),
+          S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) != 0 &&
+      errno != EEXIST) {
+    return Descriptor();
   }
-  return True;
+  return Descriptor(openat(
+      parent, name.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
 }
 
-static auto remove_entry(const char* path, const struct stat*, S32, struct FTW*)
-    -> S32 {
-  return remove(path);
+static auto open_path(
+    int root,
+    const std::vector<std::string>& segments,
+    size_t count,
+    bool create) -> Descriptor {
+  Descriptor current(dup(root));
+  if (!current) {
+    return Descriptor();
+  }
+  for (size_t index = 0; index < count; ++index) {
+    Descriptor next = open_directory(current.get(), segments[index], create);
+    if (!next) {
+      return Descriptor();
+    }
+    current = std::move(next);
+  }
+  return current;
 }
 
-static auto remove_tree(Core::View::Bytes path) -> void {
-  Memory::Dynamic::Bytes terminated = terminate(path);
-  nftw(
-      reinterpret_cast<const char*>(terminated.get_view().get_data()),
-      remove_entry, 32, FTW_DEPTH | FTW_PHYS);
+static auto write_all(int descriptor, const std::vector<uint8_t>& bytes)
+    -> bool {
+  size_t written = 0;
+  while (written != bytes.size()) {
+    const ssize_t result =
+        write(descriptor, bytes.data() + written, bytes.size() - written);
+    if (result < 0 && errno == EINTR) {
+      continue;
+    }
+    if (result <= 0) {
+      return false;
+    }
+    written += size_t(result);
+  }
+  return true;
 }
 
-static auto path_kind(Core::View::Bytes path) -> Core::Option<Bool> {
-  Memory::Dynamic::Bytes terminated = terminate(path);
+static auto write_product(
+    int stage,
+    const Product& product,
+    const std::vector<std::string>& route) -> bool {
+  Descriptor parent = open_path(stage, route, route.size() - 1, true);
+  if (!parent) {
+    return false;
+  }
+  Descriptor file(openat(
+      parent.get(), route.back().c_str(),
+      O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR));
+  if (!file || !write_all(file.get(), product.artifact.bytes)) {
+    return false;
+  }
+  const mode_t mode = product.artifact.executable
+                          ? S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+                          : S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+  return fchmod(file.get(), mode) == 0 && fsync(file.get()) == 0 &&
+         fsync(parent.get()) == 0;
+}
+
+static auto remove_contents(int directory) -> bool;
+
+static auto remove_entry(int parent, const char* name) -> bool {
   struct stat status = {};
-  if (lstat(
-          reinterpret_cast<const char*>(terminated.get_view().get_data()),
-          &status) == 0) {
-    return Bool(S_ISDIR(status.st_mode));
+  if (fstatat(parent, name, &status, AT_SYMLINK_NOFOLLOW) != 0) {
+    return errno == ENOENT;
   }
-  return errno == ENOENT ? Core::Option<Bool>() : Core::Option<Bool>(False);
+  if (!S_ISDIR(status.st_mode)) {
+    return unlinkat(parent, name, 0) == 0;
+  }
+  Descriptor child(
+      openat(parent, name, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  if (!child || !remove_contents(child.get())) {
+    return false;
+  }
+  return unlinkat(parent, name, AT_REMOVEDIR) == 0;
 }
 
-static auto commit(Core::View::Bytes stage, Core::View::Bytes target) -> Bool {
-  auto existing = path_kind(target);
-  BAIL_IF(existing && !*existing);
-  Memory::Dynamic::Bytes stage_name = terminate(stage);
-  Memory::Dynamic::Bytes target_name = terminate(target);
-  if (!existing) {
-    return rename(
-               reinterpret_cast<const char*>(stage_name.get_view().get_data()),
-               reinterpret_cast<const char*>(
-                   target_name.get_view().get_data())) == 0;
+static auto remove_contents(int directory) -> bool {
+  const int duplicate = dup(directory);
+  if (duplicate < 0) {
+    return false;
   }
+  DIR* stream = fdopendir(duplicate);
+  if (stream == nullptr) {
+    close(duplicate);
+    return false;
+  }
+  bool removed = true;
+  errno = 0;
+  while (dirent* entry = readdir(stream)) {
+    if (std::string(entry->d_name) == "." ||
+        std::string(entry->d_name) == "..") {
+      continue;
+    }
+    if (!remove_entry(directory, entry->d_name)) {
+      removed = false;
+      break;
+    }
+    errno = 0;
+  }
+  if (errno != 0) {
+    removed = false;
+  }
+  return closedir(stream) == 0 && removed;
+}
 
-  S64 exchanged = syscall(
-      SYS_renameat2, AT_FDCWD,
-      reinterpret_cast<const char*>(stage_name.get_view().get_data()), AT_FDCWD,
-      reinterpret_cast<const char*>(target_name.get_view().get_data()),
+static auto commit(
+    int parent,
+    const std::string& stage,
+    const std::string& target) -> bool {
+  struct stat status = {};
+  if (fstatat(parent, target.c_str(), &status, AT_SYMLINK_NOFOLLOW) != 0) {
+    if (errno != ENOENT ||
+        renameat(parent, stage.c_str(), parent, target.c_str()) != 0) {
+      return false;
+    }
+    return fsync(parent) == 0;
+  }
+  if (!S_ISDIR(status.st_mode)) {
+    return false;
+  }
+  const long exchanged = syscall(
+      SYS_renameat2, parent, stage.c_str(), parent, target.c_str(),
       RENAME_EXCHANGE);
-  BAIL_IF(exchanged != 0);
-  remove_tree(stage);
-  return True;
+  if (exchanged != 0 || fsync(parent) != 0) {
+    return false;
+  }
+  return remove_entry(parent, stage.c_str());
 }
 
-static auto product_name(const tetrodotoxin_product_view& product)
-    -> Core::View::Bytes {
-  perimortem_bytes name = ttx_abstract_name(product.identity);
-  return Core::View::Bytes(name.data, name.size);
+auto Puffer::Publisher::publish(ttx_pack products) const -> Bool {
+  return publish(Core::View::Vector<ttx_pack>(&products, 1));
 }
 
-static auto product_value(const tetrodotoxin_product_view& product)
-    -> Core::View::Bytes {
-  perimortem_bytes value = tetrodotoxin_product_value(&product);
-  return Core::View::Bytes(value.data, value.size);
-}
+auto Puffer::Publisher::publish(Core::View::Vector<ttx_pack> products) const
+    -> Bool {
+  auto generation = split(publication_root);
+  BAIL_IF(!generation || products.is_empty());
 
-auto Puffer::Publisher::publish(const ttx_pack* products) const -> Bool {
-  Core::Option<Core::View::Bytes> product_coordinate;
-  Memory::Dynamic::Vector<tetrodotoxin_product_view> retained;
-  ProductVisitor visitor(retained);
-  ttx_layout_visit(ttx_pack_layout(products), &visitor.callable);
-  BAIL_IF(!visitor.valid || retained.get_size() == 0);
-  for (const tetrodotoxin_product_view& product : retained.get_view()) {
-    Core::View::Bytes name = product_name(product);
-    BAIL_IF(!is_relative_product(name));
-    Memory::Allocator::Arena arena;
-    auto normalized = System::Path::normalize(arena, name);
-    auto selected_coordinate = coordinate(name);
-    BAIL_IF(
-        !normalized || *normalized != name || !selected_coordinate ||
-        (product_coordinate && *product_coordinate != *selected_coordinate));
-    product_coordinate = *selected_coordinate;
-    for (const tetrodotoxin_product_view& prior : retained.get_view()) {
-      BAIL_IF(
-          prior.identity != product.identity && product_name(prior) == name);
+  std::vector<Product> retained;
+  std::vector<std::vector<std::string>> routes;
+  std::vector<std::string> collision_keys;
+  for (ttx_pack products : products) {
+    auto entries = Ttx::pack_entries(products);
+    BAIL_IF(!entries || entries->empty());
+    for (size_t index = 0; index < entries->size(); ++index) {
+      for (size_t prior = 0; prior < index; ++prior) {
+        BAIL_IF((*entries)[prior].path == (*entries)[index].path);
+      }
+      auto artifact =
+          Tetrodotoxin::Language::observe_artifact((*entries)[index].producer);
+      BAIL_IF(!artifact);
+      auto route = split(
+          Core::View::Bytes(artifact->route.data(), artifact->route.size()));
+      BAIL_IF(!route);
+      const std::string key = collision_key(*route);
+      for (const std::string& prior : collision_keys) {
+        BAIL_IF(prior == key);
+      }
+      collision_keys.push_back(key);
+      routes.push_back(std::move(*route));
+      retained.push_back({.artifact = std::move(*artifact)});
     }
   }
 
-  Memory::Dynamic::Bytes target = join(root, *product_coordinate);
-  Count slash = product_coordinate->get_size();
-  while (slash != 0 && (*product_coordinate)[slash - 1] != '/') {
-    slash--;
-  }
-  BAIL_IF(slash == 0 || !create_directories(target.get_view()));
-  Core::View::Bytes identity = product_coordinate->slice(0, slash - 1);
-  Core::View::Bytes version = product_coordinate->slice(slash);
-  Memory::Dynamic::Bytes stage_relative(identity);
-  stage_relative.concat("/."_view);
-  stage_relative.concat(version);
-  Serialization::Stream::Textual<Memory::Dynamic::Bytes> stage_name(
-      stage_relative);
-  stage_name << ".puffer."_view << S64(getpid()) << ".tmp"_view;
-  Memory::Dynamic::Bytes stage = join(root, stage_relative.get_view());
-  Memory::Dynamic::Bytes terminated_stage = terminate(stage.get_view());
-  if (mkdir(
-          reinterpret_cast<const char*>(terminated_stage.get_view().get_data()),
+  const std::string root_path = text(root);
+  Descriptor root_descriptor(
+      open(root_path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW));
+  BAIL_IF(!root_descriptor);
+  Descriptor parent = open_path(
+      root_descriptor.get(), *generation, generation->size() - 1, true);
+  BAIL_IF(!parent);
+
+  static std::atomic<uint64_t> sequence = 1;
+  const std::string target = generation->back();
+  const std::string stage =
+      "." + target + ".puffer." + std::to_string(getpid()) + "." +
+      std::to_string(sequence.fetch_add(1, std::memory_order_relaxed)) + ".tmp";
+  if (mkdirat(
+          parent.get(), stage.c_str(),
           S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) != 0) {
     return False;
   }
+  Descriptor stage_directory = open_directory(parent.get(), stage, false);
+  if (!stage_directory) {
+    remove_entry(parent.get(), stage.c_str());
+    return False;
+  }
 
-  for (const tetrodotoxin_product_view& product : retained.get_view()) {
-    Core::View::Bytes name = product_name(product);
-    Core::View::Bytes relative = name.slice(product_coordinate->get_size() + 1);
-    Memory::Dynamic::Bytes destination = join(stage.get_view(), relative);
-    if (!create_directories(destination.get_view()) ||
-        !System::File::write(product_value(product), destination.get_view())) {
-      remove_tree(stage.get_view());
+  for (size_t index = 0; index < retained.size(); ++index) {
+    if (!write_product(stage_directory.get(), retained[index], routes[index])) {
+      stage_directory = Descriptor();
+      remove_entry(parent.get(), stage.c_str());
       return False;
     }
   }
-
-  if (!commit(stage.get_view(), target.get_view())) {
-    remove_tree(stage.get_view());
+  if (fsync(stage_directory.get()) != 0) {
+    stage_directory = Descriptor();
+    remove_entry(parent.get(), stage.c_str());
+    return False;
+  }
+  stage_directory = Descriptor();
+  if (!commit(parent.get(), stage, target)) {
+    remove_entry(parent.get(), stage.c_str());
     return False;
   }
   return True;

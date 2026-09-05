@@ -5,15 +5,15 @@
 
 #include "perimortem/core/static/vector.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
-#include "ttx/bootstrap/model/layouts/composite.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
-#include "ttx/bootstrap/model/layouts/value.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "tetrodotoxin/language/binding.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/reference/model/layouts/composite.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
+#include "ttx/reference/model/layouts/value.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Utility;
@@ -21,11 +21,13 @@ using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Ttx::Model::Layouts;
 using namespace Validation;
+using Tetrodotoxin::Language::Binding;
 
-/// A Type owns its stable shape while Layout only exposes ordered Abstracts.
-class LayoutType final : public Type {
+/// These test Domains expose stable shapes without lending the Layout any of
+/// the declaration machinery that produced them.
+class LayoutDomain final : public Domain {
  public:
-  LayoutType(View::Bytes name, Named layout = Named())
+  LayoutDomain(View::Bytes name, Named layout = Named())
       : name(name), layout(layout) {}
 
   auto get_name() const -> View::Bytes override { return name; }
@@ -42,11 +44,12 @@ class LayoutType final : public Type {
   Named layout;
 };
 
-/// Named layouts retain fields as Addressable facts instead of copying their
-/// names and Types into a parallel member model.
+/// Named layouts retain fields as Addressable identities instead of copying
+/// their names and Domains into a parallel member model.
 class LayoutField final : public Addressable {
  public:
-  LayoutField(View::Bytes name, const Type& type) : name(name), type(type) {}
+  LayoutField(View::Bytes name, const Domain& domain)
+      : name(name), domain(domain) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
@@ -55,18 +58,18 @@ class LayoutField final : public Addressable {
   auto resolve_concept(View::Bytes) const -> const Abstract& override {
     return Unknown::get_unknown();
   }
-  auto get_type() const -> const Type& override { return type; }
+  auto get_domain() const -> const Domain& override { return domain; }
 
  private:
   View::Bytes name;
-  const Type& type;
+  const Domain& domain;
 };
 
-/// A fixed byte sequence is a Type whose complete indexed shape is one compact
-/// Ranged layout rather than N copied fields.
-class ByteSequence final : public Type {
+/// A fixed byte sequence can expose one repeated Domain and an extent instead
+/// of manufacturing a separate semantic identity for every byte position.
+class ByteSequence final : public Domain {
  public:
-  ByteSequence(const Type& byte, Count size) : layout(byte, size) {}
+  ByteSequence(const Domain& byte, Count size) : layout(byte, size) {}
 
   auto get_name() const -> View::Bytes override { return "ByteSequence"_view; }
   auto get_documentation() const -> const Documentation& override {
@@ -85,7 +88,7 @@ static Harness TtxLayout = {
   .name = "Ttx::Model::Layout"_view,
 };
 
-class AtomicType : public Type {
+class AtomicDomain : public Domain {
  public:
   auto get_name() const -> View::Bytes override { return "Atomic"_view; }
   auto get_documentation() const -> const Documentation& override {
@@ -96,10 +99,10 @@ class AtomicType : public Type {
   }
 };
 
-/// Layout fitting may compare a reserved Type before that Type's lifecycle
-/// owner completes it. Its exact identity remains meaningful even while
-/// resolve() reports Unknown.
-class StagedType final : public AtomicType {
+/// Layout fitting may compare a reserved Domain before its owner has completed
+/// the declaration. Its exact identity remains meaningful even while resolve()
+/// reports Unknown.
+class StagedDomain final : public AtomicDomain {
  public:
   auto resolve() const -> const Abstract& override {
     return Unknown::get_unknown();
@@ -139,7 +142,7 @@ static auto reports(
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
-  AtomicType atomic;
+  AtomicDomain atomic;
   const Layout& layout = atomic.get_layout();
 
   EXPECT_EQ(layout.get_size(), Count(1));
@@ -149,8 +152,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, value_terminal) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
-  LayoutType real("R32"_view);
-  LayoutType bits("U32"_view);
+  LayoutDomain real("R32"_view);
+  LayoutDomain bits("U32"_view);
   const Static::Vector<const Abstract*, 2> values = {{&real, &bits}};
   Fluid layout(values);
 
@@ -161,8 +164,8 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fluid_order) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, staged_identity) {
-  StagedType first;
-  StagedType second;
+  StagedDomain first;
+  StagedDomain second;
   LayoutField first_field("first"_view, first);
   LayoutField second_field("second"_view, second);
   const Static::Vector<const Abstract*, 1> first_type = {{&first}};
@@ -187,25 +190,26 @@ PERIMORTEM_UNIT_TEST(TtxLayout, staged_identity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_fields) {
-  LayoutType real("R32"_view);
-  LayoutType bits("U32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain real("R32"_view);
+  LayoutDomain bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
   const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
-  Named layout(fields);
+  Named layout(arena, fields);
 
   EXPECT_EQ(layout.get_size(), Count(2));
   EXPECT(selects(layout.get_abstract(0), x));
   EXPECT(selects(layout.get_abstract(1), y));
   EXPECT_TEXT(x.get_name(), "x"_view);
   EXPECT(&x.resolve() == &x);
-  EXPECT(&x.get_type().resolve() == &real);
-  EXPECT(&y.get_type().resolve() == &bits);
+  EXPECT(&x.get_domain().resolve() == &real);
+  EXPECT(&y.get_domain().resolve() == &bits);
   EXPECT(is_none(layout.get_abstract(2)));
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, ranged_layout) {
-  LayoutType byte("U8"_view);
+  LayoutDomain byte("U8"_view);
   ByteSequence bytes(byte, 16);
   Ranged same(byte, 16);
   Ranged shorter(byte, 15);
@@ -228,11 +232,11 @@ PERIMORTEM_UNIT_TEST(TtxLayout, ranged_layout) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
-  LayoutType byte("U8"_view);
-  Alias first("first"_view, byte);
-  Alias second("second"_view, byte);
-  Alias third("third"_view, byte);
-  Alias fourth("fourth"_view, byte);
+  LayoutDomain byte("U8"_view);
+  Binding first("first"_view, byte);
+  Binding second("second"_view, byte);
+  Binding third("third"_view, byte);
+  Binding fourth("fourth"_view, byte);
   const Static::Vector<const Abstract*, 4> values = {{
     &first,
     &second,
@@ -262,19 +266,20 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_components) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
-  LayoutType byte("U8"_view);
-  LayoutType real("R32"_view);
-  LayoutType bits("U32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain byte("U8"_view);
+  LayoutDomain real("R32"_view);
+  LayoutDomain bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  Alias named_x("x"_view, real);
-  Alias named_y("y"_view, bits);
+  Binding named_x("x"_view, real);
+  Binding named_y("y"_view, bits);
   const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
   const Static::Vector<const Abstract*, 2> values = {{&named_y, &named_x}};
   Ranged source_prefix(byte, 2);
   Ranged target_prefix(byte, 2);
-  Named source_suffix(values);
-  Named target_suffix(fields);
+  Named source_suffix(arena, values);
+  Named target_suffix(arena, fields);
   Composite source(source_prefix, source_suffix);
   Composite target(target_prefix, target_suffix);
 
@@ -284,22 +289,23 @@ PERIMORTEM_UNIT_TEST(TtxLayout, composite_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
-  LayoutType real("R32"_view);
-  LayoutType bits("U32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain real("R32"_view);
+  LayoutDomain bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  Alias named_x("x"_view, real);
-  Alias named_y("y"_view, bits);
+  Binding named_x("x"_view, real);
+  Binding named_y("y"_view, bits);
   const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
   const Static::Vector<const Abstract*, 2> positional = {{&real, &bits}};
   const Static::Vector<const Abstract*, 2> reordered = {{&named_y, &named_x}};
   const Static::Vector<const Abstract*, 2> lexical_values = {{&bits, &real}};
   const Static::Vector<View::Bytes, 2> lexical_names = {{"y"_view, "x"_view}};
-  Named target(fields);
+  Named target(arena, fields);
   Fluid fluid(positional);
-  Named named(reordered);
+  Named named(arena, reordered);
   Fluid lexical_flow(lexical_values);
-  Named lexical(lexical_flow, lexical_names);
+  Named lexical(arena, lexical_flow, lexical_names);
 
   EXPECT(fluid.fits(target));
   EXPECT(named.fits(target));
@@ -316,15 +322,16 @@ PERIMORTEM_UNIT_TEST(TtxLayout, fitting_contracts) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, alias_fitting) {
-  LayoutType real("R32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain real("R32"_view);
   LayoutField x("x"_view, real);
-  Alias alias("x"_view, x);
+  Binding alias("x"_view, x);
   const Static::Vector<const Abstract*, 1> aliases = {{&alias}};
   const Static::Vector<const Abstract*, 1> fields = {{&x}};
   Fluid fluid_source(aliases);
   Fluid fluid_target(fields);
-  Named named_source(aliases);
-  Named named_target(fields);
+  Named named_source(arena, aliases);
+  Named named_target(arena, fields);
   Ranged ranged_source(alias, 2);
   Ranged ranged_target(x, 2);
 
@@ -335,19 +342,20 @@ PERIMORTEM_UNIT_TEST(TtxLayout, alias_fitting) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
-  LayoutType real("R32"_view);
-  LayoutType bits("U32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain real("R32"_view);
+  LayoutDomain bits("U32"_view);
   LayoutField x("x"_view, real);
   LayoutField y("y"_view, bits);
-  Alias first("x"_view, real);
-  Alias duplicate("x"_view, bits);
-  Alias unnamed({}, real);
+  Binding first("x"_view, real);
+  Binding duplicate("x"_view, bits);
+  Binding unnamed({}, real);
   const Static::Vector<const Abstract*, 2> fields = {{&x, &y}};
   const Static::Vector<const Abstract*, 2> values = {{&first, &duplicate}};
   const Static::Vector<const Abstract*, 2> empty_names = {{&first, &unnamed}};
-  Named target(fields);
-  Named named(values);
-  Named nameless(empty_names);
+  Named target(arena, fields);
+  Named named(arena, values);
+  Named nameless(arena, empty_names);
 
   EXPECT_NOT(named.fits(target));
   EXPECT(reports(named.get_fitted(target, 0), Layout::Errors::IncompatibleFit));
@@ -357,15 +365,16 @@ PERIMORTEM_UNIT_TEST(TtxLayout, named_ambiguity) {
 }
 
 PERIMORTEM_UNIT_TEST(TtxLayout, named_shape) {
-  LayoutType real("R32"_view);
+  Perimortem::Memory::Allocator::Arena arena;
+  LayoutDomain real("R32"_view);
   LayoutField first_x("x"_view, real);
   LayoutField second_x("x"_view, real);
   const Static::Vector<const Abstract*, 1> first_fields = {{&first_x}};
   const Static::Vector<const Abstract*, 1> same_fields = {{&first_x}};
   const Static::Vector<const Abstract*, 1> other_fields = {{&second_x}};
-  Named first(first_fields);
-  Named same(same_fields);
-  Named other(other_fields);
+  Named first(arena, first_fields);
+  Named same(arena, same_fields);
+  Named other(arena, other_fields);
 
   EXPECT(first.fits(same));
   EXPECT(first.fits(other));

@@ -13,8 +13,8 @@
 
 using namespace Tetrodotoxin::Library::Language;
 
-auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
-    const -> Perimortem::Core::Option<const Language::Model::Type&> {
+auto Generics::Fixed::create(
+    Perimortem::Core::View::Vector<Argument> arguments) const -> Creation {
   auto& arena = get_domain();
   if (arguments.get_size() != 2) {
     return {};
@@ -77,6 +77,6 @@ auto Generics::Fixed::create(Perimortem::Core::View::Vector<Argument> arguments)
   Perimortem::Serialization::Stream::Textual<Perimortem::Memory::Managed::Bytes>
       output(name);
   output << "["_view << element->get_name() << ","_view << *extent << "]"_view;
-  return arena.construct<Types::Fixed>(
-      arena, name.get_view(), *element, *extent, *access_type, *view_type);
+  return created(arena.construct<Types::Fixed>(
+      arena, name.get_view(), *element, *extent, *access_type, *view_type));
 }

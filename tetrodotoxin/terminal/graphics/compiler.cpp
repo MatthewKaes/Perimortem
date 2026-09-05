@@ -13,8 +13,8 @@ using namespace Perimortem;
 using namespace Tetrodotoxin;
 
 static auto find_configured_type(
-    Core::View::Vector<const Ttx::Model::Type*> configured,
-    const Ttx::Model::Type& candidate) -> Core::Option<Count> {
+    Core::View::Vector<const Ttx::Model::Domain*> configured,
+    const Ttx::Model::Domain& candidate) -> Core::Option<Count> {
   Core::Option<Count> selected;
   for (Count index = 0; index < configured.get_size(); index++) {
     if (&configured.get_data()[index]->resolve() == &candidate.resolve()) {
@@ -29,8 +29,8 @@ static auto retain_hosted(
     Memory::Managed::Vector<Terminal::Graphics::Products::Hosted>& hosted,
     const Library::Language::Field& field,
     const Library::Language::Types::Object& object,
-    const Ttx::Model::Type& requirement,
-    Core::View::Vector<const Ttx::Model::Type*> configured,
+    const Ttx::Model::Domain& requirement,
+    Core::View::Vector<const Ttx::Model::Domain*> configured,
     Core::Option<Count> element_index = {}) -> Bool {
   if (!object.satisfies(requirement)) {
     return True;
@@ -46,8 +46,8 @@ static auto retain_hosted(
 auto Terminal::Graphics::Compiler::compile(
     Memory::Allocator::Arena& arena,
     const Scene::Language::Monograph& scene,
-    const Ttx::Model::Type& requirement,
-    Core::View::Vector<const Ttx::Model::Type*> configured) const
+    const Ttx::Model::Domain& requirement,
+    Core::View::Vector<const Ttx::Model::Domain*> configured) const
     -> Core::Option<Products> {
   BAIL_IF(!scene.is_finalized() || configured.is_empty());
 

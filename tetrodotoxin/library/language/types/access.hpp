@@ -6,8 +6,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -15,7 +15,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // edge while its Generic owns the canonical materialization key.
 class Access : public Contiguous {
  public:
-  TTX_CONTRACT(Access, Contiguous);
 
   constexpr Access(
       Perimortem::Core::View::Bytes name,
@@ -34,7 +33,7 @@ class Access : public Contiguous {
 
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
   constexpr auto get_element_type() const -> const Model::Type& override {
@@ -44,7 +43,7 @@ class Access : public Contiguous {
  private:
   Perimortem::Core::View::Bytes name;
   const Model::Type& element;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Provides writable access to contiguous values."_view,
   };
 };

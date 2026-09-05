@@ -11,7 +11,6 @@ namespace Tetrodotoxin::App {
 // shared source envelope owned by Environment.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
   Dialect(Perimortem::Core::View::Bytes name = "App"_view)
       : Tetrodotoxin::Language::Dialect(name) {}

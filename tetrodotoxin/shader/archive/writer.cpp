@@ -157,7 +157,7 @@ auto Shader::Archive::Writer::write(
 auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
     -> Bool {
   // Library writes the executable declaration surface through its own schema.
-  // Shader wraps those bytes with only the relationship facts it owns.
+  // Shader wraps those bytes with only the relationships it owns.
   auto declarations = Library::Archive::Writer::encode_declarations(program);
   BAIL_IF(!declarations || program.get_bindings().get_size() > U32(-1));
 
@@ -189,7 +189,8 @@ auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
 auto Shader::Archive::Writer::write(const Shader::Language::Bridge& bridge)
     -> Bool {
   // Endpoint routes remain Library payloads because Generic arguments and
-  // literal facts belong to that Type system. Shader records only their policy.
+  // literal values belong to that Type system. Shader records only their
+  // policy.
   auto cpu = Library::Archive::Writer::encode_type_reference(
       bridge.get_cpu_reference());
   auto gpu = Library::Archive::Writer::encode_type_reference(

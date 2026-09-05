@@ -7,15 +7,16 @@
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
-Language::Model::Type::Type(Memory::Allocator::Arena& domain) {
+Language::Model::Type::Type(Memory::Allocator::Arena& domain)
+    : visibility(*this) {
   initialize_authorities(domain);
 }
 
@@ -62,30 +63,37 @@ auto Language::Model::Type::resolve_concept(Core::View::Bytes route) const
                ? static_cast<const Abstract&>(**instance_authority)
                : static_cast<const Abstract&>(None::get_none());
   }
-  return Ttx::Model::Type::resolve_concept(route);
+  if (route == "visibility"_view) {
+    return visibility;
+  }
+  return Ttx::Model::Domain::resolve_concept(route);
 }
 
 auto Language::Model::Type::visit_concepts(
     ttx_named_abstract_callable* visitor) const -> void {
-  if (!static_authority) {
-    return;
+  if (static_authority) {
+    visit_concept(visitor, "static"_view, **static_authority);
+    visit_concept(visitor, "instance"_view, **instance_authority);
   }
-  visit_concept(visitor, "static"_view, **static_authority);
-  visit_concept(visitor, "instance"_view, **instance_authority);
+  visit_concept(visitor, "visibility"_view, resolve_concept("visibility"_view));
 }
 
-auto Language::Model::Type::get_callable_bindings(
-    Tetrodotoxin::Language::Visibility visibility) const -> CallableBindings {
-  const auto& selected =
-      visibility == Tetrodotoxin::Language::Visibility::Private
-          ? callables
-          : published_callables;
-  return selected ? selected->get_view() : CallableBindings();
+auto Language::Model::Type::get_callable_bindings() const -> CallableBindings {
+  return callables ? callables->get_view() : CallableBindings();
 }
 
-auto Language::Model::Type::get_callables(
-    Tetrodotoxin::Language::Visibility visibility) const -> Callables {
-  return Callables(get_callable_bindings(visibility));
+auto Language::Model::Type::get_published_callable_bindings() const
+    -> CallableBindings {
+  return published_callables ? published_callables->get_view()
+                             : CallableBindings();
+}
+
+auto Language::Model::Type::get_callables() const -> Callables {
+  return Callables(get_callable_bindings());
+}
+
+auto Language::Model::Type::get_published_callables() const -> Callables {
+  return Callables(get_published_callable_bindings());
 }
 
 auto Language::Model::Type::can_publish_callable(

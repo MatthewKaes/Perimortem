@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -25,7 +25,8 @@ auto Language::Diagnostics::write_type(
   } else {
     auto addressable = resolved.select<Ttx::Model::Addressable>();
     if (addressable && !addressable->resolve().is<Unknown>()) {
-      auto selected = addressable->get_type().select<Language::Model::Type>();
+      auto selected =
+          addressable->get_domain().select<Language::Model::Type>();
       if (selected) {
         type = &*selected;
       }

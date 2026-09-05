@@ -8,16 +8,16 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/constant.hpp"
+#include "ttx/concept/constant.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
-// Aggregate is one immutable fact for complete empty or multi-value folded
-// flow. Its Layout keeps the exact child Constants and optional names; the
-// aggregate adds no proxy value identities.
+// Aggregate preserves complete empty or multi-value folding without inventing
+// a value type for the group. Its Layout and child Pack view expose the same
+// Constants, allowing a Terminal to reuse their representations in the order
+// the folding owner established.
 class Aggregate final : public Ttx::Concept::Constant, public Model::Pack {
  public:
-  TTX_CONTRACT(Aggregate, Ttx::Concept::Constant);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
@@ -35,9 +35,13 @@ class Aggregate final : public Ttx::Concept::Constant, public Model::Pack {
   auto get_layout() const -> const Ttx::Concept::Layout& override;
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
+  constexpr auto get_entries() const
+      -> Perimortem::Core::View::Vector<Model::Pack*> override {
+    return values;
+  }
   constexpr auto is_complete() const -> Bool override { return True; }
   auto fits(const Ttx::Concept::Layout& target) const -> Bool override;
-  auto fits(const Ttx::Model::Type& target) const -> Bool override;
+  auto fits(const Ttx::Model::Domain& target) const -> Bool override;
   auto link(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,

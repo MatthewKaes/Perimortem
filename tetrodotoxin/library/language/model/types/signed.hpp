@@ -11,7 +11,6 @@ namespace Tetrodotoxin::Library::Language::Model::Types {
 // require matching resolved Type identity and never infer widening or storage.
 class Signed : public Value {
  public:
-  TTX_CONTRACT(Signed, Value);
 
   auto accepts_constant(const Ttx::Concept::Abstract&) const -> Bool override;
 };

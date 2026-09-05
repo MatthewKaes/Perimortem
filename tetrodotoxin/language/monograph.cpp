@@ -3,8 +3,8 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;

@@ -22,8 +22,8 @@
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -45,10 +45,6 @@ class ExpressionType : public Model::Type {
   }
   auto get_layout() const -> const Ttx::Model::Layouts::Named& override {
     return layout;
-  }
-  auto create_default(Allocator::Arena&) const
-      -> Option<Model::Pack&> override {
-    return {};
   }
 
  private:
@@ -160,7 +156,7 @@ PERIMORTEM_UNIT_TEST(LibraryExpression, constant_identity) {
   EXPECT(first.is<Ttx::Concept::Constant>());
   EXPECT(first.is<Tetrodotoxin::Library::Language::Constant>());
   EXPECT(first.is<Constants::Unsigned>());
-  EXPECT_NOT(first.is<Ttx::Model::Type>());
+  EXPECT_NOT(first.is<Ttx::Model::Domain>());
   EXPECT(&first.get_type() == &type);
   EXPECT_TEXT(first.get_name(), "100"_view);
   EXPECT(first.get_value() == 100);

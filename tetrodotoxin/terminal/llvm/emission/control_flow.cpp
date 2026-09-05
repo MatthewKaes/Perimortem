@@ -35,9 +35,9 @@ static auto control_select_carriers(const Llvm::Module::Body& body)
 }
 
 static auto control_select_type(const Ttx::Concept::Abstract& answer)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = answer.select<Ttx::Model::Type>();
-  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+    -> Core::Option<const Ttx::Model::Domain&> {
+  auto direct = answer.select<Ttx::Model::Domain>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Domain>();
 }
 
 static auto control_native_builder(const Llvm::Module::Body& body)
@@ -101,9 +101,9 @@ static auto control_return_values(
     auto entry = results.get_abstract(0);
     auto reference = entry ? entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
-    auto type = reference ? control_select_type(reference->get_type())
+    auto type = reference ? control_select_type(reference->get_domain())
                 : entry   ? control_select_type(*entry)
-                          : Core::Option<const Ttx::Model::Type&>();
+                          : Core::Option<const Ttx::Model::Domain&>();
     if (!type) {
       return False;
     }
@@ -139,7 +139,7 @@ static auto control_return_values(
     Memory::Dynamic::Vector<LLVMValueRef> received(results.get_size());
     for (Count index = 0; index < results.get_size(); index++) {
       auto type =
-          results.get_abstract(index)->resolve().select<Ttx::Model::Type>();
+          results.get_abstract(index)->resolve().select<Ttx::Model::Domain>();
       if (!type) {
         return False;
       }
@@ -397,11 +397,11 @@ static auto select_enumeration_name(
 auto Llvm::Emission::ControlFlow::begin_sequence(
     const Ttx::Concept::Abstract& owner,
     const Ttx::Model::Addressable& binding,
-    const Ttx::Model::Type& input_type,
+    const Ttx::Model::Domain& input_type,
     const Tetrodotoxin::Library::Language::Model::Pack& input) const -> Bool {
   Llvm::Module::Body& native_body = body;
   auto carriers = control_select_carriers(body);
-  auto binding_type = control_select_type(binding.get_type());
+  auto binding_type = control_select_type(binding.get_domain());
   if (!carriers || !binding_type) {
     return False;
   }
@@ -526,8 +526,8 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
                            ? value_entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
   auto value_semantic_type =
-      value_binding ? control_select_type(value_binding->get_type())
-                    : Core::Option<const Ttx::Model::Type&>();
+      value_binding ? control_select_type(value_binding->get_domain())
+                    : Core::Option<const Ttx::Model::Domain&>();
   auto value_type = value_semantic_type
                         ? carriers->get_type(*value_semantic_type)
                         : Core::Option<LLVMTypeRef>();
@@ -556,8 +556,8 @@ auto Llvm::Emission::ControlFlow::begin_enumeration(
     name_binding = name_entry ? name_entry->select<Ttx::Model::Addressable>()
                               : Core::Option<const Ttx::Model::Addressable&>();
     auto name_semantic_type =
-        name_binding ? control_select_type(name_binding->get_type())
-                     : Core::Option<const Ttx::Model::Type&>();
+        name_binding ? control_select_type(name_binding->get_domain())
+                     : Core::Option<const Ttx::Model::Domain&>();
     auto native_name = name_semantic_type
                            ? carriers->get_type(*name_semantic_type)
                            : Core::Option<LLVMTypeRef>();
@@ -718,7 +718,7 @@ auto Llvm::Emission::ControlFlow::begin_value_case(
     return {};
   }
 
-  auto type = control_select_type(payload.get_type());
+  auto type = control_select_type(payload.get_domain());
   auto native_type =
       type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
   if (!type || !native_type) {
@@ -830,7 +830,7 @@ auto Llvm::Emission::ControlFlow::bind_local(
     return False;
   }
 
-  auto type = control_select_type(local.get_type());
+  auto type = control_select_type(local.get_domain());
   auto native_type =
       type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
   auto values = body.find_values(value);
@@ -919,7 +919,7 @@ auto Llvm::Emission::ControlFlow::constant_local(
   }
 
   const Llvm::Module::Carriers& carriers = program.get_carriers();
-  auto type = control_select_type(local.get_type());
+  auto type = control_select_type(local.get_domain());
   BAIL_IF(!type);
   auto assembled =
       carriers.fit_and_assemble(body, *type, value, values->get_view());

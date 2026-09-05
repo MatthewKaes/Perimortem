@@ -47,7 +47,7 @@ static auto arithmetic_select_carriers(const Llvm::Module::Body& body)
 
 static auto arithmetic_has_native_carrier(
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Domain& carrier,
     LLVMValueRef left,
     Core::Option<LLVMValueRef> right = {}) -> Bool {
   auto native = carriers.get_type(carrier);
@@ -68,7 +68,7 @@ static auto arithmetic_publish_scalar(
 
 auto Llvm::Emission::Computation::arithmetic(
     Arithmetic operation,
-    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Domain& carrier,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Tetrodotoxin::Library::Language::Model::Pack& left,
     const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool {
@@ -138,7 +138,7 @@ auto Llvm::Emission::Computation::arithmetic(
 }
 
 auto Llvm::Emission::Computation::negate(
-    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Domain& carrier,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Tetrodotoxin::Library::Language::Model::Pack& operand) const -> Bool {
   Llvm::Module::Body& native_body = body;
@@ -246,8 +246,8 @@ static auto convert_real_to_integer(
 }
 
 auto Llvm::Emission::Computation::convert(
-    const Ttx::Model::Type& source_carrier,
-    const Ttx::Model::Type& target_carrier,
+    const Ttx::Model::Domain& source_carrier,
+    const Ttx::Model::Domain& target_carrier,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Tetrodotoxin::Library::Language::Model::Pack& source) const -> Bool {
   auto carriers = arithmetic_select_carriers(body);
@@ -310,7 +310,7 @@ static auto comparison_select_carriers(const Llvm::Module::Body& body)
 
 static auto emit_comparison(
     Llvm::Module::Body& body,
-    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Domain& carrier,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Tetrodotoxin::Library::Language::Model::Pack& left,
     const Tetrodotoxin::Library::Language::Model::Pack& right,
@@ -347,7 +347,7 @@ static auto emit_comparison(
 
 auto Llvm::Emission::Computation::compare(
     Comparison operation,
-    const Ttx::Model::Type& carrier,
+    const Ttx::Model::Domain& carrier,
     const Tetrodotoxin::Library::Language::Model::Pack& result,
     const Tetrodotoxin::Library::Language::Model::Pack& left,
     const Tetrodotoxin::Library::Language::Model::Pack& right) const -> Bool {

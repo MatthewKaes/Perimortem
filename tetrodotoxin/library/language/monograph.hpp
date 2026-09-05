@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Library::Language {
 // vocabulary. The synthetic Source owns source grammar and graph completion.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,

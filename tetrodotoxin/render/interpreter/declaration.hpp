@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/render/language/monograph.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 
 namespace Tetrodotoxin::Render::Interpreter {
 

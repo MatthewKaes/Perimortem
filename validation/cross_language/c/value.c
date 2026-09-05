@@ -15,6 +15,7 @@
   }
 
 struct value_state {
+  ttx_abstract_capability capability;
   ttx_borrowed_bytes name;
   ttx_borrowed_bytes text;
   ttx_abstract value_requirement;
@@ -23,6 +24,7 @@ struct value_state {
 };
 
 struct value_interface_state {
+  ttx_interface_capability capability;
   ttx_interface_ops operations;
   ttx_abstract requirement;
   ttx_abstract candidate;
@@ -31,57 +33,35 @@ struct value_interface_state {
 
 struct value_snapshot {
   ttx_layout_snapshot_ops operations;
-  uint64_t value;
+  struct value_state* value;
 };
-
-static uint64_t value_authority;
-static struct value_state* values;
-static uint64_t value_count;
 
 static const ttx_abstract_ops value_operations;
 static const ttx_layout_ops layout_operations;
 static const ttx_enumerable_ops enumerable_operations;
 static const ttx_layout_snapshot_ops snapshot_operations;
-static const ttx_test_bytes_terminal_ops provider_operations;
-
-static void* grow(void* data, uint64_t count, size_t element_size) {
-  if (count > SIZE_MAX / element_size) {
-    return 0;
-  }
-  return realloc(data, (size_t)count * element_size);
-}
+static const ttx_bytes_ops bytes_operations;
 
 static struct value_state* value_state(ttx_abstract value) {
-  if (value.owner != value_authority || value.value == 0 ||
-      value.value > value_count) {
-    return 0;
-  }
-  return &values[value.value - 1];
+  return (struct value_state*)value;
 }
 
-static ttx_abstract value_handle(uint64_t token) {
-  const ttx_abstract result = {
-    .operations = &value_operations,
-    .owner = value_authority,
-    .value = token,
-  };
-  return result;
+static ttx_abstract value_handle(struct value_state* value) {
+  return &value->capability;
 }
 
-static ttx_layout value_layout(uint64_t token) {
+static ttx_layout value_layout(struct value_state* value) {
   const ttx_layout result = {
     .operations = &layout_operations,
-    .owner = value_authority,
-    .value = token,
+    .self = (ttx_layout_self*)value,
   };
   return result;
 }
 
-static ttx_enumerable value_enumerable(uint64_t token) {
+static ttx_enumerable value_enumerable(struct value_state* value) {
   const ttx_enumerable result = {
     .operations = &enumerable_operations,
-    .owner = value_authority,
-    .value = token,
+    .self = (ttx_enumerable_self*)value,
   };
   return result;
 }
@@ -92,19 +72,17 @@ static ttx_abstract register_value(
     ttx_abstract value_requirement,
     ttx_abstract view_bytes_requirement,
     ttx_abstract to_string_operation) {
-  struct value_state* resized =
-      grow(values, value_count + 1, sizeof(struct value_state));
-  if (resized == 0) {
+  struct value_state* value = malloc(sizeof(struct value_state));
+  if (value == 0) {
     return ttx_unknown();
   }
-  values = resized;
-  values[value_count].name = name;
-  values[value_count].text = text;
-  values[value_count].value_requirement = value_requirement;
-  values[value_count].view_bytes_requirement = view_bytes_requirement;
-  values[value_count].to_string_operation = to_string_operation;
-  ++value_count;
-  return value_handle(value_count);
+  value->capability.operations = &value_operations;
+  value->name = name;
+  value->text = text;
+  value->value_requirement = value_requirement;
+  value->view_bytes_requirement = view_bytes_requirement;
+  value->to_string_operation = to_string_operation;
+  return value_handle(value);
 }
 
 static ttx_borrowed_bytes TTX_CALL value_name(ttx_abstract self) {
@@ -115,7 +93,7 @@ static ttx_borrowed_bytes TTX_CALL value_name(ttx_abstract self) {
 static ttx_documentation TTX_CALL value_documentation(ttx_abstract self) {
   const ttx_abstract none = ttx_none();
   (void)self;
-  return none.operations->documentation(none);
+  return none->operations->documentation(none);
 }
 
 static void TTX_CALL
@@ -139,10 +117,7 @@ static void TTX_CALL
 }
 
 static struct value_interface_state* interface_state(ttx_interface self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return (struct value_interface_state*)self.operations;
+  return (struct value_interface_state*)self;
 }
 
 static ttx_abstract TTX_CALL interface_requirement(ttx_interface self) {
@@ -174,8 +149,7 @@ static void TTX_CALL interface_invoke(
     result.operations->none(result);
     return;
   }
-  context.operations->pack(
-      context, value_layout(interface->candidate.value), result);
+  context.operations->pack(context, value_layout(value), result);
 }
 
 static void TTX_CALL value_interface(
@@ -187,6 +161,7 @@ static void TTX_CALL value_interface(
     return;
   }
   struct value_interface_state state = {
+    .capability = {0},
     .operations =
         {
           .header = ABI_HEADER(ttx_interface_ops),
@@ -199,16 +174,13 @@ static void TTX_CALL value_interface(
     .candidate = self,
     .relation =
         ttx_abstract_same(requirement, value->value_requirement) ||
-                ttx_abstract_same(requirement, value->view_bytes_requirement)
+                ttx_abstract_same(requirement, value->view_bytes_requirement) ||
+                ttx_abstract_same(requirement, ttx_bytes_requirement())
             ? TTX_INTERFACE_SATISFIED
             : TTX_INTERFACE_REJECTED,
   };
-  const ttx_interface interface = {
-    .operations = &state.operations,
-    .owner = value_authority,
-    .value = self.value,
-  };
-  result.operations->answer(result, interface);
+  state.capability.operations = &state.operations;
+  result.operations->answer(result, &state.capability);
 }
 
 static void TTX_CALL value_domain(ttx_abstract self, ttx_domain_result result) {
@@ -233,6 +205,34 @@ static void TTX_CALL
   result.operations->none(result);
 }
 
+static ttx_abstract bytes_candidate(ttx_bytes view) {
+  return value_handle((struct value_state*)view.self);
+}
+
+static uint64_t bytes_size(ttx_bytes view) {
+  return ((struct value_state*)view.self)->text.size;
+}
+
+static void bytes_visit(ttx_bytes view, ttx_bytes_sink result) {
+  result.operations->bytes(result, ((struct value_state*)view.self)->text);
+  result.operations->completed(result);
+}
+
+static void value_bytes(ttx_abstract self, ttx_bytes_result result) {
+  result.operations->resolved(
+      result, (ttx_bytes){
+                .operations = &bytes_operations,
+                .self = (ttx_bytes_self*)value_state(self),
+              });
+}
+
+static const ttx_bytes_ops bytes_operations = {
+  .header = ABI_HEADER(ttx_bytes_ops),
+  .candidate = bytes_candidate,
+  .size = bytes_size,
+  .visit = bytes_visit,
+};
+
 static void TTX_CALL layout_fit(
     ttx_layout self,
     ttx_pack source,
@@ -246,7 +246,8 @@ static void TTX_CALL layout_fit(
 
 static void TTX_CALL
     layout_enumerable(ttx_layout self, ttx_enumerable_result result) {
-  result.operations->satisfied(result, value_enumerable(self.value));
+  result.operations->satisfied(
+      result, value_enumerable((struct value_state*)self.self));
 }
 
 static void TTX_CALL layout_named(ttx_layout self, ttx_named_result result) {
@@ -255,10 +256,7 @@ static void TTX_CALL layout_named(ttx_layout self, ttx_named_result result) {
 }
 
 static struct value_snapshot* snapshot_state(ttx_layout_snapshot self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return (struct value_snapshot*)self.operations;
+  return (struct value_snapshot*)self.self;
 }
 
 static ttx_layout TTX_CALL snapshot_layout(ttx_layout_snapshot self) {
@@ -278,11 +276,10 @@ static void TTX_CALL
     return;
   }
   snapshot->operations = snapshot_operations;
-  snapshot->value = self.value;
+  snapshot->value = (struct value_state*)self.self;
   const ttx_layout_snapshot retained = {
     .operations = &snapshot->operations,
-    .owner = self.owner,
-    .value = self.value,
+    .self = (ttx_layout_snapshot_self*)snapshot,
   };
   result.operations->retained(result, retained);
 }
@@ -310,8 +307,14 @@ static void TTX_CALL
   result.operations->rejected(result);
 }
 
+static void TTX_CALL
+    layout_reindexed(ttx_layout self, ttx_reindexed_layout_result result) {
+  (void)self;
+  result.operations->rejected(result);
+}
+
 static ttx_layout TTX_CALL enumerable_layout(ttx_enumerable self) {
-  return value_layout(self.value);
+  return value_layout((struct value_state*)self.self);
 }
 
 static uint64_t TTX_CALL enumerable_cardinality(ttx_enumerable self) {
@@ -323,23 +326,9 @@ static void TTX_CALL
     enumerable_visit(ttx_enumerable self, ttx_layout_entry_sink result) {
   static const uint8_t zero[] = "0";
   const ttx_borrowed_bytes path = {zero, 1};
-  result.operations->entry(result, path, value_handle(self.value));
+  result.operations->entry(
+      result, path, value_handle((struct value_state*)self.self));
   result.operations->completed(result);
-}
-
-static void TTX_CALL provider_project(
-    ttx_test_bytes_terminal self,
-    ttx_abstract producer,
-    ttx_abstract requirement,
-    ttx_test_bytes_sink result) {
-  struct value_state* value = value_state(producer);
-  (void)self;
-  if (value == 0 ||
-      !ttx_abstract_same(requirement, value->view_bytes_requirement)) {
-    result.operations->rejected(result);
-    return;
-  }
-  result.operations->projected(result, value->text);
 }
 
 static const ttx_abstract_ops value_operations = {
@@ -354,6 +343,7 @@ static const ttx_abstract_ops value_operations = {
   .resolve_callable = value_callable,
   .resolve_route = value_route,
   .resolve_finite_extent = value_finite_extent,
+  .resolve_bytes = value_bytes,
 };
 
 static const ttx_layout_ops layout_operations = {
@@ -366,6 +356,7 @@ static const ttx_layout_ops layout_operations = {
   .value = layout_value,
   .composite = layout_composite,
   .ranged = layout_ranged,
+  .reindexed = layout_reindexed,
 };
 
 static const ttx_enumerable_ops enumerable_operations = {
@@ -381,30 +372,13 @@ static const ttx_layout_snapshot_ops snapshot_operations = {
   .release = snapshot_release,
 };
 
-static const ttx_test_bytes_terminal_ops provider_operations = {
-  .header = ABI_HEADER(ttx_test_bytes_terminal_ops),
-  .project = provider_project,
-};
-
 ttx_abstract ttx_test_c_value_create(
     ttx_borrowed_bytes name,
     ttx_borrowed_bytes text,
     ttx_abstract selected_value_requirement,
     ttx_abstract selected_view_bytes_requirement,
     ttx_abstract selected_to_string_operation) {
-  if (value_authority == 0) {
-    value_authority = ttx_authority_create();
-  }
   return register_value(
       name, text, selected_value_requirement, selected_view_bytes_requirement,
       selected_to_string_operation);
-}
-
-ttx_test_bytes_terminal TTX_CALL ttx_test_c_value_bytes_provider(void) {
-  const ttx_test_bytes_terminal result = {
-    .operations = &provider_operations,
-    .owner = value_authority,
-    .value = 1,
-  };
-  return result;
 }

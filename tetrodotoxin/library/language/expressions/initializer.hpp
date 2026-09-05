@@ -22,7 +22,6 @@ namespace Tetrodotoxin::Library::Language::Expressions {
 // exact Type without inventing a source Anchor.
 class Initializer : public Expression {
  public:
-  TTX_CONTRACT(Initializer, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -59,7 +58,7 @@ class Initializer : public Expression {
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
-  auto fits(const Ttx::Model::Type& target) const -> Bool override;
+  auto fits(const Ttx::Model::Domain& target) const -> Bool override;
 
   auto link(
       Ttx::Lexical::Cursor& cursor,

@@ -33,7 +33,7 @@ Builtin::View::Slice::Slice(
     const Language::Model::Type& result)
     : domain(domain),
       parameter_entries(create_parameter_entries(self, start, count)),
-      parameters(parameter_entries.get_view()),
+      parameters(domain, parameter_entries.get_view()),
       results(result, 1),
       result_type(result) {}
 
@@ -99,30 +99,34 @@ auto Builtin::View::Slice::invoke(
       domain, result_type, selected);
 }
 
-auto Builtin::View::Slice::invoke_abi(
-    const ttx_abstract* callable,
-    const ttx_pack* receiver,
-    const ttx_pack* arguments) -> const ttx_pack* {
-  const auto& selected =
-      static_cast<const Slice&>(Ttx::Concept::Abstract::from_abi(callable));
-  auto source = receiver ? Core::Option<const Language::Model::Pack&>(
-                               Language::Model::Pack::from_abi(receiver))
-                         : Core::Option<const Language::Model::Pack&>();
-  const auto& inputs = Language::Model::Pack::from_abi(arguments);
-  auto result = selected.invoke(source, inputs);
-  return result ? result->get_abi() : nullptr;
+auto Builtin::View::Slice::negotiate(ttx_abstract requirement) const
+    -> ttx_interface_relation {
+  return ttx_abstract_same(
+             requirement, Language::Model::Invocation::requirement())
+             ? TTX_INTERFACE_SATISFIED
+             : Language::Model::Callable::negotiate(requirement);
 }
 
-const ttx_library_invocation_operations
-    Builtin::View::Slice::invocation_operations = {
-      .interface = {.negotiate = ttx_library_invocation_relation},
-      .invoke = invoke_abi,
-};
-
-auto Builtin::View::Slice::negotiate_interface(
-    const ttx_abstract* requirement) const -> ttx_interface {
-  return requirement == ttx_library_invocation_requirement()
-             ? ttx_interface_satisfied(
-                   requirement, get_abi(), &invocation_operations.interface)
-             : Language::Model::Callable::negotiate_interface(requirement);
+void Builtin::View::Slice::invoke(
+    ttx_abstract operation,
+    ttx_pack input,
+    ttx_context context,
+    ttx_pack_result result) const {
+  if (!ttx_abstract_same(operation, Language::Model::Invocation::operation())) {
+    result.operations->none(result);
+    return;
+  }
+  auto inputs = Language::Model::Invocation::local_inputs(input);
+  if (!inputs || inputs->size() != 3) {
+    result.operations->none(result);
+    return;
+  }
+  Core::Static::Vector<Language::Model::Pack*, 2> argument_entries = {{
+    const_cast<Language::Model::Pack*>((*inputs)[1]),
+    const_cast<Language::Model::Pack*>((*inputs)[2]),
+  }};
+  auto& arguments = Language::Model::Pack::create_completed(
+      domain, argument_entries.get_view());
+  Language::Model::Invocation::return_pack(
+      invoke(*(*inputs)[0], arguments), context, result);
 }

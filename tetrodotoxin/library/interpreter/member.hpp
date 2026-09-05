@@ -9,9 +9,10 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/interpreter/parsed.hpp"
+#include "tetrodotoxin/library/language/model/completion.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {
 
@@ -28,8 +29,12 @@ class Member {
     constexpr Result(
         Ttx::Concept::Abstract& semantic,
         Language::Types::Composite::Category category,
-        ParseState state)
-        : semantic(&semantic), category(category), state(state) {}
+        ParseState state,
+        Language::Model::Completion* completion = nullptr)
+        : semantic(&semantic),
+          category(category),
+          state(state),
+          completion(completion) {}
 
     constexpr auto get_semantic() const -> Ttx::Concept::Abstract& {
       return *semantic;
@@ -48,10 +53,15 @@ class Member {
       return state == ParseState::Incomplete;
     }
 
+    constexpr auto get_completion() const -> Language::Model::Completion* {
+      return completion;
+    }
+
    private:
     Ttx::Concept::Abstract* semantic;
     Language::Types::Composite::Category category;
     ParseState state;
+    Language::Model::Completion* completion;
   };
 
   Member() = delete;

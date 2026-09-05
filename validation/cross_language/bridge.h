@@ -44,17 +44,17 @@ typedef struct {
 
 typedef struct ttx_test_bytes_terminal_ops ttx_test_bytes_terminal_ops;
 typedef struct ttx_test_bytes_sink_ops ttx_test_bytes_sink_ops;
+typedef struct ttx_test_bytes_terminal_self ttx_test_bytes_terminal_self;
+typedef struct ttx_test_bytes_sink_self ttx_test_bytes_sink_self;
 
 typedef struct {
   const ttx_test_bytes_terminal_ops* operations;
-  uint64_t owner;
-  uint64_t value;
+  ttx_test_bytes_terminal_self* self;
 } ttx_test_bytes_terminal;
 
 typedef struct {
   const ttx_test_bytes_sink_ops* operations;
-  uint64_t owner;
-  uint64_t value;
+  ttx_test_bytes_sink_self* self;
 } ttx_test_bytes_sink;
 
 struct ttx_test_bytes_terminal_ops {
@@ -73,19 +73,17 @@ struct ttx_test_bytes_sink_ops {
 };
 
 // Rust owns both requirements and the original candidate.
-TTX_EXTERN_C ttx_test_rust_exports TTX_CALL rust_test_exports(
-    uint64_t authority,
-    ttx_test_bytes_terminal bytes_terminal);
+TTX_EXTERN_C ttx_test_rust_exports TTX_CALL
+    rust_test_exports(ttx_test_bytes_terminal bytes_terminal);
 TTX_EXTERN_C ttx_abstract TTX_CALL rust_echo_create(ttx_abstract value);
-TTX_EXTERN_C ttx_test_bytes_terminal TTX_CALL rust_echo_bytes_provider(void);
 TTX_EXTERN_C ttx_test_policy_exports TTX_CALL rust_policy_exports(void);
+TTX_EXTERN_C void TTX_CALL
+    rust_temporary_pack(ttx_abstract, ttx_context, ttx_pack_result);
 
 // C owns support storage and consumes an arbitrary candidate/requirement pair.
 // Its implementation contains no knowledge of the Rust domains.
 TTX_EXTERN_C ttx_test_bytes_terminal TTX_CALL
     ttx_test_create_bytes_terminal(void);
-TTX_EXTERN_C void TTX_CALL
-    ttx_test_bytes_terminal_add(ttx_test_bytes_terminal provider);
 TTX_EXTERN_C ttx_abstract TTX_CALL ttx_test_c_integer_create(
     ttx_abstract value_requirement,
     ttx_abstract view_bytes_requirement,
@@ -94,8 +92,8 @@ TTX_EXTERN_C ttx_abstract TTX_CALL ttx_test_c_boolean_create(
     ttx_abstract value_requirement,
     ttx_abstract view_bytes_requirement,
     ttx_abstract to_string_operation);
-TTX_EXTERN_C ttx_test_bytes_terminal TTX_CALL
-    ttx_test_c_value_bytes_provider(void);
+TTX_EXTERN_C ttx_addressable_policy TTX_CALL
+    ttx_test_c_restriction_policy(void);
 TTX_EXTERN_C ttx_test_receipt TTX_CALL ttx_test_consume_pack(
     ttx_abstract candidate,
     ttx_abstract requirement,

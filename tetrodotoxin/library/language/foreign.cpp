@@ -4,8 +4,8 @@
 #include "tetrodotoxin/library/language/foreign.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/merged.hpp"
+#include "ttx/model/documentations/merged.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -161,6 +161,6 @@ auto Library::Language::Foreign::retain_documentation(
     return;
   }
 
-  documentation = &domain.construct<Ttx::Model::Documentations::Merged>(
+  documentation = &domain.construct<Ttx::Documentations::Merged>(
       *documentation, block_documentation);
 }

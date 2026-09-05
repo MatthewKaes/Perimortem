@@ -7,8 +7,8 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
@@ -32,7 +32,6 @@ class Binding : public Ttx::Model::Addressable {
     ReadWrite,
   };
 
-  TTX_CONTRACT(Binding, Ttx::Model::Addressable);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -44,7 +43,7 @@ class Binding : public Ttx::Model::Addressable {
   static auto create_slot(
       Perimortem::Memory::Allocator::Arena& domain,
       Perimortem::Core::View::Bytes name,
-      const Ttx::Model::Type& type) -> Binding&;
+      const Ttx::Model::Domain& value_domain) -> Binding&;
 
   static auto create_restored_slot(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -60,9 +59,9 @@ class Binding : public Ttx::Model::Addressable {
 
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
-  auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto get_domain() const -> const Ttx::Concept::Abstract& override;
 
-  constexpr auto is_linked() const -> Bool { return Bool(type); }
+  constexpr auto is_linked() const -> Bool { return Bool(value_domain); }
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
@@ -102,13 +101,13 @@ class Binding : public Ttx::Model::Addressable {
       Access access,
       Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
           type_reference,
-      Perimortem::Core::Option<const Ttx::Model::Type*> type)
+      Perimortem::Core::Option<const Ttx::Model::Domain*> value_domain)
       : name(name),
         definition(definition),
         kind(kind),
         access(access),
         type_reference(type_reference),
-        type(type) {}
+        value_domain(value_domain) {}
 
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::Option<Tetrodotoxin::Language::Definition&> definition;
@@ -116,7 +115,7 @@ class Binding : public Ttx::Model::Addressable {
   Access access;
   Perimortem::Core::Option<Tetrodotoxin::Language::TypeReference>
       type_reference;
-  Perimortem::Core::Option<const Ttx::Model::Type*> type;
+  Perimortem::Core::Option<const Ttx::Model::Domain*> value_domain;
 };
 
 }  // namespace Tetrodotoxin::Render::Language

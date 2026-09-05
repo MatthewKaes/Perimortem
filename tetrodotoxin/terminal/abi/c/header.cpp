@@ -16,9 +16,9 @@
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type_name.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 using namespace Perimortem;
 using namespace Perimortem::Serialization;
@@ -50,24 +50,24 @@ static auto fail_header(Core::View::Bytes message) -> Bool {
 }
 
 static auto require_type(const Ttx::Concept::Abstract& answer)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = answer.select<Ttx::Model::Type>();
-  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+    -> Core::Option<const Ttx::Model::Domain&> {
+  auto direct = answer.select<Ttx::Model::Domain>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Domain>();
 }
 
 static auto require_addressable_type(const Ttx::Model::Addressable& addressable)
-    -> Core::Option<const Ttx::Model::Type&> {
-  return require_type(addressable.get_type());
+    -> Core::Option<const Ttx::Model::Domain&> {
+  return require_type(addressable.get_domain());
 }
 
 static auto require_result_type(const Ttx::Concept::Layout& layout, Count index)
-    -> Core::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto entry = layout.get_abstract(index);
   auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
                            : Core::Option<const Ttx::Model::Addressable&>();
   return addressable ? require_addressable_type(*addressable)
          : entry     ? require_type(*entry)
-                     : Core::Option<const Ttx::Model::Type&>();
+                     : Core::Option<const Ttx::Model::Domain&>();
 }
 
 static auto require_parameter(const Ttx::Concept::Layout& layout, Count index)
@@ -123,7 +123,7 @@ static auto write_package_name(
 static auto find_header_name(
     const Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
-    const Ttx::Model::Type& type)
+    const Ttx::Model::Domain& type)
     -> Core::Option<
         const Tetrodotoxin::Terminal::Abi::Representation::TypeName&> {
   auto retained = names.get_view();
@@ -142,7 +142,7 @@ static auto create_header_name(
     Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     HeaderOrigin inherited) -> Core::Option<HeaderOrigin> {
   auto retained = find_header_name(names, type);
   if (retained) {
@@ -168,13 +168,13 @@ static auto create_header_name(
 
 static auto collect_type(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<const Ttx::Model::Type*>& ordered,
-    Memory::Managed::Map<const Ttx::Model::Type*, Bool>& collected,
+    Memory::Managed::Vector<const Ttx::Model::Domain*>& ordered,
+    Memory::Managed::Map<const Ttx::Model::Domain*, Bool>& collected,
     Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     HeaderOrigin inherited) -> Bool {
   if (collected.contains(&type)) {
     return True;
@@ -219,7 +219,7 @@ static auto collect_type(
     for (Count index = 0; index < fields->get_size(); index++) {
       auto field = require_parameter(*fields, index);
       auto field_type = field ? require_addressable_type(*field)
-                              : Core::Option<const Ttx::Model::Type&>();
+                              : Core::Option<const Ttx::Model::Domain&>();
       if (!field || !field_type ||
           !collect_type(
               arena, ordered, collected, names, types, unit, *field_type,
@@ -275,8 +275,8 @@ static auto collect_type(
 
 static auto collect_callable(
     Memory::Allocator::Arena& arena,
-    Memory::Managed::Vector<const Ttx::Model::Type*>& ordered,
-    Memory::Managed::Map<const Ttx::Model::Type*, Bool>& collected,
+    Memory::Managed::Vector<const Ttx::Model::Domain*>& ordered,
+    Memory::Managed::Map<const Ttx::Model::Domain*, Bool>& collected,
     Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
@@ -298,7 +298,7 @@ static auto collect_callable(
   for (Count index = 0; index < parameters.get_size(); index++) {
     auto parameter = require_parameter(parameters, index);
     auto parameter_type = parameter ? require_addressable_type(*parameter)
-                                    : Core::Option<const Ttx::Model::Type&>();
+                                    : Core::Option<const Ttx::Model::Domain&>();
     if (!parameter || !parameter_type ||
         !collect_type(
             arena, ordered, collected, names, types, unit, *parameter_type,
@@ -316,7 +316,7 @@ static auto write_type_name(
     const Tetrodotoxin::Terminal::Abi::Representation::Type& types,
     const Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
-    const Ttx::Model::Type& type) -> Bool {
+    const Ttx::Model::Domain& type) -> Bool {
   auto kind = types.get_kind(type);
   if (!kind) {
     return fail_header(
@@ -410,7 +410,7 @@ static auto write_type_definition(
     const Memory::Managed::Vector<
         Tetrodotoxin::Terminal::Abi::Representation::TypeName>& names,
     const Tetrodotoxin::Terminal::Abi::Unit& unit,
-    const Ttx::Model::Type& type) -> Bool {
+    const Ttx::Model::Domain& type) -> Bool {
   auto kind = types.get_kind(type);
   if (!kind) {
     return fail_header(
@@ -475,7 +475,7 @@ static auto write_type_definition(
     for (Count index = 0; index < fields->get_size(); index++) {
       auto field = require_parameter(*fields, index);
       auto field_type = field ? require_addressable_type(*field)
-                              : Core::Option<const Ttx::Model::Type&>();
+                              : Core::Option<const Ttx::Model::Domain&>();
       auto name = fields->get_name(index);
       if (!field || !field_type) {
         return fail_header(
@@ -700,7 +700,7 @@ static auto write_signature(
 
     auto parameter = require_parameter(parameters, index);
     auto parameter_type = parameter ? require_addressable_type(*parameter)
-                                    : Core::Option<const Ttx::Model::Type&>();
+                                    : Core::Option<const Ttx::Model::Domain&>();
     if (!parameter || !parameter_type ||
         !write_type_name(output, types, names, *parameter_type)) {
       return fail_header(
@@ -734,7 +734,7 @@ static auto write_default_construction_signatures(
     -> Bool {
   for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
        publications) {
-    auto type = publication.get_semantic().select<Ttx::Model::Type>();
+    auto type = publication.get_semantic().select<Ttx::Model::Domain>();
     if (!type || !types.is_object(*type) || !unit.find_type(*type)) {
       continue;
     }
@@ -757,12 +757,12 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     Core::View::Vector<Tetrodotoxin::Terminal::Abi::Publication> publications,
     Core::View::Vector<const Tetrodotoxin::Library::Language::Model::Type*>
         roots) -> Core::Option<Tetrodotoxin::Terminal::Abi::C::Header> {
-  Memory::Managed::Vector<const Ttx::Model::Type*> ordered(arena);
-  Memory::Managed::Map<const Ttx::Model::Type*, Bool> collected(arena);
+  Memory::Managed::Vector<const Ttx::Model::Domain*> ordered(arena);
+  Memory::Managed::Map<const Ttx::Model::Domain*, Bool> collected(arena);
   Memory::Managed::Vector<Tetrodotoxin::Terminal::Abi::Representation::TypeName>
       names(arena);
 
-  auto collect_root = [&](const Ttx::Model::Type& type) -> Bool {
+  auto collect_root = [&](const Ttx::Model::Domain& type) -> Bool {
     auto kind = types.get_kind(type);
     return !kind ||
            *kind == Tetrodotoxin::Terminal::Abi::Representation::Type::Kind::
@@ -775,7 +775,7 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     for (const Ttx::Concept::Abstract* declaration :
          monograph.get_source().get_types(
              Tetrodotoxin::Language::Visibility::Public)) {
-      auto type = declaration->select<Ttx::Model::Type>();
+      auto type = declaration->select<Ttx::Model::Domain>();
       if (type && !collect_root(*type)) {
         return {};
       }
@@ -792,6 +792,21 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
     if (!collect_callable(
             arena, ordered, collected, names, types, unit,
             exported.get_callable())) {
+      return {};
+    }
+  }
+
+  // Construction publications can expose a nested Object even when its host
+  // is not part of the public C type surface. Collect the published Object
+  // itself before spelling its constructor, otherwise the signature would
+  // refer to a carrier name this header never established.
+  for (const Tetrodotoxin::Terminal::Abi::Publication& publication :
+       publications) {
+    auto type = publication.get_semantic().select<Ttx::Model::Domain>();
+    if (type && types.is_object(*type) &&
+        !collect_type(
+            arena, ordered, collected, names, types, unit, *type,
+            HeaderOrigin(unit.get_package(), unit.get_member()))) {
       return {};
     }
   }
@@ -820,7 +835,7 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
 
   Bool uses_object = False;
   Bool uses_implementation = False;
-  for (const Ttx::Model::Type* type : ordered.get_view()) {
+  for (const Ttx::Model::Domain* type : ordered.get_view()) {
     auto kind = types.get_kind(*type);
     if (!kind) {
       return {};
@@ -851,7 +866,7 @@ auto Tetrodotoxin::Terminal::Abi::C::Header::create(
   if (!unit.get_headers().is_empty()) {
     output << "\n"_view;
   }
-  for (const Ttx::Model::Type* type : ordered.get_view()) {
+  for (const Ttx::Model::Domain* type : ordered.get_view()) {
     if (!write_type_definition(output, types, names, unit, *type)) {
       return {};
     }

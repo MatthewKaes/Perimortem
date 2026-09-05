@@ -5,7 +5,7 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/concept/none.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // toolchain's chosen storage width.
 class Flag : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Flag, Tetrodotoxin::Library::Language::Constant);
   using Value = Bool;
 
   static auto create_authored(
@@ -73,7 +72,7 @@ class Flag : public Tetrodotoxin::Library::Language::Constant {
         [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
-  constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
+  constexpr auto fits(const Ttx::Model::Domain& target) const -> Bool override {
     return get_type()
                .resolve()
                .is<Tetrodotoxin::Library::Language::Model::Types::Flag>() &&

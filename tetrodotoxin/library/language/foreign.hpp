@@ -16,16 +16,16 @@
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
 #include "tetrodotoxin/library/language/types/static.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
 // Foreign is the one external declaration context owned by a Library Source.
-// It keeps block grammar, ABI agreement, lookup, and closure together while
-// the parent Source remains the lexical context for declaration Type routes.
+// Keeping block grammar, ABI agreement, lookup, and closure on this owner lets
+// the parent Source remain the lexical context for declaration Type routes.
 class Foreign final : public Ttx::Concept::Abstract {
  public:
   // State Types settle before Function signatures may consume them. Finalize is
@@ -42,7 +42,6 @@ class Foreign final : public Ttx::Concept::Abstract {
   // Foreign context while its delayed Type route falls through to the Source.
   class State final : public Model::Addressable {
    public:
-    TTX_CONTRACT(State, Model::Addressable);
 
     static auto create_authored(
         Perimortem::Memory::Allocator::Arena& domain,
@@ -117,7 +116,6 @@ class Foreign final : public Ttx::Concept::Abstract {
   // retained ABI and symbol without making Foreign own native representation.
   class Function final : public Model::Callable {
    public:
-    TTX_CONTRACT(Function, Model::Callable);
 
     static auto create_authored(
         Perimortem::Memory::Allocator::Arena& domain,
@@ -205,7 +203,6 @@ class Foreign final : public Ttx::Concept::Abstract {
   auto operator=(const Foreign&) -> Foreign& = delete;
   auto operator=(Foreign&&) -> Foreign& = delete;
 
-  TTX_CONTRACT(Foreign, Ttx::Concept::Abstract);
   TTX_NAME("foreign"_view);
   TTX_DOCUMENTATION(*documentation);
 

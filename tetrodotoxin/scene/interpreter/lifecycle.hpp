@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/scene/language/monograph.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Scene::Interpreter {

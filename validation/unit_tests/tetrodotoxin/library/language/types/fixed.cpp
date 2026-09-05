@@ -12,8 +12,8 @@
 
 #include "tetrodotoxin/library/language/generics/fixed.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -31,7 +31,7 @@ PERIMORTEM_UNIT_TEST(LibraryFixed, direct_contract) {
   const Ttx::Model::Layouts::Ranged& layout = fixed.get_layout();
 
   EXPECT(fixed.is<Types::Fixed>());
-  EXPECT(fixed.is<Ttx::Model::Type>());
+  EXPECT(fixed.is<Ttx::Model::Domain>());
   EXPECT(fixed.is<Abstract>());
   EXPECT_NOT(fixed.is<Generic>());
   EXPECT_TEXT(fixed.get_name(), "Fixed[U8,4]"_view);

@@ -4,17 +4,16 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
-// Addressable owns Library receiver traversal while the TTX base retains only
-// the host neutral total Type answer. Plain context lookup stays closed on an
-// instance because members require an explicit access operator.
+// Addressable owns Library receiver traversal while the TTX base exposes only
+// the host-neutral Domain relationship. Plain context lookup stays closed on
+// an instance because members require an explicit access operator.
 class Addressable : public Ttx::Model::Addressable {
  public:
-  TTX_CONTRACT(Addressable, Ttx::Model::Addressable);
 
   // The owning declaration context drives these ordered barriers through the
   // category it already retained. Explicit Type routes settle before inference,
@@ -70,8 +69,11 @@ class Addressable : public Ttx::Model::Addressable {
     return Ttx::Concept::Unknown::get_unknown();
   }
 
-  virtual constexpr auto get_type() const
-      -> const Ttx::Concept::Abstract& override = 0;
+  virtual constexpr auto get_type() const -> const Ttx::Concept::Abstract& = 0;
+
+  constexpr auto get_domain() const -> const Ttx::Concept::Abstract& override {
+    return get_type();
+  }
 };
 
 }  // namespace Tetrodotoxin::Library::Language::Model

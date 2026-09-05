@@ -19,7 +19,7 @@ auto Types::Boolean::get_validity(const Model::Pack& value) const
   return flag->get_value();
 }
 
-auto Types::Boolean::create_default(
+auto Types::Boolean::initialize_default(
     Perimortem::Memory::Allocator::Arena& arena) const -> Option<Model::Pack&> {
   return Constants::False::create_synthetic(arena, *this);
 }

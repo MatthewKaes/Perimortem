@@ -13,7 +13,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // needs no placeholder candidate or physical Projection.
 class Implementation : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Implementation, Tetrodotoxin::Library::Language::Constant);
 
   static auto create_empty(
       Perimortem::Memory::Allocator::Arena& domain,

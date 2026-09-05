@@ -10,7 +10,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
+#include "ttx/concept/none.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -115,6 +115,14 @@ auto Language::Expressions::Conversion::visit_concepts(
 
 auto Language::Expressions::Conversion::evaluate_fold()
     -> Utility::Result<Core::Option<Model::Pack&>, Expression::Error> {
+  // Once this source transaction proves one Constant input, conversion has one
+  // immutable result for its exact target and source identities. Retaining
+  // that result keeps repeated observers on the same graph identity; a later
+  // source transaction constructs another Conversion instead of rewriting it.
+  if (folded != nullptr) {
+    return Core::Option<Model::Pack&>(*folded);
+  }
+
   auto constant = folded_constant(*source);
   if (!constant) {
     return Core::Option<Model::Pack&>();
@@ -147,8 +155,10 @@ auto Language::Expressions::Conversion::evaluate_fold()
     } else {
       return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
     }
-    return Constants::Unsigned::create_synthetic(
+    auto& result = Constants::Unsigned::create_synthetic(
         arena, *target_unsigned, value);
+    folded = &result;
+    return result;
   }
 
   if (target_signed) {
@@ -174,7 +184,10 @@ auto Language::Expressions::Conversion::evaluate_fold()
     } else {
       return Expression::Error(Expression::Error::Type::InvalidConstant, *this);
     }
-    return Constants::Signed::create_synthetic(arena, *target_signed, value);
+    auto& result =
+        Constants::Signed::create_synthetic(arena, *target_signed, value);
+    folded = &result;
+    return result;
   }
 
   if (target_real) {
@@ -188,7 +201,10 @@ auto Language::Expressions::Conversion::evaluate_fold()
     if (target_real->get_size() == sizeof(R32)) {
       value = R64(R32(value));
     }
-    return Constants::Real::create_synthetic(arena, *target_real, value);
+    auto& result =
+        Constants::Real::create_synthetic(arena, *target_real, value);
+    folded = &result;
+    return result;
   }
 
   return Expression::Error(

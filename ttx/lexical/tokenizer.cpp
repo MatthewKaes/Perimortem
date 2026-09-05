@@ -14,9 +14,9 @@ using namespace Perimortem::Core;
 using namespace Ttx::Lexical;
 
 // Context is the tokenizer cursor for one source view and one token stream.
-// It owns the mutable scan coordinates because token helpers walk different
-// shapes before they know the final Code, but all of them emit tokens with the
-// same line, column, and source slice rules.
+// Owning the mutable scan coordinates here lets token helpers walk different
+// shapes before they know the final Code while still emitting through the same
+// line, column, and source-slice rules.
 //
 // Keep grammar and semantic grouping in the parse helpers. Context should
 // stay limited to cursor movement, source slicing, line and column

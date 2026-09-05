@@ -11,9 +11,9 @@
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -33,7 +33,6 @@ class RangeLoop : public Ttx::Concept::Abstract {
     TypeReference type_reference;
   };
 
-  TTX_CONTRACT(RangeLoop, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -78,7 +77,7 @@ class RangeLoop : public Ttx::Concept::Abstract {
   }
 
   constexpr auto get_bindings() const -> const Ttx::Concept::Layout& {
-    return *binding_layout;
+    return **binding_layout;
   }
 
   constexpr auto get_body() const -> const Block& { return **body; }
@@ -100,7 +99,7 @@ class RangeLoop : public Ttx::Concept::Abstract {
       bindings;
   Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*>
       binding_entries;
-  Perimortem::Core::Option<Ttx::Model::Layouts::Named> binding_layout;
+  Perimortem::Core::Option<Ttx::Model::Layouts::Named*> binding_layout;
   Model::Pack* input;
   Perimortem::Core::Option<Block*> body;
   Perimortem::Core::Option<const Model::Type*> input_type;

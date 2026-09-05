@@ -155,8 +155,8 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
   Bool published_identity = kind != Kind::Path;
   Core::View::Bytes package = unit.get_package();
   Core::View::Bytes member = unit.get_member();
-  auto selected_type = semantic.select<Ttx::Model::Type>();
-  const Ttx::Model::Type* type = selected_type ? &*selected_type : nullptr;
+  auto selected_type = semantic.select<Ttx::Model::Domain>();
+  const Ttx::Model::Domain* type = selected_type ? &*selected_type : nullptr;
   auto function = semantic.select<Tetrodotoxin::Library::Language::Function>();
   if (function) {
     type = &function->get_host();
@@ -164,7 +164,7 @@ Tetrodotoxin::Terminal::Abi::Symbol::Symbol(
   auto field = semantic.select<Tetrodotoxin::Library::Language::Field>();
   if (field) {
     auto field_host =
-        field->get_definition().get_host().select<Ttx::Model::Type>();
+        field->get_definition().get_host().select<Ttx::Model::Domain>();
     type = field_host ? &*field_host : nullptr;
   }
   auto binding =

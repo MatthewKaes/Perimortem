@@ -26,15 +26,17 @@
 #include "tetrodotoxin/library/language/flow/match.hpp"
 #include "tetrodotoxin/library/language/flow/return.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/admission.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
 #include "tetrodotoxin/library/language/types/result.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -168,10 +170,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_fit) {
   EXPECT(empty.fits_into(*maybe));
   EXPECT(value.fits_into(*maybe));
   EXPECT(element->accepts(value));
-  EXPECT_NOT(element->create_fitted(fitted_arena, value));
+  EXPECT_NOT(Language::Model::admit(*element, fitted_arena, value));
 
-  auto absent = maybe->create_fitted(fitted_arena, empty);
-  auto present = maybe->create_fitted(fitted_arena, value);
+  auto absent = Language::Model::admit(*maybe, fitted_arena, empty);
+  auto present = Language::Model::admit(*maybe, fitted_arena, value);
   ASSERT(absent && present);
   auto absent_option = absent->select_identity<Language::Constants::Option>();
   auto present_option = present->select_identity<Language::Constants::Option>();
@@ -565,7 +567,8 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   EXPECT_EQ(authored_default_value->get_value(), U64(0));
 
   Allocator::Arena result_default_domain;
-  auto result_default = outcome->create_default(result_default_domain);
+  auto result_default =
+      Language::Model::initialize_default(*outcome, result_default_domain);
   ASSERT(result_default);
   auto created_default_result =
       Language::Constants::Result::select(*result_default);
@@ -616,8 +619,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   Allocator::Arena default_domain;
   const auto& session_type =
       static_cast<const Language::Model::Type&>(*session);
-  auto first_default = session_type.create_default(default_domain);
-  auto second_default = session_type.create_default(default_domain);
+  auto first_default =
+      Language::Model::initialize_default(session_type, default_domain);
+  auto second_default =
+      Language::Model::initialize_default(session_type, default_domain);
   ASSERT(first_default && second_default);
   EXPECT(&*first_default != &*second_default);
   auto first_initializer =

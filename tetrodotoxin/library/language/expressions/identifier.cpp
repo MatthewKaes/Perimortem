@@ -7,9 +7,9 @@
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/flow/block.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -22,8 +22,8 @@ static auto resolve_alias(const Abstract& binding) -> const Abstract& {
         return import.resolve();
       },
       [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
+        return candidate.visit<Tetrodotoxin::Language::Binding>(
+            [](const Tetrodotoxin::Language::Binding& alias) -> const Abstract& {
               return alias.resolve();
             },
             [](const Abstract& direct) -> const Abstract& { return direct; });
@@ -98,25 +98,26 @@ auto Language::Expressions::Identifier::get_documentation() const
 }
 
 auto Language::Expressions::Identifier::get_type() const -> const Abstract& {
-  return result.visit(
-      []() -> const Abstract& { return Unknown::get_unknown(); },
-      [&](const Abstract* selected) -> const Abstract& {
-        const Abstract& direct = *selected;
-        auto pack = Language::Model::Pack::from(direct);
-        if (pack) {
-          return pack->get_type();
-        }
-        return direct.visit<Language::Model::Type>(
-            [](const Language::Model::Type&) -> const Abstract& {
-              return Unknown::get_unknown();
+  // A malformed postfix may keep this Identifier outside the normal body
+  // completion pass. Its authored Block can still requery the declaration
+  // visible at this Token, which preserves editor observations without caching
+  // a source answer or forcing unrelated completion phases to run.
+  const Abstract& direct = result ? **result : resolve_authored();
+  auto pack = Language::Model::Pack::from(direct);
+  if (pack) {
+    return pack->get_type();
+  }
+  return direct.visit<Language::Model::Type>(
+      [](const Language::Model::Type&) -> const Abstract& {
+        return Unknown::get_unknown();
+      },
+      [](const Abstract& addressable) -> const Abstract& {
+        return addressable.visit<Ttx::Model::Addressable>(
+            [](const Ttx::Model::Addressable& selected) -> const Abstract& {
+              return selected.get_domain();
             },
-            [](const Abstract& addressable) -> const Abstract& {
-              return addressable.visit<Ttx::Model::Addressable>(
-                  [](const Ttx::Model::Addressable& selected)
-                      -> const Abstract& { return selected.get_type(); },
-                  [](const Abstract&) -> const Abstract& {
-                    return Unknown::get_unknown();
-                  });
+            [](const Abstract&) -> const Abstract& {
+              return Unknown::get_unknown();
             });
       });
 }
@@ -129,11 +130,19 @@ auto Language::Expressions::Identifier::get_result() const -> const Abstract& {
 
 auto Language::Expressions::Identifier::resolve_concept(
     Core::View::Bytes query) const -> const Abstract& {
-  if (query != "fold"_view) {
-    return Expression::resolve_concept(query);
+  if (query == "fold"_view) {
+    const Abstract& selected = get_result();
+    return selected.is<Unknown>() ? selected : selected.resolve_concept(query);
   }
-  const Abstract& selected = get_result();
-  return selected.is<Unknown>() ? selected : selected.resolve_concept(query);
+  const Abstract& inherited = Expression::resolve_concept(query);
+  if (!inherited.is<Unknown>()) {
+    return inherited;
+  }
+
+  const Abstract& authored = resolve_authored();
+  return authored.is<Unknown>() || authored.is<None>()
+             ? authored
+             : authored.resolve_concept(query);
 }
 
 auto Language::Expressions::Identifier::visit_concepts(

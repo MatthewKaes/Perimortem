@@ -6,7 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Generics {
 
@@ -31,11 +31,11 @@ class Object : public Generic {
 
  private:
   auto create(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Core::Option<const Model::Type&> override;
+      -> Creation override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
       parameterization = {{Parameters::Type}};
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Creates an empty-capable managed buffer Type."_view,
   };
 };

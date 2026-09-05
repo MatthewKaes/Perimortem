@@ -32,7 +32,7 @@
 #include "tetrodotoxin/terminal/llvm/module/carriers.hpp"
 #include "tetrodotoxin/terminal/llvm/module/functions.hpp"
 #include "tetrodotoxin/terminal/llvm/module/program.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Terminal;
@@ -44,9 +44,9 @@ static auto llvm_text(Core::View::Bytes value) -> llvm::StringRef {
 }
 
 static auto select_type(const Ttx::Concept::Abstract& answer)
-    -> Core::Option<const Ttx::Model::Type&> {
-  auto direct = answer.select<Ttx::Model::Type>();
-  return direct ? direct : answer.resolve().select<Ttx::Model::Type>();
+    -> Core::Option<const Ttx::Model::Domain&> {
+  auto direct = answer.select<Ttx::Model::Domain>();
+  return direct ? direct : answer.resolve().select<Ttx::Model::Domain>();
 }
 
 static auto select_program(Llvm::Module::Emission& program)
@@ -166,7 +166,7 @@ static auto count_c_registers(llvm::Type& type, Count& integers, Count& sse)
 
 static auto get_extension(
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& type) -> Core::Option<llvm::Attribute::AttrKind> {
+    const Ttx::Model::Domain& type) -> Core::Option<llvm::Attribute::AttrKind> {
   auto native = carriers.get_type(type);
   if (!native) {
     return {};
@@ -186,7 +186,7 @@ static auto select_parameter_types(
     const Llvm::Module::Carriers& carriers,
     const Ttx::Model::Callable& callable,
     Memory::Dynamic::Vector<llvm::Type*>& native,
-    Memory::Dynamic::Vector<const Ttx::Model::Type*>& semantic) -> Bool {
+    Memory::Dynamic::Vector<const Ttx::Model::Domain*>& semantic) -> Bool {
   const Ttx::Concept::Layout& layout = callable.get_parameters();
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
@@ -198,7 +198,7 @@ static auto select_parameter_types(
           "LLVM received a Callable parameter without an Addressable."_view);
     }
 
-    auto semantic_type = select_type(parameter->get_type());
+    auto semantic_type = select_type(parameter->get_domain());
     auto type = semantic_type ? carriers.get_type(*semantic_type)
                               : Core::Option<LLVMTypeRef>();
     if (!semantic_type || !type) {
@@ -219,7 +219,7 @@ static auto select_result_types(
     const Llvm::Module::Carriers& carriers,
     const Ttx::Model::Callable& callable,
     Memory::Dynamic::Vector<llvm::Type*>& native,
-    Memory::Dynamic::Vector<const Ttx::Model::Type*>& semantic) -> Bool {
+    Memory::Dynamic::Vector<const Ttx::Model::Domain*>& semantic) -> Bool {
   const Ttx::Concept::Layout& layout = callable.get_results();
   auto library_callable =
       callable.select<Tetrodotoxin::Library::Language::Model::Callable>();
@@ -231,9 +231,9 @@ static auto select_result_types(
     auto entry = layout.get_abstract(index);
     auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
                              : Core::Option<const Ttx::Model::Addressable&>();
-    auto type = addressable ? select_type(addressable->get_type())
+    auto type = addressable ? select_type(addressable->get_domain())
                 : entry     ? select_type(*entry)
-                            : Core::Option<const Ttx::Model::Type&>();
+                            : Core::Option<const Ttx::Model::Domain&>();
     if (!type || !target) {
       return fail_toolchain(
           program,
@@ -341,7 +341,7 @@ auto Llvm::Module::Functions::reserve_foreign(
 
 auto Llvm::Module::Functions::reserve_construction(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& owner,
+    const Ttx::Model::Domain& owner,
     Bool provider,
     Core::View::Vector<const Ttx::Model::Addressable*> parameters) const
     -> Bool {
@@ -392,7 +392,7 @@ auto Llvm::Module::Functions::reserve_construction(
 
 auto Llvm::Module::Functions::complete_construction(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& owner) const -> Bool {
+    const Ttx::Model::Domain& owner) const -> Bool {
   auto target = select_program(program);
   auto carriers = select_carriers(program);
   auto found = constructions.find(&owner);
@@ -425,7 +425,7 @@ auto Llvm::Module::Functions::complete_construction(
 
   record.indirect_parameters.clear();
   for (const Ttx::Model::Addressable* retained : record.parameters.get_view()) {
-    auto type = select_type(retained->get_type());
+    auto type = select_type(retained->get_domain());
     auto native =
         type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
     if (!type || !native) {
@@ -474,7 +474,7 @@ auto Llvm::Module::Functions::complete_construction(
                module.getDataLayout().getABITypeAlign(llvm::unwrap(*result))));
   }
   for (Count index = 0; index < record.parameters.get_size(); index++) {
-    auto type = select_type(record.parameters[index]->get_type());
+    auto type = select_type(record.parameters[index]->get_domain());
     auto native =
         type ? carriers->get_type(*type) : Core::Option<LLVMTypeRef>();
     BAIL_IF(!type || !native);
@@ -510,7 +510,7 @@ static auto lower_construction_value(
     Llvm::Module::Body& body,
     const Llvm::Lowering::Execution& execution,
     const Llvm::Module::Carriers& carriers,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Tetrodotoxin::Library::Language::Model::Pack& value)
     -> Core::Option<LLVMValueRef> {
   BAIL_IF(!execution.lower(value));
@@ -521,7 +521,7 @@ static auto lower_construction_value(
 
 auto Llvm::Module::Functions::lower_construction(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& owner,
+    const Ttx::Model::Domain& owner,
     Core::View::Vector<ConstructionField> fields) const -> Bool {
   auto target = select_program(program);
   auto found = constructions.find(&owner);
@@ -548,7 +548,7 @@ auto Llvm::Module::Functions::lower_construction(
   }
 
   // A Field fallback can prepare construction for another Type and grow this
-  // map. Copy the completed signature facts before lowering begins so nested
+  // map. Copy the completed signature entries before lowering begins so nested
   // construction cannot invalidate the active record.
   LLVMValueRef retained_function = *record.function;
   Core::Option<LLVMTypeRef> retained_sret_type = record.sret_type;
@@ -580,7 +580,7 @@ auto Llvm::Module::Functions::lower_construction(
   Count parameter_index = 0;
   for (const ConstructionField& input : fields) {
     const Ttx::Model::Addressable& field = input.get_field();
-    auto field_type = select_type(field.get_type());
+    auto field_type = select_type(field.get_domain());
     BAIL_IF(!field_type);
 
     Core::Option<LLVMValueRef> supplied;
@@ -696,7 +696,7 @@ static auto select_construction_argument(
 auto Llvm::Module::Functions::call_construction(
     Llvm::Module::Emission& body,
     const Library::Language::Model::Pack& result,
-    const Ttx::Model::Type& owner,
+    const Ttx::Model::Domain& owner,
     const Library::Language::Model::Pack& arguments) const -> Bool {
   auto native_body = select_body(body);
   auto found = constructions.find(&owner);
@@ -725,7 +725,7 @@ auto Llvm::Module::Functions::call_construction(
 
   for (Count index = 0; index < retained_parameters.get_size(); index++) {
     const Ttx::Model::Addressable& field = *retained_parameters[index];
-    auto field_type = select_type(field.get_type());
+    auto field_type = select_type(field.get_domain());
     BAIL_IF(!field_type);
     auto selected = select_construction_argument(arguments, field.get_name());
     Core::Option<LLVMValueRef> native;
@@ -843,9 +843,9 @@ auto Llvm::Module::Functions::complete(
   }
 
   Memory::Dynamic::Vector<llvm::Type*> parameter_types;
-  Memory::Dynamic::Vector<const Ttx::Model::Type*> semantic_parameters;
+  Memory::Dynamic::Vector<const Ttx::Model::Domain*> semantic_parameters;
   Memory::Dynamic::Vector<llvm::Type*> result_types;
-  Memory::Dynamic::Vector<const Ttx::Model::Type*> semantic_results;
+  Memory::Dynamic::Vector<const Ttx::Model::Domain*> semantic_results;
   if (!select_parameter_types(
           program, *carriers, callable, parameter_types, semantic_parameters)) {
     return False;

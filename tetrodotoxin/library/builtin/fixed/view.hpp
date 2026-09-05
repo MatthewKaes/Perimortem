@@ -4,11 +4,11 @@
 #pragma once
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/model/invocation.h"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/layouts/addressable.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "tetrodotoxin/library/language/model/invocation.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/addressable.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Builtin::Fixed {
 
@@ -17,7 +17,6 @@ class View : public Language::Model::Callable {
  public:
   static constexpr Perimortem::Core::View::Bytes name = "get_view"_view;
 
-  TTX_CONTRACT(View, Language::Model::Callable);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -36,8 +35,14 @@ class View : public Language::Model::Callable {
     return results;
   }
 
-  auto negotiate_interface(const ttx_abstract* requirement) const
-      -> ttx_interface override;
+ protected:
+  auto negotiate(ttx_abstract requirement) const
+      -> ttx_interface_relation override;
+  void invoke(
+      ttx_abstract operation,
+      ttx_pack input,
+      ttx_context context,
+      ttx_pack_result result) const override;
 
  private:
   constexpr View(
@@ -49,10 +54,6 @@ class View : public Language::Model::Callable {
         results(result, 1),
         result_type(result) {}
 
-  static auto invoke_abi(
-      const ttx_abstract* callable,
-      const ttx_pack* receiver,
-      const ttx_pack* arguments) -> const ttx_pack*;
   auto invoke(
       Perimortem::Core::Option<const Language::Model::Pack&> receiver,
       const Language::Model::Pack& arguments) const
@@ -62,9 +63,7 @@ class View : public Language::Model::Callable {
   Ttx::Model::Layouts::Ranged parameters;
   Ttx::Model::Layouts::Ranged results;
   const Language::Model::Type& result_type;
-  static const ttx_library_invocation_operations invocation_operations;
-
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Borrows a read only View over every element of this Fixed value."_view,
   };
 };

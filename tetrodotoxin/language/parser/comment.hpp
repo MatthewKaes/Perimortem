@@ -5,7 +5,7 @@
 
 #include "perimortem/core/option.hpp"
 
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Language::Parser {

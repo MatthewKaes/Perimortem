@@ -4,8 +4,9 @@
 #include "tetrodotoxin/library/language/flow/range_loop.hpp"
 
 #include "tetrodotoxin/library/language/expression.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/iteration.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -117,11 +118,12 @@ auto Language::Flow::RangeLoop::link(
       cursor.get_associations().create(
           Anchor::create(Span(source.name_token)), *binding);
     }
-    binding_layout = Ttx::Model::Layouts::Named(binding_entries.get_view());
+    binding_layout = &domain.construct<Ttx::Model::Layouts::Named>(
+        domain, binding_entries.get_view());
   } else {
     BAIL_IF(bindings.get_size() != selected_types.get_size());
     for (Count index = 0; index < bindings.get_size(); index++) {
-      BAIL_IF(&bindings[index]->get_type() != selected_types[index]);
+      BAIL_IF(&bindings[index]->get_domain() != selected_types[index]);
     }
   }
 
@@ -141,7 +143,11 @@ auto Language::Flow::RangeLoop::link(
     }
   }
 
-  if (!selected_input || !selected_input->accepts_iteration(*binding_layout)) {
+  auto iteration = selected_input
+                       ? selected_input->resolve_concept("iteration"_view)
+                             .select<Model::Iteration>()
+                       : Option<const Model::Iteration&>();
+  if (!iteration || !iteration->accepts_binding(**binding_layout)) {
     cursor.create_expression_error(
         anchor,
         "For loop input cannot produce the authored binding Layout."_view,

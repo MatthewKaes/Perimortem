@@ -8,9 +8,24 @@
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library::Language;
 
-auto Types::Result::create_default(Memory::Allocator::Arena& arena) const
+auto Types::Result::resolve_concept(Core::View::Bytes route) const
+    -> const Ttx::Concept::Abstract& {
+  return route == "propagation"_view      ? propagation
+         : route == "admission"_view      ? admission
+         : route == "initialization"_view ? initialization
+                                          : Model::Type::resolve_concept(route);
+}
+
+void Types::Result::visit_concepts(ttx_named_abstract_callable* visitor) const {
+  Model::Type::visit_concepts(visitor);
+  visit_concept(visitor, "propagation"_view, propagation);
+  visit_concept(visitor, "admission"_view, admission);
+  visit_concept(visitor, "initialization"_view, initialization);
+}
+
+auto Types::Result::initialize_default(Memory::Allocator::Arena& arena) const
     -> Core::Option<Model::Pack&> {
-  auto selected = value.create_default(arena);
+  auto selected = Model::initialize_default(value, arena);
   BAIL_IF(!selected);
   auto created = Constants::Result::create_value(arena, *this, *selected);
   return created ? Core::Option<Model::Pack&>(*created)
@@ -27,7 +42,7 @@ auto Types::Result::accepts(const Model::Pack& source) const -> Bool {
   return accepts_value != accepts_error;
 }
 
-auto Types::Result::create_fitted(
+auto Types::Result::create_admitted(
     Memory::Allocator::Arena& arena,
     Model::Pack& source) const -> Core::Option<Model::Pack&> {
   auto fitted = Constants::Result::create_fitted(arena, *this, source);

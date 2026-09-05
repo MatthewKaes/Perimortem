@@ -7,8 +7,8 @@
 #include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "tetrodotoxin/library/language/types/option.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -19,7 +19,6 @@ using namespace Tetrodotoxin::Library;
 
 class Payload final : public Language::Model::Addressable {
  public:
-  TTX_CONTRACT(Payload, Language::Model::Addressable);
 
   constexpr Payload(View::Bytes name) : name(name) {}
 
@@ -50,7 +49,6 @@ class Payload final : public Language::Model::Addressable {
 
 class PatternContext final : public Abstract {
  public:
-  TTX_CONTRACT(PatternContext, Abstract);
 
   constexpr PatternContext(const Abstract& parent, Payload& payload)
       : parent(parent), payload(payload) {}

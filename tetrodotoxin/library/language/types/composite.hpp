@@ -11,24 +11,25 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/language/model/completion.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/types/instance.hpp"
 #include "tetrodotoxin/library/language/types/static.hpp"
-#include "ttx/bootstrap/model/layouts/named.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/reference/model/layouts/named.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Composite owns the member inventories, lookup categories, instance Layout,
 // and completion lifecycle shared by Source, Structure, and Object. Each
 // concrete Type supplies its own presentation and authored semantics.
-class Composite : public Model::Type {
+class Composite : public Model::Type, public Model::Completion {
  public:
-  // Category names the three independent declaration spaces owned by a
-  // Composite. It is transaction input, not a property recovered from an
-  // Alias. Forward parsing or an imported provider already proves the space,
-  // so an opaque name can enter it before its target graph completes.
+  // Category carries the declaration space already selected by parsing or an
+  // imported provider. Passing that decision into Composite lets an opaque
+  // name enter the correct namespace before its target settles, without asking
+  // an Alias to reveal or rediscover the category later.
   enum class Category : ::U8 {
     Addressable,
     Callable,
@@ -78,7 +79,6 @@ class Composite : public Model::Type {
   auto validate_aliases(Ttx::Lexical::Cursor& cursor) const -> Bool override;
 
  public:
-  TTX_CONTRACT(Composite, Model::Type);
 
   Composite(const Composite&) = delete;
   Composite(Composite&&) = delete;
@@ -92,14 +92,28 @@ class Composite : public Model::Type {
       Ttx::Concept::Abstract& binding,
       Tetrodotoxin::Language::Definition& definition,
       Category category,
-      Ttx::Lexical::Cursor& cursor) -> Bool;
+      Ttx::Lexical::Cursor& cursor,
+      Model::Completion* completion = nullptr) -> Bool;
 
   // A producer that has already validated category and visibility can retain
   // the same semantic identity without borrowing source interpretation.
   auto retain_definition(
       Ttx::Concept::Abstract& binding,
       Category category,
-      Bool published) -> Bool;
+      Bool published,
+      Model::Completion* completion = nullptr) -> Bool;
+
+  template <typename Binding>
+  auto retain_definition(Binding& binding, Category category, Bool published)
+      -> Bool {
+    Model::Completion* completion = nullptr;
+    if constexpr (__is_base_of(Model::Completion, Binding)) {
+      completion = &binding;
+    }
+    return retain_definition(
+        static_cast<Ttx::Concept::Abstract&>(binding), category, published,
+        completion);
+  }
 
   virtual auto complete_body() -> void { complete_field_layout(); }
 
@@ -122,13 +136,6 @@ class Composite : public Model::Type {
 
   TTX_NAME(definition.get_name());
   TTX_DOCUMENTATION(definition.get_documentation());
-
-  // A caller carries private authority only through its exact Definition host
-  // chain. The chain authenticates access without becoming a semantic parent
-  // route or supplying an implicit receiver.
-  auto has_private_access_to(const Model::Type& owner) const -> Bool override;
-
-  auto is_externally_reachable(const Model::Type& type) const -> Bool override;
 
   // Declaration Types settle recursively before any Composite in the same
   // closure may complete Field Type edges.
@@ -220,6 +227,29 @@ class Composite : public Model::Type {
   }
 
  private:
+  struct CompletionBinding {
+    Ttx::Concept::Abstract* semantic;
+    Model::Completion* owner;
+  };
+
+  class ScopeVisibility final : public Model::Visibility {
+   public:
+    constexpr explicit ScopeVisibility(const Composite& owner) : owner(owner) {}
+
+    auto grants_private_access_to(const Ttx::Concept::Abstract& candidate) const
+        -> Bool override;
+    auto exposes(const Ttx::Concept::Abstract& candidate) const
+        -> Bool override;
+
+   private:
+    const Composite& owner;
+  };
+
+  auto retain_completion(
+      Ttx::Concept::Abstract& semantic,
+      Category category,
+      Model::Completion* completion) -> void;
+
   enum class Stage : ::U8 {
     Authored,
     TypesLinked,
@@ -240,6 +270,12 @@ class Composite : public Model::Type {
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> types;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> published_types;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Abstract*> declarations;
+  // The enclosing Composite owns source convergence and records only nested
+  // declarations that supplied real phase work when they were constructed.
+  // Keeping this private inventory beside the source transaction prevents
+  // phase operations from becoming part of every Type's semantic surface.
+  Perimortem::Memory::Managed::Vector<CompletionBinding> completions;
+  ScopeVisibility scope_visibility;
   Perimortem::Core::Option<const Ttx::Model::Layouts::Named&> layout;
   Stage stage = Stage::Authored;
 };

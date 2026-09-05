@@ -7,7 +7,9 @@
 
 namespace Puffer {
 
-// Command retains one native invocation and selects its single requested mode.
+// Command recognizes only the transport-level split between one source and one
+// LSP pipe. Once a source is selected, every remaining byte belongs to that
+// source's Dialect and enters the immutable Puffer invocation unchanged.
 class Command {
  public:
   constexpr Command(S32 argument_count, char** argument_values)

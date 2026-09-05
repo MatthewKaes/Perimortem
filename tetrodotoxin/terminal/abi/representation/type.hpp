@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/reference/concept/layout.hpp"
 
 namespace Tetrodotoxin::Terminal::Abi::Representation {
 
@@ -31,37 +31,37 @@ class Type {
     Context,
   };
 
-  static auto get_kind(const Ttx::Model::Type& type)
+  static auto get_kind(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<Kind>;
 
-  static auto get_width(const Ttx::Model::Type& type)
+  static auto get_width(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<Count>;
 
-  static auto get_element(const Ttx::Model::Type& type)
+  static auto get_element(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Library::Language::Model::Type&>;
 
-  static auto get_flag(const Ttx::Model::Type& type)
+  static auto get_flag(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Library::Language::Model::Type&>;
 
-  static auto get_error(const Ttx::Model::Type& type)
+  static auto get_error(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<
           const Tetrodotoxin::Library::Language::Model::Type&>;
 
-  static auto get_extent(const Ttx::Model::Type& type)
+  static auto get_extent(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<Count>;
 
-  static auto get_fields(const Ttx::Model::Type& type)
+  static auto get_fields(const Ttx::Model::Domain& type)
       -> Perimortem::Core::Option<const Ttx::Concept::Layout&>;
 
-  static auto is_real(const Ttx::Model::Type& type) -> Bool;
+  static auto is_real(const Ttx::Model::Domain& type) -> Bool;
 
-  static auto is_signed(const Ttx::Model::Type& type) -> Bool;
+  static auto is_signed(const Ttx::Model::Domain& type) -> Bool;
 
-  static auto is_flag(const Ttx::Model::Type& type) -> Bool;
+  static auto is_flag(const Ttx::Model::Domain& type) -> Bool;
 
-  static auto is_object(const Ttx::Model::Type& type) -> Bool;
+  static auto is_object(const Ttx::Model::Domain& type) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Abi::Representation

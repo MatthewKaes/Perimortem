@@ -3,9 +3,10 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -14,7 +15,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // identity.
 class ObjectStorage : public Model::Type {
  public:
-  TTX_CONTRACT(ObjectStorage, Model::Type);
 
   ObjectStorage(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -28,8 +28,12 @@ class ObjectStorage : public Model::Type {
   TTX_NAME(name);
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
+      -> Perimortem::Core::Option<Model::Pack&>;
+
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+  void visit_concepts(ttx_named_abstract_callable* visitor) const override;
 
   constexpr auto get_element_type() const -> const Model::Type& {
     return element;
@@ -38,7 +42,8 @@ class ObjectStorage : public Model::Type {
  private:
   Perimortem::Core::View::Bytes name;
   const Model::Type& element;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  Model::OwnedInitialization<ObjectStorage> initialization;
+  static constexpr Ttx::Documentations::Comment documentation{
     "Owns an empty-capable managed buffer of one exact element Type."_view,
   };
 };

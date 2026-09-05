@@ -6,8 +6,8 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/reference/concept/layout.hpp"
 
 namespace Tetrodotoxin::Library::Language::Flow {
 
@@ -17,7 +17,6 @@ namespace Tetrodotoxin::Library::Language::Flow {
 // and prevents an embedded expression from requiring a concrete Block.
 class Scope : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Scope, Ttx::Concept::Abstract);
 
   virtual constexpr auto get_access_scope() const -> const Model::Type& = 0;
 

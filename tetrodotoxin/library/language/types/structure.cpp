@@ -36,10 +36,24 @@ auto Types::Structure::complete_body() -> void {
 
 auto Types::Structure::resolve_concept(View::Bytes route) const
     -> const Ttx::Concept::Abstract& {
-  return Composite::resolve_concept(route);
+  if (!supports_initialization()) {
+    return Composite::resolve_concept(route);
+  }
+  return route == "admission"_view        ? admission
+         : route == "initialization"_view ? initialization
+                                          : Composite::resolve_concept(route);
 }
 
-auto Types::Structure::create_default(Allocator::Arena& arena) const
+void Types::Structure::visit_concepts(
+    ttx_named_abstract_callable* visitor) const {
+  Composite::visit_concepts(visitor);
+  if (supports_initialization()) {
+    visit_concept(visitor, "admission"_view, admission);
+    visit_concept(visitor, "initialization"_view, initialization);
+  }
+}
+
+auto Types::Structure::initialize_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   BAIL_IF(get_layout().is_empty());
 
@@ -76,12 +90,12 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
       auto initializer = field->get_initializer();
       if (initializer) {
         Model::Pack& source = const_cast<Model::Pack&>(*initializer);
-        auto fitted = type->create_fitted(arena, source);
+        auto fitted = Model::admit(*type, arena, source);
         values.insert(fitted ? &*fitted : &source);
         continue;
       }
 
-      auto value = type->create_default(arena);
+      auto value = Model::initialize_default(*type, arena);
       BAIL_IF(!value);
       values.insert(&*value);
     }
@@ -93,9 +107,32 @@ auto Types::Structure::create_default(Allocator::Arena& arena) const
   return result;
 }
 
-auto Types::Structure::create_fitted(
+auto Types::Structure::initialize_supplied(
+    Ttx::Lexical::Cursor& cursor,
+    Model::Pack&,
+    Option<const Ttx::Concept::Abstract&>,
+    Option<Ttx::Lexical::Anchor> anchor) const -> Option<Model::Pack&> {
+  cursor.create_expression_error(
+      anchor,
+      "Selected Structure does not accept supplied initializer values."_view,
+      "Omit the argument list to request its default initialization."_view);
+  return {};
+}
+
+auto Types::Structure::initialize_supplied_restored(
+    Allocator::Arena&,
+    Model::Pack&,
+    Option<const Ttx::Concept::Abstract&>) const -> Option<Model::Pack&> {
+  return {};
+}
+
+auto Types::Structure::accepts(const Model::Pack& source) const -> Bool {
+  return supports_initialization() && source.fits(*this);
+}
+
+auto Types::Structure::create_admitted(
     Allocator::Arena& arena,
     Model::Pack& source) const -> Option<Model::Pack&> {
-  BAIL_IF(!source.fits(*this));
+  BAIL_IF(!accepts(source));
   return Expressions::Initializer::create_provider(arena, *this, source);
 }

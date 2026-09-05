@@ -8,18 +8,12 @@
 
 #include "cross_language/bridge.h"
 
-static uint64_t C_SUPPORT_AUTHORITY;
-static uint64_t C_CALLBACK_AUTHORITY;
-
 #define ABI_HEADER(type)            \
   {                                 \
     .size = (uint32_t)sizeof(type), \
     .abi_major = TTX_ABI_MAJOR,     \
     .abi_minor = TTX_ABI_MINOR,     \
   }
-
-#define OWNER_FROM_OPERATIONS(pointer, type, member) \
-  ((type*)((uint8_t*)(pointer) - offsetof(type, member)))
 
 struct enumerable_capture {
   ttx_enumerable_result_ops operations;
@@ -55,13 +49,6 @@ struct consume_frame {
 
 static const ttx_test_bytes_terminal_ops bytes_terminal_operations;
 
-struct provider_projection {
-  ttx_test_bytes_sink_ops operations;
-  ttx_test_bytes_sink result;
-  uint8_t answered;
-  uint8_t projected;
-};
-
 struct empty_discovery_state {
   ttx_concept_sink_ops operations;
   ttx_abstract requirement;
@@ -70,30 +57,9 @@ struct empty_discovery_state {
   ttx_test_discovery result;
 };
 
-static ttx_test_bytes_terminal* bytes_providers;
-static uint64_t bytes_provider_count;
-
-static void* grow(void* data, uint64_t count, size_t element_size) {
-  if (count > SIZE_MAX / element_size) {
-    return 0;
-  }
-  return realloc(data, (size_t)count * element_size);
-}
-
-static void ensure_authorities(void) {
-  if (C_SUPPORT_AUTHORITY == 0) {
-    C_SUPPORT_AUTHORITY = ttx_authority_create();
-    C_CALLBACK_AUTHORITY = ttx_authority_create();
-  }
-}
-
 static struct enumerable_capture* enumerable_capture(
     ttx_enumerable_result self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return OWNER_FROM_OPERATIONS(
-      self.operations, struct enumerable_capture, operations);
+  return (struct enumerable_capture*)self.self;
 }
 
 static void TTX_CALL enumerable_rejected(ttx_enumerable_result self) {
@@ -126,8 +92,7 @@ static uint8_t query_enumerable(ttx_layout layout, ttx_enumerable* enumerable) {
   };
   const ttx_enumerable_result result = {
     .operations = &capture.operations,
-    .owner = C_CALLBACK_AUTHORITY,
-    .value = 1,
+    .self = (ttx_enumerable_result_self*)&capture,
   };
   if (layout.operations == 0) {
     return 0;
@@ -141,10 +106,7 @@ static uint8_t query_enumerable(ttx_layout layout, ttx_enumerable* enumerable) {
 }
 
 static struct first_frame* first_frame(ttx_layout_entry_sink self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return OWNER_FROM_OPERATIONS(self.operations, struct first_frame, operations);
+  return (struct first_frame*)self.self;
 }
 
 static void TTX_CALL first_entry(
@@ -168,78 +130,113 @@ static void TTX_CALL first_completed(ttx_layout_entry_sink self) {
   }
 }
 
-static struct provider_projection* provider_projection(
-    ttx_test_bytes_sink self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return OWNER_FROM_OPERATIONS(
-      self.operations, struct provider_projection, operations);
-}
+struct bytes_projection {
+  ttx_test_bytes_sink result;
+  ttx_abstract producer;
+  ttx_abstract requirement;
+  uint8_t* bytes;
+  uint64_t size;
+  uint64_t expected;
+  uint8_t complete;
+  uint8_t valid;
+};
 
-static void TTX_CALL provider_rejected(ttx_test_bytes_sink self) {
-  struct provider_projection* projection = provider_projection(self);
-  if (projection != 0) {
-    projection->answered = 1;
+static void copy_bytes(ttx_bytes_sink self, ttx_borrowed_bytes bytes) {
+  struct bytes_projection* p = (struct bytes_projection*)self.self;
+  if (p->complete || bytes.size > p->expected - p->size ||
+      (bytes.size && !bytes.data)) {
+    p->valid = 0;
+    return;
   }
-}
-
-static void TTX_CALL
-    provider_projected(ttx_test_bytes_sink self, ttx_borrowed_bytes value) {
-  struct provider_projection* projection = provider_projection(self);
-  if (projection != 0) {
-    projection->answered = 1;
-    projection->projected = 1;
-    projection->result.operations->projected(projection->result, value);
+  if (bytes.size) {
+    memcpy(p->bytes + p->size, bytes.data, (size_t)bytes.size);
   }
+  p->size += bytes.size;
 }
-
-static void TTX_CALL bytes_terminal_project(
+static void bytes_complete(ttx_bytes_sink self) {
+  struct bytes_projection* p = (struct bytes_projection*)self.self;
+  if (p->complete) {
+    p->valid = 0;
+  }
+  p->complete = 1;
+}
+static void no_bytes(ttx_bytes_result self) {
+  (void)self;
+}
+static void project_bytes(ttx_bytes_result self, ttx_bytes bytes) {
+  struct bytes_projection* p = (struct bytes_projection*)self.self;
+  if (!ttx_abstract_same(bytes.operations->candidate(bytes), p->producer)) {
+    return;
+  }
+  p->expected = bytes.operations->size(bytes);
+  if (p->expected > SIZE_MAX) {
+    return;
+  }
+  p->bytes = malloc((size_t)p->expected + (p->expected == 0));
+  if (!p->bytes) {
+    return;
+  }
+  const ttx_bytes_sink_ops ops = {
+    .header = ABI_HEADER(ttx_bytes_sink_ops),
+    .bytes = copy_bytes,
+    .completed = bytes_complete};
+  bytes.operations->visit(
+      bytes,
+      (ttx_bytes_sink){.operations = &ops, .self = (ttx_bytes_sink_self*)p});
+}
+static void bytes_proof(ttx_interface_sink self, ttx_interface witness) {
+  struct bytes_projection* p = (struct bytes_projection*)self.self;
+  const ttx_interface_relation relation =
+      witness->operations->negotiate(witness);
+  if (!ttx_abstract_same(
+          witness->operations->candidate(witness), p->producer) ||
+      !ttx_abstract_same(
+          witness->operations->requirement(witness), p->requirement) ||
+      (relation != TTX_INTERFACE_SATISFIED &&
+       relation != TTX_INTERFACE_EQUIVALENT)) {
+    return;
+  }
+  const ttx_bytes_result_ops ops = {
+    .header = ABI_HEADER(ttx_bytes_result_ops),
+    .unknown = no_bytes,
+    .none = no_bytes,
+    .resolved = project_bytes};
+  p->producer->operations->resolve_bytes(
+      p->producer, (ttx_bytes_result){
+                     .operations = &ops, .self = (ttx_bytes_result_self*)p});
+}
+static void bytes_terminal_project(
     ttx_test_bytes_terminal self,
     ttx_abstract producer,
     ttx_abstract requirement,
     ttx_test_bytes_sink result) {
-  uint64_t index;
   (void)self;
-  for (index = 0; index < bytes_provider_count; ++index) {
-    struct provider_projection projection = {
-      .operations =
-          {
-            .header = ABI_HEADER(ttx_test_bytes_sink_ops),
-            .rejected = provider_rejected,
-            .projected = provider_projected,
-          },
-      .result = result,
-    };
-    const ttx_test_bytes_sink callback = {
-      .operations = &projection.operations,
-      .owner = C_CALLBACK_AUTHORITY,
-      .value = 1,
-    };
-    bytes_providers[index].operations->project(
-        bytes_providers[index], producer, requirement, callback);
-    if (projection.answered && projection.projected) {
-      return;
-    }
+  struct bytes_projection p = {
+    .result = result,
+    .producer = producer,
+    .requirement = requirement,
+    .valid = 1};
+  const ttx_interface_sink_ops ops = {
+    .header = ABI_HEADER(ttx_interface_sink_ops), .answer = bytes_proof};
+  producer->operations->interface(
+      producer, requirement,
+      (ttx_interface_sink){
+        .operations = &ops, .self = (ttx_interface_sink_self*)&p});
+  if (p.valid && p.complete && p.size == p.expected) {
+    result.operations->projected(result, (ttx_borrowed_bytes){p.bytes, p.size});
+  } else {
+    result.operations->rejected(result);
   }
-  result.operations->rejected(result);
+  free(p.bytes);
 }
 
 static struct consume_frame* consume_frame_from_pack(ttx_pack_result self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return OWNER_FROM_OPERATIONS(
-      self.operations, struct consume_frame, pack_operations);
+  return (struct consume_frame*)self.self;
 }
 
 static struct consume_frame* consume_frame_from_interface(
     ttx_interface_sink self) {
-  if (self.operations == 0) {
-    return 0;
-  }
-  return OWNER_FROM_OPERATIONS(
-      self.operations, struct consume_frame, interface_operations);
+  return (struct consume_frame*)self.self;
 }
 
 static void TTX_CALL consume_pack_unknown(ttx_pack_result self) {
@@ -269,8 +266,7 @@ static void TTX_CALL consume_pack_support_failed(
 static ttx_pack_result consume_pack_result(struct consume_frame* frame) {
   const ttx_pack_result result = {
     .operations = &frame->pack_operations,
-    .owner = C_CALLBACK_AUTHORITY,
-    .value = 1,
+    .self = (ttx_pack_result_self*)frame,
   };
   return result;
 }
@@ -285,9 +281,8 @@ static void TTX_CALL consume_pack_packed(ttx_pack_result self, ttx_pack pack) {
     frame->input_pack = pack;
     frame->receipt.arguments = pack;
     interface_result.operations = &frame->interface_operations;
-    interface_result.owner = C_CALLBACK_AUTHORITY;
-    interface_result.value = 1;
-    frame->candidate.operations->interface(
+    interface_result.self = (ttx_interface_sink_self*)frame;
+    frame->candidate->operations->interface(
         frame->candidate, frame->requirement, interface_result);
     return;
   }
@@ -311,15 +306,15 @@ static void TTX_CALL
   struct consume_frame* frame = consume_frame_from_interface(self);
   if (frame == 0 ||
       !ttx_abstract_same(
-          interface.operations->requirement(interface), frame->requirement) ||
+          interface->operations->requirement(interface), frame->requirement) ||
       !ttx_abstract_same(
-          interface.operations->candidate(interface), frame->candidate)) {
+          interface->operations->candidate(interface), frame->candidate)) {
     if (frame != 0) {
       frame->receipt.outcome = TTX_TEST_CONSUMED_SUPPORT_FAILED;
     }
     return;
   }
-  frame->relation = interface.operations->negotiate(interface);
+  frame->relation = interface->operations->negotiate(interface);
   if (frame->relation == TTX_INTERFACE_UNKNOWN) {
     frame->receipt.outcome = TTX_TEST_CONSUMED_UNKNOWN;
     return;
@@ -329,7 +324,7 @@ static void TTX_CALL
     return;
   }
   frame->phase = CONSUME_INVOKE;
-  interface.operations->invoke(
+  interface->operations->invoke(
       interface, frame->operation, frame->input_pack, frame->context,
       consume_pack_result(frame));
 }
@@ -340,24 +335,12 @@ static const ttx_test_bytes_terminal_ops bytes_terminal_operations = {
 };
 
 ttx_test_bytes_terminal TTX_CALL ttx_test_create_bytes_terminal(void) {
-  ensure_authorities();
+  static uint8_t terminal;
   const ttx_test_bytes_terminal result = {
     .operations = &bytes_terminal_operations,
-    .owner = C_SUPPORT_AUTHORITY,
-    .value = 1,
+    .self = (ttx_test_bytes_terminal_self*)&terminal,
   };
   return result;
-}
-
-void TTX_CALL ttx_test_bytes_terminal_add(ttx_test_bytes_terminal provider) {
-  ttx_test_bytes_terminal* resized = grow(
-      bytes_providers, bytes_provider_count + 1,
-      sizeof(ttx_test_bytes_terminal));
-  if (resized == 0 || provider.operations == 0) {
-    return;
-  }
-  bytes_providers = resized;
-  bytes_providers[bytes_provider_count++] = provider;
 }
 
 static void initialize_consume_frame(
@@ -396,8 +379,8 @@ ttx_test_receipt TTX_CALL ttx_test_consume_pack(
   struct consume_frame frame;
   ttx_interface_sink interface_result;
   ttx_test_receipt receipt = {0};
-  if (candidate.operations == 0 || requirement.operations == 0 ||
-      operation.operations == 0 || input.operations == 0 ||
+  if (candidate->operations == 0 || requirement->operations == 0 ||
+      operation->operations == 0 || input.operations == 0 ||
       context.operations == 0 ||
       context.operations->header.abi_major != TTX_ABI_MAJOR ||
       context.operations->header.size < sizeof(ttx_context_ops)) {
@@ -409,9 +392,8 @@ ttx_test_receipt TTX_CALL ttx_test_consume_pack(
   frame.input_pack = input;
   frame.receipt.arguments = input;
   interface_result.operations = &frame.interface_operations;
-  interface_result.owner = C_CALLBACK_AUTHORITY;
-  interface_result.value = 1;
-  candidate.operations->interface(candidate, requirement, interface_result);
+  interface_result.self = (ttx_interface_sink_self*)&frame;
+  candidate->operations->interface(candidate, requirement, interface_result);
   return frame.receipt;
 }
 
@@ -423,8 +405,8 @@ ttx_test_receipt TTX_CALL ttx_test_consume_empty(
   struct consume_frame frame;
   ttx_pack_result result;
   ttx_test_receipt receipt = {0};
-  if (candidate.operations == 0 || requirement.operations == 0 ||
-      operation.operations == 0 || context.operations == 0 ||
+  if (candidate->operations == 0 || requirement->operations == 0 ||
+      operation->operations == 0 || context.operations == 0 ||
       context.operations->header.abi_major != TTX_ABI_MAJOR ||
       context.operations->header.size < sizeof(ttx_context_ops)) {
     receipt.outcome = TTX_TEST_CONSUMED_SUPPORT_FAILED;
@@ -441,8 +423,8 @@ static void TTX_CALL empty_discovery_item(
     ttx_concept_sink self,
     ttx_borrowed_bytes route,
     ttx_abstract candidate) {
-  struct empty_discovery_state* discovery = OWNER_FROM_OPERATIONS(
-      self.operations, struct empty_discovery_state, operations);
+  struct empty_discovery_state* discovery =
+      (struct empty_discovery_state*)self.self;
   const ttx_test_receipt receipt = ttx_test_consume_empty(
       candidate, discovery->requirement, discovery->operation,
       discovery->context);
@@ -489,10 +471,9 @@ ttx_test_discovery TTX_CALL ttx_test_discover_empty(
   };
   const ttx_concept_sink visitor = {
     .operations = &discovery.operations,
-    .owner = C_CALLBACK_AUTHORITY,
-    .value = 1,
+    .self = (ttx_concept_sink_self*)&discovery,
   };
-  root.operations->visit_concepts(root, visitor);
+  root->operations->visit_concepts(root, visitor);
   return discovery.result;
 }
 
@@ -520,8 +501,7 @@ ttx_abstract TTX_CALL ttx_test_pack_first(ttx_pack pack) {
   }
   const ttx_layout_entry_sink visitor = {
     .operations = &frame.operations,
-    .owner = C_CALLBACK_AUTHORITY,
-    .value = 1,
+    .self = (ttx_layout_entry_sink_self*)&frame,
   };
   enumerable.operations->visit(enumerable, visitor);
   if (!frame.completed ||
@@ -530,5 +510,3 @@ ttx_abstract TTX_CALL ttx_test_pack_first(ttx_pack pack) {
   }
   return frame.count == 0 ? ttx_none() : frame.first;
 }
-
-#undef OWNER_FROM_OPERATIONS

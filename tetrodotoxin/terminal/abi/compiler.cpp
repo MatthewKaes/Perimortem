@@ -13,6 +13,7 @@
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
 #include "tetrodotoxin/library/language/types/composite.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
@@ -20,8 +21,8 @@
 #include "tetrodotoxin/terminal/abi/cpp/header.hpp"
 #include "tetrodotoxin/terminal/abi/representation/type.hpp"
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library::Language;
@@ -74,8 +75,20 @@ class AbiGraphTraversal {
       Memory::Allocator::Arena& arena,
       Memory::Dynamic::Vector<AbiGraphNode>& nodes,
       Memory::Dynamic::Vector<Count>& pending)
-      : callable{&operations},
-        operations{.call = visit},
+      : operations{
+          .header =
+              {
+                .size = sizeof(ttx_concept_sink_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .item = visit,
+          .completed = completed,
+        },
+        sink{
+          .operations = &operations,
+          .self = reinterpret_cast<ttx_concept_sink_self*>(this),
+        },
         arena(arena),
         nodes(nodes),
         pending(pending) {}
@@ -110,26 +123,31 @@ class AbiGraphTraversal {
       Count depth) -> void {
     current_route = route;
     current_depth = depth;
-    ttx_abstract_visit_concepts(semantic.get_abi(), &callable);
+    const ttx_abstract identity = semantic.get_handle();
+    identity.operations->visit_concepts(identity, sink);
   }
 
  private:
   static auto visit(
-      ttx_named_abstract_callable* callable,
-      perimortem_bytes name,
-      const ttx_abstract* selected) -> void {
-    auto& self = *reinterpret_cast<AbiGraphTraversal*>(callable);
+      ttx_concept_sink sink,
+      ttx_borrowed_bytes name,
+      ttx_abstract selected) -> void {
+    auto& self = *reinterpret_cast<AbiGraphTraversal*>(sink.self);
     Core::View::Bytes concept_name(name.data, name.size);
     Bool authority =
         concept_name == "static"_view || concept_name == "instance"_view;
-    self.retain(
-        Ttx::Concept::Abstract::from_abi(selected),
-        append_route(self.arena, self.current_route, concept_name),
-        self.current_depth + (authority ? 0 : 1));
+    auto local = Ttx::Concept::Abstract::from_handle(selected);
+    if (local) {
+      self.retain(
+          *local, append_route(self.arena, self.current_route, concept_name),
+          self.current_depth + (authority ? 0 : 1));
+    }
   }
 
-  ttx_named_abstract_callable callable;
-  ttx_named_abstract_callable_operations operations;
+  static auto completed(ttx_concept_sink) -> void {}
+
+  ttx_concept_sink_ops operations;
+  ttx_concept_sink sink;
   Memory::Allocator::Arena& arena;
   Memory::Dynamic::Vector<AbiGraphNode>& nodes;
   Memory::Dynamic::Vector<Count>& pending;
@@ -326,7 +344,7 @@ static auto collect_type(
   auto structure = type.select<Types::Structure>();
   if (structure && unit.is_package_member() &&
       !structure->get_layout().is_empty() &&
-      structure->is_externally_reachable(*structure) &&
+      Model::is_externally_reachable(*structure, *structure) &&
       structure->has_initialization_provider() &&
       !contains_publication(publications.get_view(), *structure)) {
     Tetrodotoxin::Terminal::Abi::Symbol symbol(

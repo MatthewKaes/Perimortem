@@ -21,14 +21,14 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
-#include "tetrodotoxin/library/language/model/invocation.h"
+#include "tetrodotoxin/library/language/model/invocation.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -186,8 +186,7 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
 
   Count generated = 0;
   Option<const Language::Model::Callable&> name_callable;
-  for (const Abstract* binding :
-       offset.get_callables(Tetrodotoxin::Language::Visibility::Public)) {
+  for (const Abstract* binding : offset.get_published_callables()) {
     auto callable = binding->select<Language::Model::Callable>();
     ASSERT(callable);
     if (callable->get_name() == "get_name"_view) {
@@ -220,20 +219,24 @@ PERIMORTEM_UNIT_TEST(EnumerationTests, signed_aliases) {
           folded_domain, offset, U64(127));
   Language::Model::Pack& empty =
       Language::Model::Pack::create_empty(folded_domain);
-  ttx_library_invocation_view invocable;
-  ASSERT(ttx_library_invocation_prove(name_callable->get_abi(), &invocable));
-  const ttx_pack* answer = ttx_library_invoke(
-      &invocable,
-      static_cast<const Tetrodotoxin::Library::Language::Model::Pack&>(
-          duplicate)
-          .get_abi(),
-      empty.get_abi());
-  ASSERT(answer);
-  const auto& folded_name = Language::Model::Pack::from_abi(answer);
+  Language::Model::Pack* input_entries[] = {&duplicate, &empty};
+  Language::Model::Pack& input =
+      Language::Model::Pack::create_completed(folded_domain, input_entries);
+  const ttx_context context = ttx_context_create();
+  ASSERT(context.operations != nullptr);
+  const Ttx::PackObservation projected = input.retain(context);
+  ASSERT(projected.state == Ttx::PackObservationState::Packed);
+  const Ttx::PackObservation answer = Language::Model::Invocation::call(
+      name_callable->get_handle(), projected.pack, context);
+  ASSERT(answer.state == Ttx::PackObservationState::Packed);
+  auto outputs = Language::Model::Invocation::local_inputs(answer.pack);
+  ASSERT(outputs && outputs->size() == 1);
+  const auto& folded_name = *(*outputs)[0];
   ASSERT(folded_name.is_identity<Language::Constants::Bytes>());
   EXPECT_TEXT(
       static_cast<const Language::Constants::Bytes&>(folded_name).get_value(),
       "high"_view);
+  context.operations->release(context);
   EXPECT(errors.is_empty());
 }
 

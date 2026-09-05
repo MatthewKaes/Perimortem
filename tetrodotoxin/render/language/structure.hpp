@@ -8,18 +8,17 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/render/language/declarations.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 
 namespace Tetrodotoxin::Render::Language {
 
 // Structure is one authored Render contract context. Its nested declarations
 // remain separate semantic identities, while its instance Layout contains only
 // ordinary GPU values that participate in value flow.
-class Structure : public Ttx::Model::Type {
+class Structure : public Ttx::Model::Domain {
  public:
-  TTX_CONTRACT(Structure, Ttx::Model::Type);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

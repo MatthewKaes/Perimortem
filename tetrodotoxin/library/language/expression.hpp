@@ -12,25 +12,25 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/layouts/fluid.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
-#include "ttx/bootstrap/model/type.hpp"
 #include "ttx/lexical/anchor.hpp"
+#include "ttx/reference/concept/layout.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
+#include "ttx/reference/model/layouts/fluid.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
 // Expression is the Abstract contract for one evaluatable source node.
 // Expression identity remains distinct from Type identity so two values of the
-// same Type remain distinct facts in the semantic DAG. Scalar Expressions
+// same Type remain distinct producers in the semantic DAG. Scalar Expressions
 // produce one value. An owner such as Call may retain a complete empty or
 // multiple result Layout while get_type() exposes a scalar Type only when
 // exactly one result is available.
 //
 // Authored Expressions retain one lexical Anchor containing their complete
 // Span and the independent Token a diagnostic should emphasize. Synthetic
-// Expressions retain no Anchor because there is no source fact to invent.
+// Expressions retain no Anchor because they have no authored location.
 // This distinction remains independent from folding and lowering.
 //
 // get_type() returns the one scalar Type produced by the expression or Unknown
@@ -67,7 +67,6 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
     const Ttx::Concept::Abstract& subject;
   };
 
-  TTX_CONTRACT(Expression, Ttx::Concept::Abstract);
 
   // Authored meaning is the only concept shared by every Expression. A
   // concrete computational owner may independently answer the ordinary
@@ -103,6 +102,13 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
   virtual constexpr auto get_type() const
       -> const Ttx::Concept::Abstract& override = 0;
 
+  // Library exposes an expression's scalar value relationship through the
+  // host-neutral Domain operation. Empty and multi-value expressions keep
+  // get_type() at Unknown, while a completed scalar forwards the exact
+  // Library Type and its current Layout without teaching Abstract about this
+  // language's type system.
+  void domain(ttx_abstract self, ttx_domain_result result) const override;
+
   auto get_value_type(Count index) const
       -> const Ttx::Concept::Abstract& override;
 
@@ -123,16 +129,17 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
   // live and are never converted into finalization state.
   auto finalize(Ttx::Lexical::Cursor& cursor) -> void override;
 
-  // Write target lowering evaluates only the receiver and selector facts needed
-  // to publish the destination. The write operation lowers its source and then
-  // performs the actual mutation through its selected terminal producer.
+  // Write target lowering evaluates only the receiver and selector identities
+  // needed to publish the destination. The write operation lowers its source
+  // and then performs the actual mutation through its selected terminal
+  // producer.
 
   // Linking enriches this exact source node after every declaration identity
   // is available. Constants already carry complete Types, while Identifier
   // and Operation owners attach their existing graph edges without replacing
   // the authored Expression. Lexical context owns name and shadowing order.
   // access scope carries only the host Type authority used by explicit member
-  // and construction access. Keeping those facts separate prevents hosting
+  // and construction access. Keeping those inputs separate prevents hosting
   // from becoming an implicit receiver. An absent scope represents an unhosted
   // query and grants no private access.
   auto link(
@@ -157,7 +164,7 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
   // Atomic Types retain their own exact identity as one terminal value while
   // structural Types expose their real shapes. Constant domains may extend
   // this rule when their value proves a contextual conversion safe.
-  auto fits(const Ttx::Model::Type& target) const -> Bool override {
+  auto fits(const Ttx::Model::Domain& target) const -> Bool override {
     if (&resolve() != this) {
       return False;
     }
@@ -228,7 +235,7 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
 
   // Ordinary writable Expressions link through their value path. A
   // reference only owner such as Index overrides this hook to establish its
-  // target facts without admitting an ordinary read.
+  // destination relationship without admitting an ordinary read.
   virtual auto link_write_target(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& lexical_context,

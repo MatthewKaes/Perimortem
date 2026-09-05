@@ -5,10 +5,11 @@
 
 #include "perimortem/core/option.hpp"
 
+#include "tetrodotoxin/library/language/model/admission.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
-#include "ttx/bootstrap/model/layouts/ranged.hpp"
+#include "ttx/model/documentations/comment.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/reference/model/layouts/ranged.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
@@ -16,7 +17,6 @@ namespace Tetrodotoxin::Library::Language::Types {
 // and element edge while Ranged exposes the repeated identity without copies.
 class Fixed : public Contiguous {
  public:
-  TTX_CONTRACT(Fixed, Contiguous);
 
   Fixed(
       Perimortem::Core::View::Bytes name,
@@ -25,7 +25,8 @@ class Fixed : public Contiguous {
       : name(name),
         element(element),
         extent(extent),
-        layout(element, Count(extent)) {}
+        layout(element, Count(extent)),
+        admission(*this) {}
 
   Fixed(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -39,13 +40,18 @@ class Fixed : public Contiguous {
 
   TTX_DOCUMENTATION(documentation);
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto create_fitted(
+  auto accepts(const Model::Pack& source) const -> Bool;
+
+  auto create_admitted(
       Perimortem::Memory::Allocator::Arena& arena,
-      Model::Pack& source) const
-      -> Perimortem::Core::Option<Model::Pack&> override;
+      Model::Pack& source) const -> Perimortem::Core::Option<Model::Pack&>;
+
+  auto resolve_concept(Perimortem::Core::View::Bytes route) const
+      -> const Ttx::Concept::Abstract& override;
+  void visit_concepts(ttx_named_abstract_callable* visitor) const override;
 
   constexpr auto get_layout() const
       -> const Ttx::Model::Layouts::Ranged& override {
@@ -63,7 +69,8 @@ class Fixed : public Contiguous {
   const Model::Type& element;
   ::U64 extent;
   Ttx::Model::Layouts::Ranged layout;
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  Model::OwnedAdmission<Fixed> admission;
+  static constexpr Ttx::Documentations::Comment documentation{
     "Creates a fixed homogeneous range Type."_view,
   };
 };

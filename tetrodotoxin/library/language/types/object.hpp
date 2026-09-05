@@ -18,7 +18,6 @@ class Object : public Structure {
       Bool provides_initialization = True);
 
  public:
-  TTX_CONTRACT(Object, Structure);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -32,17 +31,17 @@ class Object : public Structure {
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition) -> Object&;
 
-  auto create_default(Perimortem::Memory::Allocator::Arena& arena) const
+  auto initialize_default(Perimortem::Memory::Allocator::Arena& arena) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto create_supplied(
+  auto initialize_supplied(
       Ttx::Lexical::Cursor& cursor,
       Model::Pack& arguments,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope,
       Perimortem::Core::Option<Ttx::Lexical::Anchor> anchor) const
       -> Perimortem::Core::Option<Model::Pack&> override;
 
-  auto create_supplied_restored(
+  auto initialize_supplied_restored(
       Perimortem::Memory::Allocator::Arena& arena,
       Model::Pack& arguments,
       Perimortem::Core::Option<const Ttx::Concept::Abstract&> access_scope)

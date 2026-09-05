@@ -27,9 +27,9 @@
 #include "tetrodotoxin/library/language/types/fixed.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -102,7 +102,10 @@ static auto find_type_callable(
     type = answer.resolve().select<Language::Model::Type>();
   }
   BAIL_IF(!type);
-  for (const Abstract* binding : type->get_callables(visibility)) {
+  auto bindings = visibility == Tetrodotoxin::Language::Visibility::Private
+                      ? type->get_callables()
+                      : type->get_published_callables();
+  for (const Abstract* binding : bindings) {
     auto callable = binding->resolve().select<Language::Model::Callable>();
     if (binding->get_name() == name && callable) {
       return *callable;
@@ -458,11 +461,11 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
   const Abstract& boolean = monograph->resolve_concept("Bool"_view);
   EXPECT(&self->resolve_concept("Packet"_view) == &Unknown::get_unknown());
   EXPECT(
-      &self->get_type()
+      &self->get_domain()
            .resolve_concept("instance"_view)
            .resolve_concept("positional"_view) == &*positional);
   EXPECT(
-      &self->get_type()
+      &self->get_domain()
            .resolve_concept("instance"_view)
            .resolve_concept("choose"_view) == &*self_call->get_callable());
   EXPECT_NOT(positional_call.get_callable()->is_type_bound());

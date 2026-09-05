@@ -14,7 +14,7 @@
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/type_reference.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
-#include "ttx/bootstrap/concept/layout.hpp"
+#include "ttx/reference/concept/layout.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 

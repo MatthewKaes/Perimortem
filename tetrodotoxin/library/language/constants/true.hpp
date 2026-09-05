@@ -11,7 +11,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // owns representation while this identity exposes the closed logical value.
 class True : public Flag {
  public:
-  TTX_CONTRACT(True, Flag);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

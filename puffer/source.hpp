@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <utility>
+#include <vector>
+
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
@@ -17,23 +20,23 @@ class Source {
   constexpr Source(
       Perimortem::Core::View::Bytes source,
       Perimortem::Core::View::Bytes terminal_root,
+      Perimortem::Core::View::Bytes sdk_root,
       Tetrodotoxin::Package::Repository::Repository& repository,
-      Bool dump_graph,
-      Bool generate_cxx)
+      std::vector<Perimortem::Core::View::Bytes> arguments)
       : source(source),
         terminal_root(terminal_root),
+        sdk_root(sdk_root),
         repository(repository),
-        dump_graph(dump_graph),
-        generate_cxx(generate_cxx) {}
+        arguments(std::move(arguments)) {}
 
   auto run() const -> S32;
 
  private:
   Perimortem::Core::View::Bytes source;
   Perimortem::Core::View::Bytes terminal_root;
+  Perimortem::Core::View::Bytes sdk_root;
   Tetrodotoxin::Package::Repository::Repository& repository;
-  Bool dump_graph;
-  Bool generate_cxx;
+  std::vector<Perimortem::Core::View::Bytes> arguments;
 };
 
 }  // namespace Puffer

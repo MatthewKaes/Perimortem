@@ -8,9 +8,9 @@
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -53,8 +53,9 @@ static auto matches_key(
 Language::Generic::Entry::Entry(
     Memory::Allocator::Arena& domain,
     Core::View::Vector<Argument> source_arguments,
-    const Language::Model::Type& value)
-    : arguments(domain), value(value) {
+    const Language::Model::Type& value,
+    const Language::Model::Completion* completion)
+    : arguments(domain), value(value), completion(completion) {
   for (Count i = 0; i < source_arguments.get_size(); i++) {
     arguments.insert(source_arguments.get_data()[i]);
   }
@@ -65,8 +66,8 @@ auto Language::Generic::normalize_argument(
     const Ttx::Concept::Abstract& argument) const -> Core::Option<Argument> {
   switch (parameter) {
   case Parameters::Type: {
-    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
-        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
+    const Ttx::Concept::Abstract& selected = argument.visit<Tetrodotoxin::Language::Binding>(
+        [](const Tetrodotoxin::Language::Binding& alias) -> const Ttx::Concept::Abstract& {
           return alias.resolve();
         },
         [](const Ttx::Concept::Abstract& direct)
@@ -76,13 +77,13 @@ auto Language::Generic::normalize_argument(
     return Argument(*type);
   }
   case Parameters::SemanticType: {
-    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
-        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
+    const Ttx::Concept::Abstract& selected = argument.visit<Tetrodotoxin::Language::Binding>(
+        [](const Tetrodotoxin::Language::Binding& alias) -> const Ttx::Concept::Abstract& {
           return alias.resolve();
         },
         [](const Ttx::Concept::Abstract& direct)
             -> const Ttx::Concept::Abstract& { return direct; });
-    auto type = selected.select<Ttx::Model::Type>();
+    auto type = selected.select<Ttx::Model::Domain>();
     BAIL_IF(!type);
     return Argument(SemanticType::create(*type));
   }
@@ -149,7 +150,7 @@ auto Language::Generic::validate_materializations(
     Ttx::Lexical::Cursor& cursor) const -> Bool {
   Bool valid = True;
   for (Entry* entry : entries.get_view()) {
-    valid &= entry->value.validate_layout(cursor);
+    valid &= !entry->completion || entry->completion->validate_layout(cursor);
   }
 
   return valid;
@@ -219,13 +220,14 @@ auto Language::Generic::materialize(
   if (transaction.reentered) {
     return Failure(Failure::Type::Recursive);
   }
-  if (!created || &created->resolve() != &*created) {
+  if (!created || &created->value.resolve() != &created->value) {
     return Failure(Failure::Type::Formula);
   }
 
   // A formula result enters the cache only after it proves one complete Type.
   // Failed applications therefore leave no identity for a later query to find.
-  Entry& entry = domain.construct<Entry>(domain, arguments, *created);
+  Entry& entry = domain.construct<Entry>(
+      domain, arguments, created->value, created->completion);
   entries.insert(&entry);
   return entry.value;
 }

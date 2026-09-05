@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // retains the exact folded alternative without copying producer identity.
 class Result : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Result, Tetrodotoxin::Library::Language::Constant);
 
   static auto create_value(
       Perimortem::Memory::Allocator::Arena& domain,

@@ -6,7 +6,7 @@
 #include "perimortem/core/static/vector.hpp"
 
 #include "tetrodotoxin/library/language/generic.hpp"
-#include "ttx/bootstrap/model/documentations/comment.hpp"
+#include "ttx/model/documentations/comment.hpp"
 
 namespace Tetrodotoxin::Library::Language::Generics {
 
@@ -33,11 +33,11 @@ class Implementation : public Generic {
 
  private:
   auto create(Perimortem::Core::View::Vector<Argument> arguments) const
-      -> Perimortem::Core::Option<const Model::Type&> override;
+      -> Creation override;
 
   static constexpr Perimortem::Core::Static::Vector<Parameters, 1>
       parameterization = {{Parameters::SemanticType}};
-  static constexpr Ttx::Model::Documentations::Comment documentation{
+  static constexpr Ttx::Documentations::Comment documentation{
     "Carries one Object whose owner satisfies an exact semantic requirement."_view,
   };
 };

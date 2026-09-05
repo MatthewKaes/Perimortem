@@ -18,7 +18,6 @@ namespace Tetrodotoxin::Shader::Language {
 // and Flow. Render contracts remain neighboring Workspace identities.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,

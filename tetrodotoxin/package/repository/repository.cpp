@@ -93,6 +93,49 @@ static auto select_coordinate_root(
   return {};
 }
 
+static auto select_source_root(
+    Memory::Allocator::Arena& arena,
+    Core::View::Bytes terminal_root,
+    Core::Option<Core::View::Bytes> package_root,
+    Core::View::Bytes identity,
+    System::Version version) -> Core::View::Bytes {
+  Core::View::Bytes selected = select_coordinate_root(
+      arena, terminal_root, package_root, identity, version,
+      "package.ttx"_view);
+  if (!selected.is_empty()) {
+    return selected;
+  }
+
+  // A source repository can keep one working tree per Package identity. The
+  // Package declaration still proves the requested version before Workspace
+  // publishes it, while released Archives retain the versioned coordinate
+  // layout used by an installed SDK.
+  Core::View::Bytes roots[2] = {
+    terminal_root,
+    package_root ? *package_root : Core::View::Bytes(),
+  };
+  for (Core::View::Bytes root : roots) {
+    if (root.is_empty()) {
+      continue;
+    }
+    Memory::Managed::Bytes candidate(arena, root);
+    if (candidate[candidate.get_size() - 1] != '/') {
+      candidate.append('/');
+    }
+    candidate.concat(identity);
+    auto normalized = System::Path::normalize(arena, candidate.get_view());
+    if (!normalized || normalized->is_empty()) {
+      continue;
+    }
+    Memory::Managed::Bytes manifest(arena, *normalized);
+    manifest.concat("/package.ttx"_view);
+    if (System::File::exists(manifest.get_view())) {
+      return *normalized;
+    }
+  }
+  return {};
+}
+
 auto Package::Repository::Repository::select_source(
     Core::View::Bytes identity,
     System::Version version) -> Utility::Result<Core::View::Bytes, Error> {
@@ -105,9 +148,8 @@ auto Package::Repository::Repository::select_source(
     }
   }
 
-  Core::View::Bytes selected = select_coordinate_root(
-      arena, terminal_root, package_root, identity, version,
-      "package.ttx"_view);
+  Core::View::Bytes selected = select_source_root(
+      arena, terminal_root, package_root, identity, version);
   if (selected.is_empty()) {
     return Error::NotDeclared;
   }

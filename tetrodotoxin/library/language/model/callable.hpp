@@ -6,7 +6,7 @@
 #include "perimortem/core/option.hpp"
 
 #include "tetrodotoxin/library/language/model/addressable.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
 
 namespace Tetrodotoxin::Library::Language::Model {
 
@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Library::Language::Model {
 // parameter Layout instead of retaining a second marker on each Function.
 class Callable : public Ttx::Model::Callable {
  public:
-  TTX_CONTRACT(Callable, Ttx::Model::Callable);
 
   // A selected Self Callable may impose receiver authority beyond exact Type
   // binding. Ordinary invocations accept the resolved receiver unchanged.
@@ -66,7 +65,7 @@ class Callable : public Ttx::Model::Callable {
     if (!parameter || parameter->get_name() != "self"_view) {
       return {};
     }
-    return parameter->get_type().select<Type>();
+    return parameter->get_domain().select<Type>();
   }
 
   constexpr auto is_type_bound() const -> Bool {

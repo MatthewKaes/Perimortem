@@ -13,7 +13,7 @@
 #include "tetrodotoxin/library/language/types/s8.hpp"
 #include "tetrodotoxin/library/language/types/u16.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -73,9 +73,6 @@ PERIMORTEM_UNIT_TEST(LibraryRange, materialization) {
   auto& signed_range =
       Operations::Range::create_synthetic(domain, signed_start, signed_end);
 
-  ASSERT(first.is<Operations::Range>());
-  EXPECT(
-      first.implements(Ttx::Concept::get_type_identity<Operations::Range>()));
   ASSERT(first.link(cursor, source));
   ASSERT(first.link(cursor, source));
   ASSERT(repeated.link(cursor, source));

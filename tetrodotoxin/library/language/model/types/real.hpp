@@ -11,7 +11,6 @@ namespace Tetrodotoxin::Library::Language::Model::Types {
 // operation eligibility stay on the selected Type rather than a global table.
 class Real : public Value {
  public:
-  TTX_CONTRACT(Real, Value);
 
   auto accepts_constant(const Ttx::Concept::Abstract&) const -> Bool override;
 };

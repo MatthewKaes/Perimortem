@@ -12,7 +12,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/expressions/initializer.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -29,21 +29,22 @@ Types::Fixed::Fixed(
     : name(name),
       element(element),
       extent(extent),
-      layout(element, Count(extent)) {
+      layout(element, Count(extent)),
+      admission(*this) {
   auto& get_access = Builtin::Fixed::Access::create(domain, *this, access_type);
   auto& get_view = Builtin::Fixed::View::create(domain, *this, view_type);
   publish_callable(domain, get_access, True);
   publish_callable(domain, get_view, True);
 }
 
-auto Types::Fixed::create_default(Allocator::Arena& arena) const
+auto Types::Fixed::initialize_default(Allocator::Arena& arena) const
     -> Option<Model::Pack&> {
   BAIL_IF(get_extent() == 0 || get_extent() > U64(Count(-1)));
 
   Managed::Vector<Model::Pack*> values(arena);
   values.reset(Count(get_extent()));
   for (Count index = 0; index < Count(get_extent()); index++) {
-    auto value = get_element_type().create_default(arena);
+    auto value = Model::initialize_default(get_element_type(), arena);
     BAIL_IF(!value);
     values.insert(&*value);
   }
@@ -100,9 +101,13 @@ static auto create_bytes(
       arena, type, View::Bytes(storage.get_data(), storage.get_size()));
 }
 
-auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
+auto Types::Fixed::accepts(const Model::Pack& source) const -> Bool {
+  return source.fits(*this);
+}
+
+auto Types::Fixed::create_admitted(Allocator::Arena& arena, Model::Pack& source)
     const -> Option<Model::Pack&> {
-  BAIL_IF(!source.fits(*this));
+  BAIL_IF(!accepts(source));
 
   Managed::Vector<Model::Pack*> values(arena);
   values.reset(Count(get_extent()));
@@ -117,4 +122,14 @@ auto Types::Fixed::create_fitted(Allocator::Arena& arena, Model::Pack& source)
     return create_bytes(arena, *this, values.get_view());
   }
   return Model::Pack::create_folded(arena, values.get_view());
+}
+
+auto Types::Fixed::resolve_concept(View::Bytes route) const -> const Abstract& {
+  return route == "admission"_view ? admission
+                                   : Contiguous::resolve_concept(route);
+}
+
+void Types::Fixed::visit_concepts(ttx_named_abstract_callable* visitor) const {
+  Contiguous::visit_concepts(visitor);
+  visit_concept(visitor, "admission"_view, admission);
 }

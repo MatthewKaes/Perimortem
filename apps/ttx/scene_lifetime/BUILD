@@ -16,3 +16,5 @@ ttx_source(
         "//packages/ttx:perimortem_system",
     ],
 )
+
+exports_files(["build.ttx"])

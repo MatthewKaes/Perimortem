@@ -5,22 +5,21 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/product.h"
-#include "ttx/bootstrap/concept/constant.hpp"
+#include "tetrodotoxin/language/artifact_file.hpp"
 
 namespace Tetrodotoxin::Language {
 
 // Product is one immutable named byte result produced after graph completion.
 // Its relative name is publication intent rather than semantic identity inside
 // the source graph, and its bytes remain valid for the result Arena lifetime.
-class Product : public Ttx::Concept::Constant {
+class Product : public ArtifactFile {
  public:
-  TTX_CONTRACT(Product, Ttx::Concept::Constant);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Bytes value) -> Product&;
+      Perimortem::Core::View::Bytes value,
+      Bool executable = False) -> Product&;
 
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
@@ -29,20 +28,27 @@ class Product : public Ttx::Concept::Constant {
     return value;
   }
 
-  auto negotiate_interface(const ttx_abstract* requirement) const
-      -> ttx_interface override;
+  constexpr auto get_artifact_route() const
+      -> Perimortem::Core::View::Bytes override {
+    return name;
+  }
+
+  constexpr auto get_artifact_bytes() const
+      -> Perimortem::Core::View::Bytes override {
+    return value;
+  }
+
+  constexpr auto is_executable() const -> Bool override { return executable; }
 
  private:
-  constexpr Product(
+  Product(
       Perimortem::Core::View::Bytes name,
-      Perimortem::Core::View::Bytes value)
-      : name(name), value(value) {}
-
-  static auto value_abi(const ttx_abstract* identity) -> perimortem_bytes;
+      Perimortem::Core::View::Bytes value,
+      Bool executable);
 
   Perimortem::Core::View::Bytes name;
   Perimortem::Core::View::Bytes value;
-  static const tetrodotoxin_product_operations product_operations;
+  Bool executable;
 };
 
 }  // namespace Tetrodotoxin::Language

@@ -7,9 +7,9 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/type.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/unknown.hpp"
+#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -44,7 +44,6 @@ class Bridge : public Ttx::Concept::Abstract {
     Frame,
   };
 
-  TTX_CONTRACT(Bridge, Ttx::Concept::Abstract);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -87,25 +86,25 @@ class Bridge : public Ttx::Concept::Abstract {
   }
 
   constexpr auto get_cpu_type() const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+      -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
     return cpu_type.visit(
-        []() -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+        []() -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
           return {};
         },
-        [](const Ttx::Model::Type* selected)
-            -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+        [](const Ttx::Model::Domain* selected)
+            -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
           return *selected;
         });
   }
 
   constexpr auto get_gpu_type() const
-      -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+      -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
     return gpu_type.visit(
-        []() -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+        []() -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
           return {};
         },
-        [](const Ttx::Model::Type* selected)
-            -> Perimortem::Core::Option<const Ttx::Model::Type&> {
+        [](const Ttx::Model::Domain* selected)
+            -> Perimortem::Core::Option<const Ttx::Model::Domain&> {
           return *selected;
         });
   }
@@ -131,8 +130,8 @@ class Bridge : public Ttx::Concept::Abstract {
   Direction direction;
   Marshaling marshaling;
   Synchronization synchronization;
-  Perimortem::Core::Option<const Ttx::Model::Type*> cpu_type;
-  Perimortem::Core::Option<const Ttx::Model::Type*> gpu_type;
+  Perimortem::Core::Option<const Ttx::Model::Domain*> cpu_type;
+  Perimortem::Core::Option<const Ttx::Model::Domain*> gpu_type;
 };
 
 }  // namespace Tetrodotoxin::Shader::Language

@@ -10,12 +10,11 @@
 using namespace Tetrodotoxin::Library::Language;
 
 auto Generics::Implementation::create(
-    Perimortem::Core::View::Vector<Argument> arguments) const
-    -> Perimortem::Core::Option<const Model::Type&> {
+    Perimortem::Core::View::Vector<Argument> arguments) const -> Creation {
   BAIL_IF(arguments.get_size() != 1);
   const Generic::SemanticType* selected =
       arguments.get_data()[0].find<Generic::SemanticType>();
-  const Ttx::Model::Type* requirement = selected ? &selected->get() : nullptr;
+  const Ttx::Model::Domain* requirement = selected ? &selected->get() : nullptr;
   BAIL_IF(!requirement);
 
   auto& arena = get_domain();
@@ -23,5 +22,6 @@ auto Generics::Implementation::create(
   name.concat("["_view);
   name.concat(requirement->get_name());
   name.concat("]"_view);
-  return arena.construct<Types::Implementation>(name.get_view(), *requirement);
+  return created(
+      arena.construct<Types::Implementation>(name.get_view(), *requirement));
 }

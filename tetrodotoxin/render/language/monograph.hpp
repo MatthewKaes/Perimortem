@@ -13,7 +13,6 @@ namespace Tetrodotoxin::Render::Language {
 // views preserve the exact identities used by Shader and editor tooling.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,

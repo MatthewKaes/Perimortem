@@ -21,7 +21,6 @@ namespace Tetrodotoxin::Library::Language::Access {
 // Slice's `:[...]` forms.
 class Index : public Expression {
  public:
-  TTX_CONTRACT(Index, Expression);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

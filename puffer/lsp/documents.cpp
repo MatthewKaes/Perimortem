@@ -11,6 +11,8 @@
 #include "perimortem/system/version.hpp"
 
 #include "tetrodotoxin/app/dialect.hpp"
+#include "tetrodotoxin/build/dialect.hpp"
+#include "tetrodotoxin/environment/dialect.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
 #include "tetrodotoxin/language/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -21,12 +23,12 @@
 #include "tetrodotoxin/render/dialect.hpp"
 #include "tetrodotoxin/scene/dialect.hpp"
 #include "tetrodotoxin/shader/dialect.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
 #include "ttx/lexical/associations.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -178,13 +180,18 @@ static auto find_package(
 
 Lsp::Documents::Documents(Package::Repository::Repository& selected_repository)
     : snapshots(), repository(selected_repository) {
+  auto environment =
+      toolchain.install<Environment::Dialect>("Environment"_view);
+  auto build = environment ? toolchain.install<Build::Dialect>(
+                                 "Build"_view, *environment)
+                           : Option<Build::Dialect&>();
   auto library = toolchain.install<Library::Dialect>("Library"_view);
   auto package =
       library ? toolchain.install<Package::Dialect>("Package"_view, *library)
               : Option<Package::Dialect&>();
   auto app = toolchain.install<App::Dialect>("App"_view);
   auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
-  if (!package || !library || !app || !render) {
+  if (!environment || !build || !package || !library || !app || !render) {
     return;
   }
 
@@ -416,7 +423,8 @@ auto Lsp::Documents::find_semantic(
   Document& document = records[slot];
   // The source text is available here, which makes this the natural place to
   // turn an editor coordinate back into TTX's authored byte offset. The lookup
-  // that follows can then stay entirely within canonical lexical facts.
+  // that follows can then use the Token stream and Associations retained by
+  // the source transaction.
   auto offset =
       position_encoding.find_offset(document.text.get_view(), position);
   BAIL_IF(!offset);
@@ -550,10 +558,8 @@ auto Lsp::Documents::find_acquired_definition(
   const Ttx::Concept::Abstract* acquired = &semantic;
   const Ttx::Concept::Abstract& resource =
       semantic.resolve_concept("resource"_view);
-  ttx_none_view none;
-  ttx_unknown_view unknown;
-  if (!ttx_none_prove(resource.get_abi(), &none) &&
-      !ttx_unknown_prove(resource.get_abi(), &unknown)) {
+  if (!ttx_abstract_same(resource.get_handle(), ttx_none()) &&
+      !ttx_abstract_same(resource.get_handle(), ttx_unknown())) {
     acquired = &resource;
   }
 

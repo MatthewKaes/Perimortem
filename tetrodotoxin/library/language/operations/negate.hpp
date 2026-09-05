@@ -15,7 +15,6 @@ namespace Tetrodotoxin::Library::Language::Operations {
 // projects a value without changing that authored input or linked Type.
 class Negate : public Operation {
  public:
-  TTX_CONTRACT(Negate, Operation);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

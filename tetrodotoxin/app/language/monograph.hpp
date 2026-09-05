@@ -14,7 +14,6 @@ namespace Tetrodotoxin::App::Language {
 // Program identities remain in the same source transaction Arena.
 class Monograph : public Tetrodotoxin::Language::Monograph {
  public:
-  TTX_CONTRACT(Monograph, Tetrodotoxin::Language::Monograph);
 
   static auto create_program(
       Perimortem::Memory::Allocator::Arena& arena,

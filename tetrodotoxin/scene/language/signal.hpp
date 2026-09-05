@@ -9,10 +9,10 @@
 
 #include "tetrodotoxin/library/language/model/type.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Scene::Language {
 
@@ -23,7 +23,6 @@ namespace Tetrodotoxin::Scene::Language {
 // Scene instance.
 class Signal : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Signal, Ttx::Concept::Abstract);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

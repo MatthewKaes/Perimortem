@@ -25,7 +25,6 @@ namespace Tetrodotoxin::Library::Language {
 // interpret semantic Types.
 class Operation : public Expression {
  public:
-  TTX_CONTRACT(Operation, Expression);
 
   auto get_type() const -> const Ttx::Concept::Abstract& override;
 
@@ -91,8 +90,9 @@ class Operation : public Expression {
  private:
   Perimortem::Memory::Allocator::Arena& domain;
   Perimortem::Memory::Managed::Vector<Model::Pack*> inputs;
-  Perimortem::Memory::Managed::Vector<const ttx_abstract*> folded_inputs;
-  const ttx_abstract* folded_result = nullptr;
+  Perimortem::Memory::Managed::Vector<const Ttx::Concept::Abstract*>
+      folded_inputs;
+  const Ttx::Concept::Abstract* folded_result = nullptr;
   Perimortem::Core::Option<const Model::Type*> result_type;
 };
 
@@ -101,7 +101,6 @@ class Operation : public Expression {
 // Binary Operations share their category proof, construction surface, and
 // canonical semantic name while keeping parsing and evaluation visible.
 #define BINARY_OP_CONTRACT(type)                                              \
-  TTX_CONTRACT(type, Operation);                                              \
   static auto create_authored(                                                \
       Perimortem::Memory::Allocator::Arena& domain, Model::Pack& left,        \
       Model::Pack& right, Ttx::Lexical::Anchor anchor) -> type&;              \

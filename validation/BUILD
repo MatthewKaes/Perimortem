@@ -4,168 +4,8 @@
 """Validation binaries and source-graph integration products."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//toolchain:tetrodotoxin.bzl", "ttx_source")
-load("//validation:c_headers.bzl", "c_header")
 
 package(default_visibility = ["//visibility:public"])
-
-c_header(
-    "perimortem_bibliotheca",
-    "perimortem/core/bibliotheca.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_core",
-    "perimortem/core/perimortem.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_fatal",
-    "perimortem/core/diagnostics/fatal.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_hash",
-    "perimortem/core/hash.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_implementation",
-    "perimortem/core/implementation.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_object",
-    "perimortem/core/object.h",
-    deps = ["//perimortem:core"],
-)
-c_header(
-    "perimortem_buffer",
-    "perimortem/memory/buffer.h",
-    deps = ["//perimortem:memory"],
-)
-c_header(
-    "perimortem_aligned_buffer",
-    "perimortem/memory/aligned_buffer.h",
-    deps = ["//perimortem:memory"],
-)
-c_header(
-    "perimortem_hash_index",
-    "perimortem/memory/hash_index.h",
-    deps = ["//perimortem:memory"],
-)
-c_header(
-    "perimortem_terminal",
-    "perimortem/system/terminal.h",
-    deps = ["//perimortem:system"],
-)
-c_header(
-    "language_product",
-    "tetrodotoxin/language/product.h",
-    deps = ["//tetrodotoxin/language"],
-)
-c_header(
-    "library_invocation",
-    "tetrodotoxin/library/language/model/invocation.h",
-    deps = ["//tetrodotoxin/library:language"],
-)
-c_header("abstract", "ttx/concept/abstract.h")
-c_header("ttx_abi", "ttx/abi.h", deps = ["//ttx:abi"])
-c_header("alias", "ttx/concept/alias.h")
-c_header("concept_callable", "ttx/concept/callable.h")
-c_header("constant", "ttx/concept/constant.h")
-c_header("concept_context", "ttx/concept/context.h")
-c_header("documentation", "ttx/concept/documentation.h")
-c_header("interface", "ttx/concept/interface.h")
-c_header("layout", "ttx/concept/layout.h")
-c_header("none", "ttx/concept/none.h")
-c_header("concept_pack", "ttx/concept/pack.h")
-c_header("unknown", "ttx/concept/unknown.h")
-c_header("addressable", "ttx/model/addressable.h")
-c_header("model_callable", "ttx/model/callable.h")
-c_header("model_context", "ttx/model/context.h")
-c_header("documentation_block", "ttx/model/documentations/block.h")
-c_header("documentation_comment", "ttx/model/documentations/comment.h")
-c_header("documentation_merged", "ttx/model/documentations/merged.h")
-c_header("interface_callable", "ttx/model/interfaces/callable.h")
-c_header("layout_addressable", "ttx/model/layouts/addressable.h")
-c_header("layout_composite", "ttx/model/layouts/composite.h")
-c_header("layout_fluid", "ttx/model/layouts/fluid.h")
-c_header("layout_named", "ttx/model/layouts/named.h")
-c_header("layout_ranged", "ttx/model/layouts/ranged.h")
-c_header("layout_termination", "ttx/model/layouts/termination.h")
-c_header("layout_value", "ttx/model/layouts/value.h")
-c_header("model_pack", "ttx/model/pack.h")
-c_header("type", "ttx/model/type.h")
-
-cc_library(
-    name = "c_ttx_headers",
-    deps = [
-        ":c_header_perimortem_bibliotheca",
-        ":c_header_perimortem_aligned_buffer",
-        ":c_header_perimortem_buffer",
-        ":c_header_perimortem_core",
-        ":c_header_perimortem_fatal",
-        ":c_header_perimortem_hash",
-        ":c_header_perimortem_implementation",
-        ":c_header_perimortem_hash_index",
-        ":c_header_perimortem_object",
-        ":c_header_perimortem_terminal",
-        ":c_header_abstract",
-        ":c_header_addressable",
-        ":c_header_alias",
-        ":c_header_concept_callable",
-        ":c_header_concept_context",
-        ":c_header_concept_pack",
-        ":c_header_constant",
-        ":c_header_documentation",
-        ":c_header_documentation_block",
-        ":c_header_documentation_comment",
-        ":c_header_documentation_merged",
-        ":c_header_interface",
-        ":c_header_layout",
-        ":c_header_layout_addressable",
-        ":c_header_layout_composite",
-        ":c_header_layout_fluid",
-        ":c_header_layout_named",
-        ":c_header_layout_ranged",
-        ":c_header_layout_termination",
-        ":c_header_layout_value",
-        ":c_header_language_product",
-        ":c_header_library_invocation",
-        ":c_header_interface_callable",
-        ":c_header_model_callable",
-        ":c_header_model_context",
-        ":c_header_model_pack",
-        ":c_header_none",
-        ":c_header_type",
-        ":c_header_unknown",
-    ],
-)
-
-cc_library(
-    name = "test_headers",
-    hdrs = glob(["**/*.hpp"]),
-    includes = ["."],
-)
-
-cc_binary(
-    name = "c_ttx_core",
-    srcs = ["c/ttx_core.c"],
-    copts = [
-        "-std=c17",
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-    ],
-    deps = [
-        "//perimortem:system",
-        "//ttx:model",
-    ],
-)
 
 genrule(
     name = "rust_ttx_provider_archive",
@@ -174,116 +14,50 @@ genrule(
     cmd = "/usr/bin/rustc --edition=2021 -D warnings -C panic=abort --crate-type staticlib $(location cross_language/rust/driver.rs) -o $@",
 )
 
-cc_import(
-    name = "rust_ttx_provider",
-    static_library = ":rust_ttx_provider_archive",
-)
-
-cc_library(
-    name = "ttx_cross_language_c",
-    srcs = [
-        "cross_language/c/boolean.c",
-        "cross_language/c/integer.c",
-        "cross_language/c/value.c",
-        "cross_language/consumer.c",
-    ],
-    hdrs = [
-        "cross_language/bridge.h",
-        "cross_language/c/value.h",
-    ],
-    copts = [
-        "-std=c17",
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-    ],
-    includes = ["."],
-    deps = ["//ttx:abi"],
-)
-
-cc_test(
-    name = "ttx_cross_language",
-    srcs = [
-        "cross_language/cpp/echo.cpp",
-        "cross_language/cpp/echo.hpp",
-        "cross_language/cpp/root.cpp",
-        "cross_language/cpp/root.hpp",
-        "cross_language/cpp/ttx.cpp",
-        "cross_language/cpp/ttx.hpp",
-        "cross_language/cpp/value.cpp",
-        "cross_language/cpp/value.hpp",
-        "cross_language/driver.cpp",
-    ],
-    copts = [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-    ],
-    includes = ["."],
-    linkopts = [
-        "-ldl",
-        "-lm",
-        "-lpthread",
-    ],
+cc_binary(
+    name = "plugin_fixture.so",
+    srcs = ["plugin/fixture.c"],
+    linkshared = True,
+    linkstatic = True,
+    visibility = ["//visibility:private"],
     deps = [
-        ":rust_ttx_provider",
-        ":ttx_cross_language_c",
-        "//ttx:abi",
-        "//ttx:cpp",
+        "//tetrodotoxin:plugin",
+        "//ttx",
     ],
 )
 
-ttx_source(
-    name = "runtime_package",
-    src = "data/ttx/products/runtime/package.ttx",
-)
-
-ttx_source(
-    name = "foreign_package",
-    src = "data/ttx/products/foreign/package.ttx",
-)
-
-ttx_source(
-    name = "system_abi_package",
-    src = "data/ttx/products/system_abi/package.ttx",
-)
-
-ttx_source(
-    name = "native_dependency",
-    src = "data/ttx/package_native/provider/package.ttx",
-    generate_cxx = True,
-)
-
-ttx_source(
-    name = "package_native_consumer",
-    src = "data/ttx/package_native/consumer/package.ttx",
-    deps = [":native_dependency"],
-)
-
-ttx_source(
-    name = "shader_package",
-    src = "data/ttx/shader_artifact/package.ttx",
-    deps = ["//packages/ttx:perimortem_math"],
-)
-
-cc_library(
-    name = "process_fixture",
-    srcs = ["process/child.cpp"],
-    hdrs = ["process/child.hpp"],
-    deps = ["//perimortem"],
+cc_binary(
+    name = "window_failure_fixture",
+    srcs = ["process/window_failure.cpp"],
+    visibility = ["//visibility:private"],
+    deps = ["//tetrodotoxin/runtime:application"],
 )
 
 cc_binary(
     name = "unit_tests",
     srcs = glob(
         [
+            "cross_language/c/*.c",
+            "cross_language/cpp/*.cpp",
+            "process/**/*.cpp",
             "unit_tests/perimortem/**/*.cpp",
             "unit_tests/process/**/*.cpp",
             "unit_tests/puffer/**/*.cpp",
             "unit_tests/ttx/**/*.cpp",
             "unit_tests/tetrodotoxin/**/*.cpp",
         ],
-    ) + ["unit_test.cpp"],
+        exclude = ["process/window_failure.cpp"],
+    ) + glob([
+        "**/*.h",
+        "**/*.hpp",
+    ]) + [
+        "c_headers.c",
+        "cross_language/consumer.c",
+        "cross_language/driver.cpp",
+        "unit_test.cpp",
+        ":rust_ttx_provider_archive",
+        "//ttx:abi.h",
+    ],
     data = glob(
         ["data/**/*.ttx"],
         exclude = ["data/ttx/shader_artifact/**"],
@@ -291,31 +65,44 @@ cc_binary(
         "data/ttx/app_profiles/resources/icon.bin",
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
+        ":plugin_fixture.so",
+        ":window_failure_fixture",
         "//packages/ttx:perimortem_memory",
+        "//tetrodotoxin/terminal:graph_text_plugin.so",
     ],
     includes = ["."],
+    linkopts = [
+        "-ldl",
+        "-lm",
+        "-lpthread",
+        "-rdynamic",
+    ],
     deps = [
-        ":process_fixture",
-        ":test_headers",
         "//perimortem",
+        "//puffer:invocation",
         "//puffer:position_encoding",
         "//puffer:publisher",
+        "//tetrodotoxin:build",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:formatting",
         "//tetrodotoxin:library",
         "//tetrodotoxin:linker",
         "//tetrodotoxin:package",
+        "//tetrodotoxin:plugin",
         "//tetrodotoxin/app",
-        "//tetrodotoxin/graphics/runtime:runtime",
+        "//tetrodotoxin/graphics",
         "//tetrodotoxin/language",
+        "//tetrodotoxin/language:provider_abi",
         "//tetrodotoxin/render",
         "//tetrodotoxin/runtime:application",
         "//tetrodotoxin/scene",
         "//tetrodotoxin/shader",
+        "//tetrodotoxin/terminal:graph_text",
         "//tetrodotoxin/terminal:llvm",
+        "//tetrodotoxin/terminal:provider",
         "//tetrodotoxin/terminal:spirv",
-        "//ttx:bootstrap",
+        "//ttx",
     ],
 )
 
@@ -333,20 +120,4 @@ cc_binary(
     ],
     includes = ["."],
     deps = ["//perimortem"],
-)
-
-cc_binary(
-    name = "session_oracle",
-    srcs = [
-        "unit_test.cpp",
-        "unit_tests/process/child.cpp",
-        "unit_tests/tetrodotoxin/runtime/session.cpp",
-    ],
-    includes = ["."],
-    deps = [
-        ":process_fixture",
-        ":test_headers",
-        "//perimortem:core",
-        "//tetrodotoxin/runtime:application",
-    ],
 )

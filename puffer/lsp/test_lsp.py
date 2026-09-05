@@ -48,8 +48,8 @@ def prepare_package_repository():
         source = os.path.join(
             REPO_ROOT, "packages", "ttx", identity, "package.ttx")
         completed = subprocess.run(
-            [BINARY, source, f"-terminal_repository={temporary.name}"],
-            cwd=REPO_ROOT,
+            [BINARY, source],
+            cwd=temporary.name,
             capture_output=True,
             text=True,
         )
@@ -341,13 +341,10 @@ def run_test():
             env["LD_PRELOAD"] = asan_path
             print(f"ASAN: {asan_path}")
 
-    server_arguments = [
-        BINARY,
-        f"-lsp={SOCKET_PATH}",
-        f"-package_repository={package_repository}",
-    ]
+    server_arguments = [BINARY, f"-lsp={SOCKET_PATH}"]
     proc = subprocess.Popen(
         server_arguments,
+        cwd=package_repository,
         stderr=subprocess.PIPE,
         text=True,
         env=env,
@@ -475,8 +472,8 @@ def run_test():
         graphics_result.get("contents", {}).get("value", "")
         if graphics_result else "")
     graphics_hover_matches = (
-        "alias Graphics = Perimortem.Graphics" in graphics_markdown and
-        "Type Sprite" not in graphics_markdown)
+        "Graphics = Perimortem.Graphics" in graphics_markdown and
+        "domain Sprite" not in graphics_markdown)
     if not graphics_hover_matches:
         print("  Graphics hover:", graphics_hover)
     check(graphics_hover_matches,
@@ -498,8 +495,8 @@ def run_test():
         blend_result.get("contents", {}).get("value", "")
         if blend_result else "")
     blend_hover_matches = (
-        "alias Blend" in blend_markdown and
-        "Type Material" not in blend_markdown)
+        "Blend = Shader" in blend_markdown and
+        "domain Material" not in blend_markdown)
     if not blend_hover_matches:
         print("  Blend hover:", blend_hover)
     check(blend_hover_matches,
@@ -554,7 +551,7 @@ def run_test():
     pixel_markdown = (
         pixel_hover_result.get("contents", {}).get("value", "")
         if pixel_hover_result else "")
-    check("Type Pixel" in pixel_markdown,
+    check("domain Pixel" in pixel_markdown,
           "chained Import hover selects the external Type")
     pixel_uri = "file://" + os.path.join(graphics_package_root, "pixel.ttx")
     with open(os.path.join(graphics_package_root, "pixel.ttx"),
@@ -584,7 +581,7 @@ def run_test():
     material_markdown = (
         material_result.get("contents", {}).get("value", "")
         if material_result else "")
-    check("Type Material" in material_markdown,
+    check("domain Material" in material_markdown,
           "qualified hover selects the app-owned Shader Material")
     material_definition = send_definition(
         conn, title_uri, title_source, "Material", 106, shader_route)
@@ -658,6 +655,7 @@ def run_test():
         "// Progressive Callable completion.\n"
         "dialect : Library;\n"
         "public Item : struct {\n"
+        "  private state marker : U8;\n"
         "  public size : func = [self] -> U64 : return 0;\n"
         "}\n"
         "public item : Item;\n"
@@ -673,6 +671,9 @@ def run_test():
     }
     if "size" not in call_labels:
         print("  Callable completion:", call_completion)
+        print("  Callable receiver hover:", send_hover(
+            conn, call_uri, call_source, "item", 620,
+            call_source.index("item ->")))
     check("size" in call_labels,
           "Callable completion preserves the Self receiver role")
 
@@ -761,7 +762,10 @@ def run_test():
     bytes_markdown = (
         bytes_result.get("contents", {}).get("value", "")
         if bytes_result else "")
-    check("Type Bytes" in bytes_markdown and
+    if not ("domain Bytes" in bytes_markdown and
+            "copy on write container of U8 values" in bytes_markdown):
+        print("  Bytes hover:", bytes_hover)
+    check("domain Bytes" in bytes_markdown and
           "copy on write container of U8 values" in bytes_markdown,
           "Package hover preserves exported Bytes Type documentation")
     bytes_definition = send_definition(
@@ -832,7 +836,9 @@ def run_test():
     invalidated_markdown = (
         invalidated_result.get("contents", {}).get("value", "")
         if invalidated_result else "")
-    check("line_prefix : Unknown" in invalidated_markdown,
+    if "line_prefix : Unknown" not in invalidated_markdown:
+        print("  Progressive hover:", invalidated_hover)
+    check("line_prefix = Unknown" in invalidated_markdown,
           "editing one member exposes an unresolved progressive hover")
     send_did_change(conn, helper_uri, helper_source, 3)
     restored_hover = send_hover(
@@ -876,11 +882,16 @@ def run_test():
     send_did_change(conn, main_uri, context_main_source, 2)
     context_completion = send_completion(
         conn, main_uri, context_main_source,
-        context_main_source.index("Dynamic::") + len("Dynamic::"), 66)
+        context_main_source.rindex("Dynamic::") + len("Dynamic::"), 66)
     context_labels = {
         item.get("label")
         for item in (context_completion or {}).get("result", [])
     }
+    if "Bytes" not in context_labels:
+        print("  Monograph completion:", context_completion)
+        print("  Monograph receiver hover:", send_hover(
+            conn, main_uri, context_main_source, "Dynamic", 660,
+            context_main_source.rindex("Dynamic::")))
     check("Bytes" in context_labels,
           "Library Monograph context offers its retained Types")
 
@@ -1123,7 +1134,7 @@ def run_test():
     unicode_markdown = (
         (unicode_hover.get("result") or {}).get("contents", {}).get("value", "")
         if unicode_hover else "")
-    if "func echo" not in unicode_markdown:
+    if "func echo[.value : U64] -> [U64]" not in unicode_markdown:
         print("  Unicode hover:", unicode_hover)
     check("func echo[.value : U64] -> [U64]" in unicode_markdown,
           f"hover maps {POSITION_ENCODING} positions after an astral character")
@@ -1338,7 +1349,9 @@ def run_test():
     type_markdown = (
         (type_resp.get("result") or {}).get("contents", {}).get("value", "")
         if type_resp else "")
-    check("```tetrodotoxin\nType Bucket\n```" in type_markdown,
+    if "```tetrodotoxin\ndomain Bucket\n```" not in type_markdown:
+        print("  Domain hover:", type_resp)
+    check("```tetrodotoxin\ndomain Bucket\n```" in type_markdown,
           "hover resolves an authored Type in a highlighted declaration")
     check("Storage Type documentation." in type_markdown,
           "Type hover includes attached documentation")
@@ -1367,7 +1380,10 @@ def run_test():
     alias_markdown = (
         (alias_resp.get("result") or {}).get("contents", {}).get("value", "")
         if alias_resp else "")
-    check("alias BucketAlias = Bucket" in alias_markdown and
+    if not ("BucketAlias = Bucket" in alias_markdown and
+            "```tetrodotoxin" in alias_markdown):
+        print("  Alias hover:", alias_resp)
+    check("BucketAlias = Bucket" in alias_markdown and
           "```tetrodotoxin" in alias_markdown,
           "hover preserves the authored Alias and target in one declaration")
     check(alias_markdown.index("Alias documentation.") <
@@ -1406,6 +1422,11 @@ def run_test():
         (foreign_call_resp.get("result") or {})
         .get("contents", {}).get("value", "")
         if foreign_call_resp else "")
+    if not (
+            "```tetrodotoxin\nfunc llvm_object_identity"
+            "[.value : Object[U8]] -> [U64]\n```" in
+            foreign_call_markdown):
+        print("  Foreign Callable hover:", foreign_call_resp)
     check(
         "```tetrodotoxin\nfunc llvm_object_identity"
         "[.value : Object[U8]] -> [U64]\n```" in

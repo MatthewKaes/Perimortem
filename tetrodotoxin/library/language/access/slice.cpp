@@ -10,11 +10,12 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/contiguous.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -296,14 +297,15 @@ auto Language::Access::Slice::link(
   element_type = &element;
 
   if (!count) {
-    auto selected_fallback = element.create_default(cursor.get_arena());
+    auto selected_fallback =
+        Model::initialize_default(element, cursor.get_arena());
     BAIL_IF(!selected_fallback);
     fallback = &*selected_fallback;
     return Expression::link(cursor, lexical_context, access_scope);
   }
 
-  // Range count determines the complete Pack shape and is therefore a link
-  // fact, not a lowering payload detail. Start remains ordinary dynamic
+  // Range count determines the complete Pack cardinality and must settle while
+  // the source graph links. Start remains ordinary dynamic
   // input because it changes which values flow, never how many slots exist.
   Model::Pack& count_expression = **count;
 
@@ -398,7 +400,7 @@ auto Language::Access::Slice::resolve() const -> const Abstract& {
   return *this;
 }
 
-auto Language::Access::Slice::fits(const Ttx::Model::Type& target) const
+auto Language::Access::Slice::fits(const Ttx::Model::Domain& target) const
     -> Bool {
   if (!count) {
     return Expression::fits(target);
@@ -510,7 +512,7 @@ auto Language::Access::Slice::evaluate_fold()
               continue;
             }
 
-            auto selected_default = element.create_default(domain);
+            auto selected_default = Model::initialize_default(element, domain);
             if (!selected_default) {
               return Core::Option<Model::Pack&>{};
             }
@@ -601,7 +603,8 @@ auto Language::Access::Slice::evaluate_fold()
                 // one Pack would be observably wrong for Types whose default
                 // creates a fresh value and would make a partial miss differ
                 // from repeated scalar safe selection.
-                auto selected_default = element.create_default(domain);
+                auto selected_default =
+                    Model::initialize_default(element, domain);
                 if (!selected_default) {
                   return Core::Option<Model::Pack&>{};
                 }

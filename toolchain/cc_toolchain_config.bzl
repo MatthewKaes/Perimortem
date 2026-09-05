@@ -81,6 +81,25 @@ def _impl(ctx):
 
     features = [
         feature(
+            name = "supports_pic",
+            enabled = True,
+        ),
+        feature(
+            name = "pic",
+            enabled = True,
+            flag_sets = [
+                flag_set(
+                    actions = c_compile_actions + cpp_compile_actions,
+                    flag_groups = [
+                        flag_group(
+                            flags = ["-fPIC"],
+                            expand_if_available = "pic",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        feature(
             name = "cpp_compiler_flags",
             enabled = True,
             flag_sets = [

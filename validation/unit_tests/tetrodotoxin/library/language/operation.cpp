@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/types/u64.hpp"
 #include "tetrodotoxin/library/language/types/u8.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -32,18 +32,18 @@ static Harness LibraryOperation = {
 
 class OperationExpression : public Expression {
  public:
-  OperationExpression(View::Bytes name, const Ttx::Model::Type& type)
+  OperationExpression(View::Bytes name, const Ttx::Model::Domain& type)
       : Expression({}), name(name), type(type) {}
 
   auto get_name() const -> View::Bytes override { return name; }
   auto get_documentation() const -> const Documentation& override {
     return Documentation::get_empty();
   }
-  auto get_type() const -> const Ttx::Model::Type& override { return type; }
+  auto get_type() const -> const Ttx::Model::Domain& override { return type; }
 
  private:
   View::Bytes name;
-  const Ttx::Model::Type& type;
+  const Ttx::Model::Domain& type;
 };
 
 class TestOperation : public Operation {

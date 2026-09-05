@@ -11,8 +11,8 @@
 
 using namespace Tetrodotoxin::Library::Language;
 
-auto Generics::Range::create(Perimortem::Core::View::Vector<Argument> arguments)
-    const -> Perimortem::Core::Option<const Language::Model::Type&> {
+auto Generics::Range::create(
+    Perimortem::Core::View::Vector<Argument> arguments) const -> Creation {
   auto& arena = get_domain();
   if (arguments.get_size() != 1) {
     return {};
@@ -31,5 +31,5 @@ auto Generics::Range::create(Perimortem::Core::View::Vector<Argument> arguments)
   name.concat("["_view);
   name.concat(element->get_name());
   name.concat("]"_view);
-  return arena.construct<Types::Range>(name.get_view(), *element);
+  return created(arena.construct<Types::Range>(name.get_view(), *element));
 }

@@ -30,7 +30,7 @@ auto query_folded_pack(
 
 // Convert a Library computation outcome into the public concept answer. Only
 // one aggregate Constant identity may escape; a recognized non-foldable
-// result is the shared None fact.
+// result is the shared None answer.
 auto fold_answer(Perimortem::Core::Option<const Model::Pack&> result)
     -> const Ttx::Concept::Abstract&;
 auto fold_answer(Perimortem::Core::Option<Model::Pack&> result)

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tetrodotoxin/shader/language/program.hpp"
-#include "ttx/concept/interface.h"
+#include "ttx/abi.h"
 
 namespace Tetrodotoxin::Shader::Language {
 
@@ -24,8 +24,8 @@ class Contract {
       const Ttx::Concept::Abstract& candidate) const -> Bool;
 
   // Source free validation has no Cursor for authored presentation. It applies
-  // the same relation and publishes the exact lost contract fact through the
-  // process diagnostic boundary owned by Archive restoration.
+  // the same relation and reports the missing contract through the process
+  // diagnostic boundary owned by Archive restoration.
   auto validate_restored(
       const Ttx::Concept::Abstract& requirement,
       const Ttx::Concept::Abstract& candidate) const -> Bool;

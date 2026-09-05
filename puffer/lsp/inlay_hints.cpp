@@ -3,6 +3,10 @@
 
 #include "puffer/lsp/inlay_hints.hpp"
 
+#include <algorithm>
+#include <cstddef>
+#include <vector>
+
 #include "perimortem/core/math.hpp"
 
 #include "perimortem/memory/managed/bytes.hpp"
@@ -10,7 +14,7 @@
 
 #include "perimortem/serialization/json/blueprint.hpp"
 
-#include "ttx/model/callable.h"
+#include "ttx/query.hpp"
 
 using namespace Perimortem;
 using namespace Puffer;
@@ -104,24 +108,118 @@ static auto collect_arguments(
   return False;
 }
 
-class ParameterVisitor {
- public:
-  explicit ParameterVisitor(
-      Memory::Managed::Vector<const ttx_abstract*>& entries)
-      : callable{&operations}, operations{.call = retain}, entries(entries) {}
-
-  ttx_abstract_callable callable;
-
- private:
-  static auto retain(ttx_abstract_callable* callable, const ttx_abstract* entry)
-      -> void {
-    auto& self = *reinterpret_cast<ParameterVisitor*>(callable);
-    self.entries.insert(entry);
-  }
-
-  ttx_abstract_callable_operations operations;
-  Memory::Managed::Vector<const ttx_abstract*>& entries;
+struct Parameter {
+  std::vector<uint8_t> path;
+  ttx_abstract producer;
 };
+
+struct ParameterVisitor {
+  ttx_layout_entry_sink_ops operations;
+  std::vector<Parameter> entries;
+  bool completed;
+};
+
+template <typename Owner, typename Self>
+static auto select_owner(Self* self) -> Owner& {
+  return *reinterpret_cast<Owner*>(self);
+}
+
+static void TTX_CALL retain_parameter(
+    ttx_layout_entry_sink self,
+    ttx_borrowed_bytes path,
+    ttx_abstract producer) {
+  auto& visitor = select_owner<ParameterVisitor>(self.self);
+  visitor.entries.push_back({
+    .path = path.size == 0
+                ? std::vector<uint8_t>()
+                : std::vector<uint8_t>(path.data, path.data + path.size),
+    .producer = producer,
+  });
+}
+
+static void TTX_CALL parameters_completed(ttx_layout_entry_sink self) {
+  select_owner<ParameterVisitor>(self.self).completed = true;
+}
+
+struct EnumerableCapture {
+  ttx_enumerable_result_ops operations;
+  bool answered;
+  ttx_enumerable enumerable;
+};
+
+static void TTX_CALL enumerable_rejected(ttx_enumerable_result self) {
+  auto& capture = select_owner<EnumerableCapture>(self.self);
+  capture.answered = true;
+  capture.enumerable = {};
+}
+
+static void TTX_CALL enumerable_satisfied(
+    ttx_enumerable_result self,
+    ttx_enumerable enumerable) {
+  auto& capture = select_owner<EnumerableCapture>(self.self);
+  capture.answered = true;
+  capture.enumerable = enumerable;
+}
+
+static auto parameters(ttx_layout layout) -> std::vector<Parameter> {
+  EnumerableCapture enumerable = {
+    .operations =
+        {
+          .header =
+              {
+                .size = sizeof(ttx_enumerable_result_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .rejected = enumerable_rejected,
+          .satisfied = enumerable_satisfied,
+        },
+    .answered = false,
+    .enumerable = {},
+  };
+  const ttx_enumerable_result result = {
+    .operations = &enumerable.operations,
+    .self = reinterpret_cast<ttx_enumerable_result_self*>(&enumerable),
+  };
+  layout.operations->enumerable(layout, result);
+  if (!enumerable.answered || enumerable.enumerable.operations == nullptr) {
+    return {};
+  }
+  ParameterVisitor visitor = {
+    .operations =
+        {
+          .header =
+              {
+                .size = sizeof(ttx_layout_entry_sink_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
+              },
+          .entry = retain_parameter,
+          .completed = parameters_completed,
+        },
+    .entries = {},
+    .completed = false,
+  };
+  const ttx_layout_entry_sink sink = {
+    .operations = &visitor.operations,
+    .self = reinterpret_cast<ttx_layout_entry_sink_self*>(&visitor),
+  };
+  enumerable.enumerable.operations->visit(enumerable.enumerable, sink);
+  if (!visitor.completed) {
+    return {};
+  }
+  std::sort(
+      visitor.entries.begin(), visitor.entries.end(),
+      [](const Parameter& left, const Parameter& right) {
+        return left.path < right.path;
+      });
+  return std::move(visitor.entries);
+}
+
+static auto name(ttx_abstract candidate) -> Core::View::Bytes {
+  const ttx_borrowed_bytes value = candidate.operations->name(candidate);
+  return Core::View::Bytes(value.data, value.size);
+}
 
 auto Puffer::Lsp::inlay_hints_for(
     Memory::Allocator::Arena& arena,
@@ -136,8 +234,9 @@ auto Puffer::Lsp::inlay_hints_for(
   // parameter authority; the lexical span contributes only argument positions.
   for (const Ttx::Lexical::Associations::Entry& association :
        associations.get_entries()) {
-    ttx_callable_view callable;
-    if (!ttx_callable_prove(association.get_semantic().get_abi(), &callable)) {
+    const Ttx::CallableObservation callable =
+        Ttx::resolve_callable(association.get_semantic().get_handle());
+    if (callable.state != Ttx::Observation::Resolved) {
       continue;
     }
 
@@ -146,17 +245,14 @@ auto Puffer::Lsp::inlay_hints_for(
         arguments.is_empty()) {
       continue;
     }
-    Memory::Managed::Vector<const ttx_abstract*> parameters(arena);
-    ParameterVisitor visitor(parameters);
-    ttx_layout_visit(ttx_callable_parameters(&callable), &visitor.callable);
+    std::vector<Parameter> parameter_entries =
+        parameters(callable.callable.operations->parameters(callable.callable));
     Count parameter_start =
-        !parameters.is_empty() &&
-                Core::View::Bytes(
-                    ttx_abstract_name(parameters.at(0)).data,
-                    ttx_abstract_name(parameters.at(0)).size) == "self"_view
+        !parameter_entries.empty() &&
+                name(parameter_entries[0].producer) == "self"_view
             ? Count(1)
             : Count(0);
-    Count parameter_count = parameters.get_size() - parameter_start;
+    Count parameter_count = parameter_entries.size() - parameter_start;
     Count mapping_count = parameter_count == arguments.get_size()
                               ? parameter_count
                               : (parameter_count == 1 ? Count(1) : Count(0));
@@ -165,9 +261,8 @@ auto Puffer::Lsp::inlay_hints_for(
       if (source[offset] == '.') {
         continue;
       }
-      perimortem_bytes name =
-          ttx_abstract_name(parameters.at(parameter_start + index));
-      Core::View::Bytes parameter_name(name.data, name.size);
+      Core::View::Bytes parameter_name =
+          name(parameter_entries[parameter_start + index].producer);
       if (parameter_name.is_empty()) {
         continue;
       }

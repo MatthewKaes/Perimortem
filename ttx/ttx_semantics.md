@@ -335,6 +335,13 @@ separate operational Interface while adding executable body, calling
 convention, machine address, or target ABI policy. Equal Callable Layouts do not
 prove behavioral equivalence.
 
+A provider may assemble a Callable view during its result callback. A consumer
+which needs the observation afterward retains the exact candidate and asks the
+two Layout owners for independent snapshots before returning from that callback.
+This preserves partial shape without retaining the provider's stack or native
+object. Failure to transfer support storage is reported separately from an
+indeterminate Callable relationship.
+
 ## Layout
 
 Layout carries no semantic identity. It describes one promised value shape and
@@ -396,11 +403,12 @@ its Layout projects that flow into the shape a consumer may receive. This
 projection deliberately omits behavior and richer domain meaning.
 
 Interface negotiates the semantic relation that remains after that projection.
-It receives two real Abstracts, treats the first as the requirement and the
-second as the candidate, and returns `Unknown`, `Rejected`, `Satisfied`, or
-`Equivalent`. Unknown keeps that ordered relationship unsettled. Rejected
-completes it negatively. Satisfied proves the requested direction. Equivalent
-records the stronger relation established by that exact requirement.
+The candidate receives one exact requirement and synchronously returns a
+borrowed witness containing the same requirement, the visible candidate, and
+`Unknown`, `Rejected`, `Satisfied`, or `Equivalent`. Unknown keeps that ordered
+relationship unsettled. Rejected completes it negatively. Satisfied proves the
+requested direction. Equivalent records the stronger relation established by
+that exact requirement.
 
 An Interface may use Layout fitting and shared category proof as evidence, but
 matching Layouts alone never imply semantic equivalence. A Callable Interface
@@ -409,9 +417,17 @@ or policy. Another Interface may negotiate resources, lifecycle roles, or a
 domain that carries no value flow.
 
 Interface carries no semantic identity and retains no copied inventory of the
-Abstracts it compares. It creates no Alias, wrapper, common Domain, or dependency
-between their Dialects. The concrete owner selects the negotiator appropriate
-to its semantic question.
+Abstracts it compares. The candidate may synthesize its witness from local
+policy, delegate to another capability, or assemble behavior for this
+observation, but the witness always reports the candidate that answered the
+request. It creates no Alias, wrapper, common Domain, or dependency between
+their Dialects.
+
+Invocation through an Unknown witness remains Unknown and executes no admitted
+operation. A Rejected witness completes the request negatively. A successful
+invocation uses the operations supplied by the positive witness while its
+callback is active. Each new observation negotiates again, so changing a policy
+cannot leave behind an independently callable witness from an earlier query.
 
 Interface negotiation creates no runtime representation. A concrete language
 may define an explicit erased value that retains an accepted candidate, and a
@@ -441,23 +457,30 @@ not contribute Documentation. Formatting preserves their authored content.
 ## Host ABI
 
 The TTX concept and model contracts are expressible as C handles and immutable
-operation tables. One authority token plus one value token is the live semantic
-identity. The operations pointer is borrowed dispatch machinery and may change
-across a bridge without changing that identity. Category views, Layouts, Packs,
+operation tables. An Abstract is one pointer to a capability whose first member
+points to its operation table. That capability address is its exact identity for
+the lifetime promised by the graph owner. Category views, Layouts, Packs,
 Contexts, Interfaces, and stateful Callable handles carry no second semantic
 identity.
+
+A bridge creates a local forwarding capability rather than importing a foreign
+process address. The proxy is therefore a distinct Abstract. If it can replace
+another participant, the appropriate Interface witness proves that relation
+without weakening exact identity.
 
 The ABI uses no C++ template proof, inheritance, RTTI, native type address,
 `void*` callback context, or container contract. A concrete owner retains any
 state behind its typed handle. Every borrowed identity remains valid only for
 the operation and graph lifetime established by that owner.
 
-Every public TTX header is a self contained C17 header. Abstract, Layout, Pack,
-Context, and Callable handles begin with their immutable operation table.
-Interface and category views instead borrow the exact candidate Abstract beside
-the operations that prove the requested relation. A concrete owner composes the
-operation tables for the categories it proves. It does not acquire category
-meaning from a C++ base class or a registry.
+Every public TTX header is a self contained C17 header. An Abstract capability
+begins with its immutable operation-table pointer. A candidate returns an
+Interface capability only during the receiving sink callback, and that witness
+keeps the exact requirement and visible candidate beside the operations which
+prove their relation. Other support handles carry typed dispatch state without
+acquiring semantic identity. A concrete owner composes the capabilities it
+provides and does not acquire category meaning from a C++ base class or a
+registry.
 
 Stateful visitation uses a typed Callable handle. The Callable operation
 receives that same handle as its self value, so its concrete owner can recover

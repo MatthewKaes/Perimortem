@@ -8,9 +8,9 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Library::Interpreter {
 
@@ -56,7 +56,7 @@ class Expression {
 
 // Scalar Operations accept Pack operands at their grammar boundary, then
 // retain the exact Expression or Constant identities proved here. A
-// parenthesized single positional value is already that semantic fact. Named
+// parenthesized single positional value is already that exact producer. Named
 // Packs and Packs with
 // several values remain honest and require an operation that defines their
 // shape.

@@ -27,7 +27,6 @@ namespace Tetrodotoxin::Shader::Language {
 // Parameters while Instance gives CPU code one concrete mutable Object.
 class Program : public Tetrodotoxin::Library::Language::Types::Structure {
  public:
-  TTX_CONTRACT(Program, Tetrodotoxin::Library::Language::Types::Structure);
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

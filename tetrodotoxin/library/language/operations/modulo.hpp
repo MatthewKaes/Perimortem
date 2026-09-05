@@ -12,7 +12,7 @@ namespace Tetrodotoxin::Library::Language::Operations {
 
 // Modulo owns one binary numeric remainder. It retains the exact left and right
 // Expression edges and selects their shared Type during semantic linking.
-// Folding projects the integer or real remainder without changing those facts.
+// Folding projects the integer or real remainder without changing those inputs.
 class Modulo : public Operation {
  public:
   BINARY_OP_CONTRACT(Modulo);

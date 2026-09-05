@@ -12,6 +12,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/language/binding.hpp"
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/library/dialect.hpp"
@@ -21,12 +22,11 @@
 #include "tetrodotoxin/library/language/function.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
 #include "tetrodotoxin/library/language/types/source.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
-#include "ttx/bootstrap/model/addressable.hpp"
-#include "ttx/bootstrap/model/alias.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/ffi/cpp/addressable.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -35,6 +35,7 @@ using namespace Ttx::Lexical;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 using Tetrodotoxin::Environment::Workspace;
+using Tetrodotoxin::Language::Binding;
 using namespace Validation;
 
 static auto find_return(const Language::Function& function)
@@ -193,12 +194,12 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       monograph.resolve_concept("Selected"_view);
   ASSERT(hidden.is<Language::Types::Structure>());
   ASSERT(packet_identity.is<Language::Types::Structure>());
-  ASSERT(selected_identity.is<Alias>());
+  ASSERT(selected_identity.is<Binding>());
   const auto& packet =
       static_cast<const Language::Types::Structure&>(packet_identity);
   const Abstract& visible_identity = packet.resolve_concept("Visible"_view);
-  ASSERT(visible_identity.is<Alias>());
-  const auto& visible = static_cast<const Alias&>(visible_identity);
+  ASSERT(visible_identity.is<Binding>());
+  const auto& visible = static_cast<const Binding&>(visible_identity);
 
   Allocator::Arena completion;
   Tokenizer tokenizer(completion, source, "structure.ttx"_view);
@@ -219,7 +220,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
   ASSERT(type_bindings != type_bindings.end());
   ++type_bindings;
   ASSERT(type_bindings != type_bindings.end());
-  ASSERT((**type_bindings).is<Alias>());
+  ASSERT((**type_bindings).is<Binding>());
   EXPECT(
       &(**type_bindings).resolve() == &monograph.resolve_concept("Bool"_view));
 
@@ -259,7 +260,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_routes) {
       monograph->resolve_concept("Outer"_view));
   EXPECT(&outer.resolve_concept("Hidden"_view) == &Unknown::get_unknown());
   const Abstract& visible = outer.resolve_concept("Visible"_view);
-  ASSERT(visible.is<Alias>());
+  ASSERT(visible.is<Binding>());
   EXPECT(&visible.resolve_concept("value"_view) == &None::get_none());
 
   const Abstract& inner = outer.resolve_concept("Inner"_view);
@@ -385,7 +386,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
     auto field = first_structure.get_layout().get_abstract(0);
     ASSERT(field);
     ASSERT(field->is<Addressable>());
-    EXPECT(&static_cast<const Addressable&>(*field).get_type() == &second);
+    EXPECT(&static_cast<const Addressable&>(*field).get_domain() == &second);
     EXPECT(errors.is_empty());
   }
 }
@@ -525,7 +526,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
   auto receiver_result = receiver.select<Addressable>();
   ASSERT(receiver_result);
   EXPECT_TEXT(receiver_result->get_name(), "self"_view);
-  EXPECT(&receiver_result->get_type() == &packet);
+  EXPECT(&receiver_result->get_domain() == &packet);
   auto layout_field = packet.get_layout().get_abstract(0);
   ASSERT(layout_field);
   EXPECT(&*layout_field == &field_identity);
@@ -620,7 +621,7 @@ PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
   EXPECT(first_empty_result.get_results().fits(empty_result.get_results()));
   EXPECT(empty_result.get_results().fits(first_empty_result.get_results()));
 
-  const auto& scalar = static_cast<const Ttx::Model::Type&>(
+  const auto& scalar = static_cast<const Ttx::Model::Domain&>(
       monograph->resolve_concept("U8"_view));
   ASSERT_EQ(scalar.get_layout().get_size(), Count(1));
   auto scalar_layout_type = scalar.get_layout().get_abstract(0);

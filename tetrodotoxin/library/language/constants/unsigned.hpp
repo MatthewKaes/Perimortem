@@ -18,7 +18,6 @@ namespace Tetrodotoxin::Library::Language::Constants {
 // target can represent it.
 class Unsigned : public Tetrodotoxin::Library::Language::Constant {
  public:
-  TTX_CONTRACT(Unsigned, Tetrodotoxin::Library::Language::Constant);
   using Value = U64;
 
   static auto create_authored(
@@ -64,7 +63,7 @@ class Unsigned : public Tetrodotoxin::Library::Language::Constant {
         [](const Ttx::Concept::Abstract&) { return ::False; });
   }
 
-  constexpr auto fits(const Ttx::Model::Type& target) const -> Bool override {
+  constexpr auto fits(const Ttx::Model::Domain& target) const -> Bool override {
     if (!get_type()
              .resolve()
              .is<Tetrodotoxin::Library::Language::Model::Types::Unsigned>()) {

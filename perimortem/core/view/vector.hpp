@@ -21,6 +21,7 @@ class Vector {
 
   constexpr Vector() = default;
   constexpr Vector(const Vector&) = default;
+  constexpr auto operator=(const Vector&) -> Vector& = default;
   constexpr Vector(const data_type* entries, const Count size)
       : source_block(entries), size(size) {}
 

@@ -33,5 +33,5 @@ class CppRoot final : public TtxTest::AbstractModel {
 };
 
 auto TtxTest::create_root(Routes routes) -> ttx_abstract {
-  return register_abstract(std::make_shared<CppRoot>(std::move(routes)));
+  return retain_abstract(std::make_shared<CppRoot>(std::move(routes)));
 }

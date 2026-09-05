@@ -20,6 +20,7 @@
 #include "tetrodotoxin/library/language/model/types/real.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 #include "tetrodotoxin/library/language/model/types/value.hpp"
+#include "tetrodotoxin/library/language/model/visibility.hpp"
 #include "tetrodotoxin/library/language/types/access.hpp"
 #include "tetrodotoxin/library/language/types/enumeration.hpp"
 #include "tetrodotoxin/library/language/types/fixed.hpp"
@@ -93,10 +94,10 @@ static auto get_function(Llvm::Module::Body& body) -> llvm::Function& {
 
 static auto object_descriptor_name(
     Llvm::Module::Program& target,
-    const Ttx::Model::Type& type) -> Core::View::Bytes {
+    const Ttx::Model::Domain& type) -> Core::View::Bytes {
   auto structure = type.select<Language::Types::Structure>();
   if (target.get_unit().is_package_member() && structure &&
-      structure->is_externally_reachable(*structure)) {
+      Language::Model::is_externally_reachable(*structure, *structure)) {
     Tetrodotoxin::Terminal::Abi::Symbol symbol(
         target.get_arena(), type,
         Tetrodotoxin::Terminal::Abi::Symbol::Kind::ObjectDescriptor,
@@ -112,10 +113,11 @@ static auto object_descriptor_name(
 
 static auto object_descriptor_linkage(
     Llvm::Module::Program& target,
-    const Ttx::Model::Type& type) -> llvm::GlobalValue::LinkageTypes {
+    const Ttx::Model::Domain& type) -> llvm::GlobalValue::LinkageTypes {
   auto structure = type.select<Language::Types::Structure>();
   return target.get_unit().is_package_member() && structure &&
-                 structure->is_externally_reachable(*structure)
+                 Language::Model::is_externally_reachable(
+                     *structure, *structure)
              ? llvm::GlobalValue::ExternalLinkage
              : llvm::GlobalValue::InternalLinkage;
 }
@@ -129,7 +131,7 @@ static auto fail_toolchain(
 
 static auto fail_type(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Core::View::Bytes message,
     Core::View::Bytes hint = {}) -> Bool {
   auto target = get_target(get_program(program));
@@ -147,7 +149,7 @@ static auto fail_type(
 template <typename contract>
 static auto select_contract(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type) -> Core::Option<const contract&> {
+    const Ttx::Model::Domain& type) -> Core::Option<const contract&> {
   auto selected = type.select<contract>();
   if (!selected) {
     fail_toolchain(
@@ -159,17 +161,17 @@ static auto select_contract(
 }
 
 static auto select_field_type(const Ttx::Concept::Layout& fields, Count index)
-    -> Core::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto entry = fields.get_abstract(index);
   auto field = entry ? entry->select<Ttx::Model::Addressable>()
                      : Core::Option<const Ttx::Model::Addressable&>();
-  return field ? field->get_type().select<Ttx::Model::Type>()
-               : Core::Option<const Ttx::Model::Type&>();
+  return field ? field->get_domain().select<Ttx::Model::Domain>()
+               : Core::Option<const Ttx::Model::Domain&>();
 }
 
 auto Llvm::Module::Carriers::publish(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Carrier carrier) const -> Core::Option<Bool> {
   auto found = carriers.find(&type);
   if (found) {
@@ -189,7 +191,7 @@ auto Llvm::Module::Carriers::publish(
 
 auto Llvm::Module::Carriers::reserve(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Kind kind) const -> Core::Option<Bool> {
   auto target = get_target(program);
   if (!target) {
@@ -337,7 +339,7 @@ auto Llvm::Module::Carriers::reserve(
 
 auto Llvm::Module::Carriers::begin_completion(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type) const -> Core::Option<Bool> {
+    const Ttx::Model::Domain& type) const -> Core::Option<Bool> {
   auto found = carriers.find(&type);
   if (!found) {
     fail_toolchain(
@@ -356,7 +358,7 @@ auto Llvm::Module::Carriers::begin_completion(
 
 auto Llvm::Module::Carriers::select_completion(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Kind kind) const -> Core::Option<Carrier&> {
   auto found = carriers.find(&type);
   if (!found || found->value.kind != kind ||
@@ -372,7 +374,7 @@ auto Llvm::Module::Carriers::select_completion(
 
 auto Llvm::Module::Carriers::complete(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Kind kind) const -> Bool {
   switch (kind) {
   case Kind::Value: {
@@ -426,7 +428,7 @@ auto Llvm::Module::Carriers::complete(
       return False;
     }
 
-    const Ttx::Model::Type& element = fixed->get_element_type();
+    const Ttx::Model::Domain& element = fixed->get_element_type();
     Count extent = Count(fixed->get_extent());
     auto carrier = select_completion(program, type, kind);
     auto element_carrier = carriers.find(&element);
@@ -459,8 +461,8 @@ auto Llvm::Module::Carriers::complete(
       return False;
     }
 
-    const Ttx::Model::Type& element = option->get_element_type();
-    const Ttx::Model::Type& flag = option->get_flag_type();
+    const Ttx::Model::Domain& element = option->get_element_type();
+    const Ttx::Model::Domain& flag = option->get_flag_type();
     auto carrier = select_completion(program, type, kind);
     auto element_carrier = carriers.find(&element);
     auto flag_carrier = carriers.find(&flag);
@@ -510,9 +512,9 @@ auto Llvm::Module::Carriers::complete(
       return False;
     }
 
-    const Ttx::Model::Type& value = result->get_value_type();
-    const Ttx::Model::Type& error = result->get_error_type();
-    const Ttx::Model::Type& flag = result->get_flag_type();
+    const Ttx::Model::Domain& value = result->get_value_type();
+    const Ttx::Model::Domain& error = result->get_error_type();
+    const Ttx::Model::Domain& flag = result->get_flag_type();
     auto carrier = select_completion(program, type, kind);
     auto value_carrier = carriers.find(&value);
     auto error_carrier = carriers.find(&error);
@@ -601,7 +603,7 @@ auto Llvm::Module::Carriers::complete(
       return False;
     }
 
-    const Ttx::Model::Type& element = range->get_element_type();
+    const Ttx::Model::Domain& element = range->get_element_type();
     auto target = get_target(program);
     auto carrier = select_completion(program, type, kind);
     auto element_carrier = carriers.find(&element);
@@ -704,7 +706,7 @@ auto Llvm::Module::Carriers::complete(
     }
 
     auto carrier = select_completion(program, type, kind);
-    const Ttx::Model::Type& element = object->get_element_type();
+    const Ttx::Model::Domain& element = object->get_element_type();
     auto element_carrier = carriers.find(&element);
     if (!carrier || !element_carrier ||
         element_carrier->value.phase != Phase::Complete ||
@@ -734,8 +736,8 @@ auto Llvm::Module::Carriers::complete(
 
 auto Llvm::Module::Carriers::complete_contiguous(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
-    const Ttx::Model::Type& element,
+    const Ttx::Model::Domain& type,
+    const Ttx::Model::Domain& element,
     Kind kind) const -> Bool {
   auto carrier = select_completion(program, type, kind);
   auto native = get_type(element);
@@ -752,7 +754,7 @@ auto Llvm::Module::Carriers::complete_contiguous(
 
 auto Llvm::Module::Carriers::get_implementation_projection(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& candidate) const -> Core::Option<LLVMValueRef> {
+    const Ttx::Model::Domain& candidate) const -> Core::Option<LLVMValueRef> {
   auto target = get_target(program);
   auto object =
       candidate.select<Tetrodotoxin::Library::Language::Types::Object>();
@@ -786,7 +788,7 @@ auto Llvm::Module::Carriers::get_implementation_projection(
 
 auto Llvm::Module::Carriers::complete_aggregate(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Ttx::Concept::Layout& fields,
     Kind kind) const -> Bool {
   auto carrier = select_completion(program, type, kind);
@@ -805,7 +807,7 @@ auto Llvm::Module::Carriers::complete_aggregate(
           "LLVM received an aggregate Layout entry without an Addressable."_view);
     }
 
-    auto field_type = field->get_type().select<Ttx::Model::Type>();
+    auto field_type = field->get_domain().select<Ttx::Model::Domain>();
     if (!field_type) {
       return fail_toolchain(
           program,
@@ -846,21 +848,21 @@ auto Llvm::Module::Carriers::complete_aggregate(
   return True;
 }
 
-auto Llvm::Module::Carriers::get_type(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_type(const Ttx::Model::Domain& type) const
     -> Core::Option<LLVMTypeRef> {
   auto found = carriers.find(&type);
   return found && found->value.native ? found->value.native
                                       : Core::Option<LLVMTypeRef>();
 }
 
-auto Llvm::Module::Carriers::get_payload(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_payload(const Ttx::Model::Domain& type) const
     -> Core::Option<LLVMTypeRef> {
   auto found = carriers.find(&type);
   return found && found->value.payload ? found->value.payload
                                        : Core::Option<LLVMTypeRef>();
 }
 
-auto Llvm::Module::Carriers::get_kind(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_kind(const Ttx::Model::Domain& type) const
     -> Core::Option<Kind> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete) {
@@ -870,7 +872,7 @@ auto Llvm::Module::Carriers::get_kind(const Ttx::Model::Type& type) const
   return found->value.kind;
 }
 
-auto Llvm::Module::Carriers::get_width(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_width(const Ttx::Model::Domain& type) const
     -> Core::Option<Count> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete ||
@@ -881,8 +883,8 @@ auto Llvm::Module::Carriers::get_width(const Ttx::Model::Type& type) const
   return found->value.width;
 }
 
-auto Llvm::Module::Carriers::get_element(const Ttx::Model::Type& type) const
-    -> Core::Option<const Ttx::Model::Type&> {
+auto Llvm::Module::Carriers::get_element(const Ttx::Model::Domain& type) const
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete ||
       !found->value.element) {
@@ -892,8 +894,8 @@ auto Llvm::Module::Carriers::get_element(const Ttx::Model::Type& type) const
   return *found->value.element;
 }
 
-auto Llvm::Module::Carriers::get_flag(const Ttx::Model::Type& type) const
-    -> Core::Option<const Ttx::Model::Type&> {
+auto Llvm::Module::Carriers::get_flag(const Ttx::Model::Domain& type) const
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete || !found->value.flag) {
     return {};
@@ -902,8 +904,8 @@ auto Llvm::Module::Carriers::get_flag(const Ttx::Model::Type& type) const
   return *found->value.flag;
 }
 
-auto Llvm::Module::Carriers::get_error(const Ttx::Model::Type& type) const
-    -> Core::Option<const Ttx::Model::Type&> {
+auto Llvm::Module::Carriers::get_error(const Ttx::Model::Domain& type) const
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete || !found->value.error) {
     return {};
@@ -912,7 +914,7 @@ auto Llvm::Module::Carriers::get_error(const Ttx::Model::Type& type) const
   return *found->value.error;
 }
 
-auto Llvm::Module::Carriers::get_extent(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_extent(const Ttx::Model::Domain& type) const
     -> Core::Option<Count> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete ||
@@ -923,7 +925,7 @@ auto Llvm::Module::Carriers::get_extent(const Ttx::Model::Type& type) const
   return found->value.extent;
 }
 
-auto Llvm::Module::Carriers::get_fields(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::get_fields(const Ttx::Model::Domain& type) const
     -> Core::Option<const Ttx::Concept::Layout&> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete || !found->value.fields) {
@@ -941,31 +943,31 @@ auto Llvm::Module::Carriers::get_field_index(
 
 auto Llvm::Module::Carriers::get_field_host(
     const Ttx::Model::Addressable& field) const
-    -> Core::Option<const Ttx::Model::Type&> {
+    -> Core::Option<const Ttx::Model::Domain&> {
   auto found = field_hosts.find(&field);
-  return found ? Core::Option<const Ttx::Model::Type&>(*found->value)
-               : Core::Option<const Ttx::Model::Type&>();
+  return found ? Core::Option<const Ttx::Model::Domain&>(*found->value)
+               : Core::Option<const Ttx::Model::Domain&>();
 }
 
-auto Llvm::Module::Carriers::is_real(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::is_real(const Ttx::Model::Domain& type) const
     -> Bool {
   auto found = carriers.find(&type);
   return found ? found->value.has(Carrier::Property::Real) : False;
 }
 
-auto Llvm::Module::Carriers::is_signed(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::is_signed(const Ttx::Model::Domain& type) const
     -> Bool {
   auto found = carriers.find(&type);
   return found ? found->value.has(Carrier::Property::Signed) : False;
 }
 
-auto Llvm::Module::Carriers::is_flag(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::is_flag(const Ttx::Model::Domain& type) const
     -> Bool {
   auto found = carriers.find(&type);
   return found ? found->value.has(Carrier::Property::Flag) : False;
 }
 
-auto Llvm::Module::Carriers::is_object(const Ttx::Model::Type& type) const
+auto Llvm::Module::Carriers::is_object(const Ttx::Model::Domain& type) const
     -> Bool {
   auto found = carriers.find(&type);
   return Bool(found && found->value.kind == Kind::Object);
@@ -973,7 +975,7 @@ auto Llvm::Module::Carriers::is_object(const Ttx::Model::Type& type) const
 
 auto Llvm::Module::Carriers::zero(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type) const -> Core::Option<LLVMValueRef> {
+    const Ttx::Model::Domain& type) const -> Core::Option<LLVMValueRef> {
   auto native = get_type(type);
   if (!native) {
     fail_toolchain(
@@ -985,15 +987,15 @@ auto Llvm::Module::Carriers::zero(
   return llvm::wrap(llvm::Constant::getNullValue(llvm::unwrap(*native)));
 }
 
-auto Llvm::Module::Carriers::owns_resources(const Ttx::Model::Type& type) const
-    -> Bool {
-  Memory::Dynamic::Vector<const Ttx::Model::Type*> active;
+auto Llvm::Module::Carriers::owns_resources(
+    const Ttx::Model::Domain& type) const -> Bool {
+  Memory::Dynamic::Vector<const Ttx::Model::Domain*> active;
   return owns_resources(type, active);
 }
 
 auto Llvm::Module::Carriers::owns_resources(
-    const Ttx::Model::Type& type,
-    Memory::Dynamic::Vector<const Ttx::Model::Type*>& active) const -> Bool {
+    const Ttx::Model::Domain& type,
+    Memory::Dynamic::Vector<const Ttx::Model::Domain*>& active) const -> Bool {
   auto found = carriers.find(&type);
   if (!found) {
     return False;
@@ -1005,7 +1007,7 @@ auto Llvm::Module::Carriers::owns_resources(
     return True;
   }
 
-  const Ttx::Model::Type* retained = &type;
+  const Ttx::Model::Domain* retained = &type;
   if (active.contains(retained)) {
     return False;
   }
@@ -1034,7 +1036,7 @@ auto Llvm::Module::Carriers::owns_resources(
 
 auto Llvm::Module::Carriers::retain(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value) const -> Bool {
   auto native_body = get_body(body);
   auto found = carriers.find(&type);
@@ -1126,7 +1128,7 @@ auto Llvm::Module::Carriers::retain(
     if (constant) {
       Bool value_selected = !constant->isZero();
       auto selected_result = select_result(body, type, value, value_selected);
-      const Ttx::Model::Type& selected_type =
+      const Ttx::Model::Domain& selected_type =
           value_selected ? *carrier.element : *carrier.error;
       return selected_result && retain(body, selected_type, *selected_result);
     }
@@ -1196,7 +1198,7 @@ auto Llvm::Module::Carriers::retain(
 
 auto Llvm::Module::Carriers::release(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value) const -> Bool {
   auto native_body = get_body(body);
   auto found = carriers.find(&type);
@@ -1288,7 +1290,7 @@ auto Llvm::Module::Carriers::release(
     if (constant) {
       Bool value_selected = !constant->isZero();
       auto selected_result = select_result(body, type, value, value_selected);
-      const Ttx::Model::Type& selected_type =
+      const Ttx::Model::Domain& selected_type =
           value_selected ? *carrier.element : *carrier.error;
       return selected_result && release(body, selected_type, *selected_result);
     }
@@ -1358,7 +1360,7 @@ auto Llvm::Module::Carriers::release(
 
 auto Llvm::Module::Carriers::select_result(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     LLVMValueRef value,
     Bool value_selected) const -> Core::Option<LLVMValueRef> {
   auto native_body = get_body(body);
@@ -1374,7 +1376,7 @@ auto Llvm::Module::Carriers::select_result(
     return {};
   }
 
-  const Ttx::Model::Type& alternative =
+  const Ttx::Model::Domain& alternative =
       value_selected ? *found->value.element : *found->value.error;
   auto native_alternative = get_type(alternative);
   if (!native_alternative) {
@@ -1393,8 +1395,8 @@ auto Llvm::Module::Carriers::select_result(
 
 auto Llvm::Module::Carriers::assemble_result(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
-    const Ttx::Model::Type& alternative,
+    const Ttx::Model::Domain& type,
+    const Ttx::Model::Domain& alternative,
     Bool value_selected,
     Core::View::Vector<LLVMValueRef> elements) const
     -> Core::Option<LLVMValueRef> {
@@ -1406,7 +1408,7 @@ auto Llvm::Module::Carriers::assemble_result(
     return {};
   }
 
-  const Ttx::Model::Type& expected =
+  const Ttx::Model::Domain& expected =
       value_selected ? *found->value.element : *found->value.error;
   if (&expected != &alternative) {
     return {};
@@ -1437,7 +1439,7 @@ auto Llvm::Module::Carriers::assemble_result(
 
 auto Llvm::Module::Carriers::assemble(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Core::View::Vector<LLVMValueRef> elements) const
     -> Core::Option<LLVMValueRef> {
   auto native_body = get_body(body);
@@ -1649,7 +1651,7 @@ auto Llvm::Module::Carriers::fit_values(
 
 auto Llvm::Module::Carriers::fit_and_assemble(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     const Library::Language::Model::Pack& source,
     Core::View::Vector<LLVMValueRef> elements) const
     -> Core::Option<LLVMValueRef> {
@@ -1677,7 +1679,7 @@ auto Llvm::Module::Carriers::fit_and_assemble(
         type.select<Tetrodotoxin::Library::Language::Types::Implementation>();
     const Library::Language::Model::Pack& semantic = source;
     auto candidate =
-        semantic.get_value_type(0).resolve().select<Ttx::Model::Type>();
+        semantic.get_value_type(0).resolve().select<Ttx::Model::Domain>();
     auto candidate_native =
         candidate ? get_type(*candidate) : Core::Option<LLVMTypeRef>();
     auto projection = implementation && candidate && candidate_native &&
@@ -1731,7 +1733,7 @@ auto Llvm::Module::Carriers::fit_and_assemble(
       return {};
     }
 
-    const Ttx::Model::Type& alternative =
+    const Ttx::Model::Domain& alternative =
         value ? *carrier.element : *carrier.error;
     auto native_alternative = get_type(alternative);
     if (elements.get_size() == 1 && native_alternative &&
@@ -1762,7 +1764,7 @@ auto Llvm::Module::Carriers::fit(
 
 auto Llvm::Module::Carriers::get_object_descriptor(
     Llvm::Module::Emission& program,
-    const Ttx::Model::Type& type) const -> Core::Option<LLVMValueRef> {
+    const Ttx::Model::Domain& type) const -> Core::Option<LLVMValueRef> {
   auto found = carriers.find(&type);
   if (!found || found->value.phase != Phase::Complete) {
     fail_toolchain(
@@ -1923,7 +1925,7 @@ auto Llvm::Module::Carriers::get_object_descriptor(
 
 auto Llvm::Module::Carriers::construct(
     Llvm::Module::Emission& body,
-    const Ttx::Model::Type& type,
+    const Ttx::Model::Domain& type,
     Core::View::Vector<LLVMValueRef> values) const
     -> Core::Option<LLVMValueRef> {
   auto native_body = get_body(body);

@@ -5,8 +5,9 @@
 
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/fold.hpp"
-#include "ttx/bootstrap/concept/none.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "tetrodotoxin/library/language/model/initialization.hpp"
+#include "ttx/concept/none.hpp"
+#include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -72,7 +73,7 @@ auto Language::Expressions::Initializer::get_type() const -> const Abstract& {
 }
 
 auto Language::Expressions::Initializer::fits(
-    const Ttx::Model::Type& target) const -> Bool {
+    const Ttx::Model::Domain& target) const -> Bool {
   return expected_type && *expected_type == &target;
 }
 
@@ -190,7 +191,7 @@ auto Language::Expressions::Initializer::link(
 
   const Layout& inputs = arguments.get_layout();
   if (inputs.is_empty()) {
-    auto value = target->create_default(cursor.get_arena());
+    auto value = Model::initialize_default(*target, cursor.get_arena());
     if (!value) {
       cursor.create_expression_error(
           get_anchor(), "Initializer could not create the Type default."_view,
@@ -216,8 +217,8 @@ auto Language::Expressions::Initializer::link(
     return Expression::link(cursor, lexical_context, access_scope);
   }
 
-  auto completed =
-      target->create_supplied(cursor, arguments, access_scope, get_anchor());
+  auto completed = Model::initialize_supplied(
+      *target, cursor, arguments, access_scope, get_anchor());
   BAIL_IF(!completed);
   BAIL_IF(!completed->link(cursor, lexical_context, access_scope));
   if (!completed->fits_into(*target)) {

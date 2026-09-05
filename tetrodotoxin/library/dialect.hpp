@@ -13,7 +13,6 @@ namespace Tetrodotoxin::Library {
 // identity belongs to the Monograph created for that source.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
-  TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
   Dialect(Perimortem::Core::View::Bytes name = "Library"_view)
       : Tetrodotoxin::Language::Dialect(name) {}

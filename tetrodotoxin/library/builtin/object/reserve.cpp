@@ -21,11 +21,12 @@ static auto create_entries(
 }
 
 Builtin::Object::Reserve::Reserve(
+    Memory::Allocator::Arena& domain,
     Ttx::Model::Layouts::Addressable& self,
     Ttx::Model::Layouts::Addressable& count,
     const Language::Model::Type& result)
     : parameter_entries(create_entries(self, count)),
-      parameters(parameter_entries.get_view()),
+      parameters(domain, parameter_entries.get_view()),
       results(result, 1) {}
 
 auto Builtin::Object::Reserve::create(
@@ -37,8 +38,9 @@ auto Builtin::Object::Reserve::create(
       domain, "self"_view, receiver);
   auto& count_parameter = Ttx::Model::Layouts::Addressable::create_synthetic(
       domain, "count"_view, count);
-  return domain.construct_from<Reserve>(
-      [&]() -> Reserve { return Reserve(self, count_parameter, result); });
+  return domain.construct_from<Reserve>([&]() -> Reserve {
+    return Reserve(domain, self, count_parameter, result);
+  });
 }
 
 auto Builtin::Object::Reserve::accepts_receiver(

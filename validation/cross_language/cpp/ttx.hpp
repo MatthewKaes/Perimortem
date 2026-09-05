@@ -11,9 +11,9 @@
 #include <vector>
 
 #include "ttx/abi.h"
-#include "ttx/abstract.hpp"
-#include "ttx/alias.hpp"
-#include "ttx/fluid.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/model/alias.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 
 namespace TtxTest {
 
@@ -43,8 +43,7 @@ struct AliasBinding {
   ttx_abstract target = {};
 };
 
-void install(uint64_t callback_authority);
-auto register_abstract(std::shared_ptr<AbstractModel> model) -> ttx_abstract;
+auto retain_abstract(std::shared_ptr<Ttx::Abstract> model) -> ttx_abstract;
 auto redispatch(ttx_abstract original) -> ttx_abstract;
 auto make_alias(ttx_abstract target) -> AliasBinding;
 auto alias_target(const AliasBinding& alias) -> ttx_abstract;
@@ -59,6 +58,10 @@ void forward_interface(
     ttx_abstract visible_candidate,
     ttx_abstract requirement,
     ttx_interface_sink result);
+void forward_bytes(
+    ttx_abstract source,
+    ttx_abstract candidate,
+    ttx_bytes_result result);
 void invoke(
     ttx_abstract candidate,
     ttx_abstract requirement,

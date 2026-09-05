@@ -15,7 +15,7 @@
 #include "tetrodotoxin/library/dialect.hpp"
 #include "tetrodotoxin/library/interpreter/source/import.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
-#include "ttx/bootstrap/concept/unknown.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/tokenizer.hpp"
 
@@ -32,7 +32,6 @@ class ImportContext : public Abstract {
   ImportContext(Allocator::Arena& arena, View::Bytes name)
       : name(name), bindings(arena) {}
 
-  TTX_CONTRACT(ImportContext, Abstract);
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 

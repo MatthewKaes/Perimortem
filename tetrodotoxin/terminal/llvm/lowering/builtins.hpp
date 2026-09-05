@@ -8,13 +8,13 @@
 
 #include "llvm-c/Types.h"
 #include "tetrodotoxin/terminal/llvm/lowering/execution.hpp"
-#include "ttx/bootstrap/model/callable.hpp"
+#include "ttx/ffi/cpp/callable.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Lowering {
 
 // Builtins maps generated Library Callables to target operations. Their
-// signatures and folding remain semantic Library facts while native calling
-// details stay on this side of the terminal boundary.
+// signatures and folding remain with their Library owners, while native
+// calling details stay on this side of the Terminal boundary.
 class Builtins {
  public:
   static auto lower(

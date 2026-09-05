@@ -7,7 +7,8 @@ dialect : Library;
 @catalog("scalar") @catalog("scalar")
 public CountAlias : alias = U64;
 
-// Field Attributes remain source facts even when no Terminal consumes them.
+// Field Attributes remain attached to their source declaration even when no
+// Terminal consumes them.
 @initializer @abi("C")
 public session : Session = new[Session](.id = 7);
 

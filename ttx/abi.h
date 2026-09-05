@@ -46,21 +46,52 @@ typedef struct {
   uint64_t size;
 } ttx_borrowed_bytes;
 
-// A handle names one authority and one value local to that authority. Neither
-// token is a process address. The operations table is borrowed dispatch
-// machinery and is deliberately excluded from Abstract identity: a bridge may
-// supply another table without changing the authority and value it carries.
-#define TTX_DECLARE_HANDLE(name)        \
-  typedef struct name##_ops name##_ops; \
-  typedef struct {                      \
-    const name##_ops* operations;       \
-    uint64_t owner;                     \
-    uint64_t value;                     \
+// Most support handles pair an immutable operation table with private dispatch
+// state. They carry no semantic identity, so that pair is only a call boundary
+// for the owner which produced the support value.
+#define TTX_DECLARE_HANDLE(name)          \
+  typedef struct name##_ops name##_ops;   \
+  typedef struct name##_self name##_self; \
+  typedef struct {                        \
+    const name##_ops* operations;         \
+    name##_self* self;                    \
   } name
 
-TTX_DECLARE_HANDLE(ttx_abstract);
+// An Abstract is different: the capability itself is the semantic identity.
+// Passing its address keeps the operation table and the subject it serves
+// inseparable. A C, C++, Rust, remote, or synthesized implementation may place
+// any private state behind this prefix, but callers receive only this pointer
+// and can neither replace its table nor recover a language object from it.
+typedef struct ttx_abstract_ops ttx_abstract_ops;
+typedef struct ttx_abstract_capability {
+  const ttx_abstract_ops* operations;
+} ttx_abstract_capability;
+typedef const ttx_abstract_capability* ttx_abstract;
+
 TTX_DECLARE_HANDLE(ttx_documentation);
-TTX_DECLARE_HANDLE(ttx_interface);
+
+// An Interface witness is also one capability. It is synthesized by the
+// candidate answering a requirement and remains borrowed only for the sink
+// callback which receives it. Keeping its dispatch attached to that witness
+// prevents a caller from recombining one relation with another implementation.
+typedef struct ttx_interface_ops ttx_interface_ops;
+typedef struct ttx_interface_capability {
+  const ttx_interface_ops* operations;
+} ttx_interface_capability;
+typedef const ttx_interface_capability* ttx_interface;
+
+#if defined(__cplusplus)
+static_assert(sizeof(ttx_abstract) == sizeof(void*));
+static_assert(sizeof(ttx_interface) == sizeof(void*));
+#else
+_Static_assert(
+    sizeof(ttx_abstract) == sizeof(void*),
+    "Abstract is one pointer");
+_Static_assert(
+    sizeof(ttx_interface) == sizeof(void*),
+    "Interface is one pointer");
+#endif
+
 TTX_DECLARE_HANDLE(ttx_layout);
 TTX_DECLARE_HANDLE(ttx_pack);
 TTX_DECLARE_HANDLE(ttx_context);
@@ -74,6 +105,9 @@ TTX_DECLARE_HANDLE(ttx_value_layout);
 TTX_DECLARE_HANDLE(ttx_composite_layout);
 TTX_DECLARE_HANDLE(ttx_finite_extent);
 TTX_DECLARE_HANDLE(ttx_ranged_layout);
+TTX_DECLARE_HANDLE(ttx_reindexed_layout);
+TTX_DECLARE_HANDLE(ttx_bytes);
+TTX_DECLARE_HANDLE(ttx_addressable_policy);
 
 TTX_DECLARE_HANDLE(ttx_bytes_sink);
 TTX_DECLARE_HANDLE(ttx_abstract_sink);
@@ -91,9 +125,13 @@ TTX_DECLARE_HANDLE(ttx_value_layout_result);
 TTX_DECLARE_HANDLE(ttx_composite_layout_result);
 TTX_DECLARE_HANDLE(ttx_finite_extent_result);
 TTX_DECLARE_HANDLE(ttx_ranged_layout_result);
+TTX_DECLARE_HANDLE(ttx_reindexed_layout_result);
+TTX_DECLARE_HANDLE(ttx_bytes_result);
 TTX_DECLARE_HANDLE(ttx_named_selection_result);
 TTX_DECLARE_HANDLE(ttx_layout_entry_sink);
 TTX_DECLARE_HANDLE(ttx_named_route_sink);
+TTX_DECLARE_HANDLE(ttx_reindex_sink);
+TTX_DECLARE_HANDLE(ttx_addressable_interface_result);
 
 // Abstract handles borrow one semantic identity from its owning graph.
 // Documentation and Layout handles borrow immutable projections. Interface
@@ -105,6 +143,10 @@ TTX_DECLARE_HANDLE(ttx_named_route_sink);
 // exactly once before returning. A visitor may emit any finite number of items
 // and then completes exactly once. Providers retain neither a sink nor a
 // borrowed byte view after the operation returns.
+// Typed category views may also be synthesized inside their result callback.
+// A consumer needing them afterward copies their public support while that
+// callback is active. Copying a Callable uses each Layout's snapshot operation.
+// The Abstract candidates inside those copies remain borrowed graph identities.
 
 typedef enum {
   TTX_INTERFACE_UNKNOWN = 0,
@@ -171,8 +213,8 @@ struct ttx_pack_result_ops {
 };
 
 // unknown and none are semantic fitting answers. support_failed reports that
-// the Context could not retain otherwise valid support data; it does not turn a
-// host allocation or transport failure into a graph fact.
+// the Context could not retain otherwise valid support data; a host allocation
+// or transport failure therefore cannot masquerade as a semantic answer.
 
 struct ttx_enumerable_result_ops {
   ttx_abi_header header;
@@ -199,7 +241,13 @@ struct ttx_callable_result_ops {
   void(TTX_CALL* unknown)(ttx_callable_result);
   void(TTX_CALL* none)(ttx_callable_result);
   void(TTX_CALL* resolved)(ttx_callable_result, ttx_callable);
+  void(TTX_CALL* support_failed)(ttx_callable_result, ttx_pack_support_failure);
 };
+
+// The resolved Callable view is borrowed during this callback. Its parameter
+// and result Layouts can also be synthesized there. A caller retaining the
+// observation requests Layout snapshots before returning, keeping support
+// allocation failure separate from the candidate's semantic answer.
 
 struct ttx_fluid_result_ops {
   ttx_abi_header header;
@@ -239,6 +287,27 @@ struct ttx_ranged_layout_result_ops {
   void(TTX_CALL* satisfied)(ttx_ranged_layout_result, ttx_ranged_layout);
 };
 
+struct ttx_reindexed_layout_result_ops {
+  ttx_abi_header header;
+  void(TTX_CALL* rejected)(ttx_reindexed_layout_result);
+  void(TTX_CALL* satisfied)(ttx_reindexed_layout_result, ttx_reindexed_layout);
+};
+
+struct ttx_bytes_result_ops {
+  ttx_abi_header header;
+  void(TTX_CALL* unknown)(ttx_bytes_result);
+  void(TTX_CALL* none)(ttx_bytes_result);
+  void(TTX_CALL* resolved)(ttx_bytes_result, ttx_bytes);
+};
+
+struct ttx_addressable_interface_result_ops {
+  ttx_abi_header header;
+  void(TTX_CALL* pass)(ttx_addressable_interface_result);
+  void(TTX_CALL* answer)(
+      ttx_addressable_interface_result,
+      ttx_interface_relation relation);
+};
+
 struct ttx_named_selection_result_ops {
   ttx_abi_header header;
   void(TTX_CALL* unknown)(ttx_named_selection_result);
@@ -269,6 +338,15 @@ struct ttx_named_route_sink_ops {
       ttx_borrowed_bytes structural_path,
       ttx_borrowed_bytes complete_route);
   void(TTX_CALL* completed)(ttx_named_route_sink);
+};
+
+struct ttx_reindex_sink_ops {
+  ttx_abi_header header;
+  void(TTX_CALL* mapping)(
+      ttx_reindex_sink,
+      ttx_borrowed_bytes output_path,
+      ttx_borrowed_bytes source_path);
+  void(TTX_CALL* completed)(ttx_reindex_sink);
 };
 
 struct ttx_documentation_ops {
@@ -317,12 +395,13 @@ struct ttx_abstract_ops {
   void(TTX_CALL* resolve_callable)(ttx_abstract, ttx_callable_result);
   void(TTX_CALL* resolve_route)(ttx_abstract, ttx_route_result);
   void(TTX_CALL* resolve_finite_extent)(ttx_abstract, ttx_finite_extent_result);
+  void(TTX_CALL* resolve_bytes)(ttx_abstract, ttx_bytes_result);
 };
 
 // Abstract-valued operations are total and return a real handle through their
 // sinks. name and Documentation are descriptive only. resolve_concept receives
 // one complete byte route, including empty and non-textual routes, while
-// visit_concepts advertises only the facts available during that call.
+// visit_concepts advertises only the answers available during that call.
 
 #define TTX_ABSTRACT_INTERFACE_PREFIX_SIZE \
   ((uint32_t)offsetof(ttx_abstract_ops, resolve_domain))
@@ -332,6 +411,8 @@ struct ttx_abstract_ops {
   ((uint32_t)offsetof(ttx_abstract_ops, resolve_route))
 #define TTX_ABSTRACT_ROUTE_PREFIX_SIZE \
   ((uint32_t)offsetof(ttx_abstract_ops, resolve_finite_extent))
+#define TTX_ABSTRACT_EXTENT_PREFIX_SIZE \
+  ((uint32_t)offsetof(ttx_abstract_ops, resolve_bytes))
 
 struct ttx_layout_ops {
   ttx_abi_header header;
@@ -347,6 +428,7 @@ struct ttx_layout_ops {
   void(TTX_CALL* value)(ttx_layout, ttx_value_layout_result);
   void(TTX_CALL* composite)(ttx_layout, ttx_composite_layout_result);
   void(TTX_CALL* ranged)(ttx_layout, ttx_ranged_layout_result);
+  void(TTX_CALL* reindexed)(ttx_layout, ttx_reindexed_layout_result);
 };
 
 // Layout is an identity-free immutable projection. fit asks the receiving
@@ -408,9 +490,87 @@ struct ttx_ranged_layout_ops {
   ttx_abstract(TTX_CALL* extent)(ttx_ranged_layout);
 };
 
-// Fluid proves that one Layout exposes a finite sequence of independently
-// factual positions. It does not make every Enumerable Layout positional or
-// flatten Composite boundaries into that sequence.
+struct ttx_reindexed_layout_ops {
+  ttx_abi_header header;
+  ttx_layout(TTX_CALL* candidate)(ttx_reindexed_layout);
+  ttx_layout(TTX_CALL* source)(ttx_reindexed_layout);
+  ttx_layout(TTX_CALL* projection)(ttx_reindexed_layout);
+  void(TTX_CALL* visit_mappings)(ttx_reindexed_layout, ttx_reindex_sink);
+};
+
+struct ttx_bytes_ops {
+  ttx_abi_header header;
+  ttx_abstract(TTX_CALL* candidate)(ttx_bytes);
+  uint64_t(TTX_CALL* size)(ttx_bytes);
+  void(TTX_CALL* visit)(ttx_bytes, ttx_bytes_sink);
+};
+
+// Addressable asks each policy before it asks the referent. For Abstract-valued
+// and typed resolution operations, None means that this policy does not own the
+// question and traversal continues. Unknown or a resolved answer stops the
+// current observation. Interface needs a separate pass arm because Rejected is
+// itself a completed policy answer and must never fall through.
+struct ttx_addressable_policy_ops {
+  ttx_abi_header header;
+  void(TTX_CALL* resolve_concept)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_borrowed_bytes route,
+      ttx_abstract_sink);
+  void(TTX_CALL* visit_concepts)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_concept_sink);
+  void(TTX_CALL* interface)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_abstract requirement,
+      ttx_addressable_interface_result);
+  void(TTX_CALL* resolve_domain)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_domain_result);
+  void(TTX_CALL* resolve_callable)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_callable_result);
+  void(TTX_CALL* resolve_route)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_route_result);
+  void(TTX_CALL* resolve_finite_extent)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_finite_extent_result);
+  void(TTX_CALL* resolve_bytes)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_bytes_result);
+  void(TTX_CALL* invoke)(
+      ttx_addressable_policy,
+      ttx_abstract candidate,
+      ttx_abstract requirement,
+      ttx_abstract operation,
+      ttx_pack input,
+      ttx_context,
+      ttx_pack_result);
+};
+
+// A policy handle is borrowed by its Addressable for that graph lifetime. Its
+// owner must therefore keep both the operation table and private dispatch state
+// alive beside the Addressable. Plugin-backed policies satisfy that condition
+// through Environment's retained provider lifetime rather than a TTX lease.
+
+// Bytes is an identity-free view over one exact Abstract. It streams immutable
+// chunks because a provider may live in another language or process and cannot
+// promise that one native pointer is meaningful to its consumer. A concrete
+// language may build text, buffers, images, or other value systems above this
+// view without making byte sequences the universal TTX value domain.
+
+// Fluid exposes a finite sequence whose producer positions can settle
+// independently. Other Enumerable Layouts may retain stronger structure, so
+// this view never flattens Composite boundaries or implies that every flow is
+// positional.
 
 struct ttx_route_ops {
   ttx_abi_header header;
@@ -457,30 +617,27 @@ struct ttx_named_ops {
       ttx_named_selection_result);
 };
 
-// Exact identity is useful only after the caller has already established that
-// identity is the fact being compared. Equal tokens prove the same graph
-// subject; unequal tokens say nothing about compatible Domains, fitting,
-// Interface satisfaction, or behavioral equivalence.
+// Exact identity is useful only when the caller intends to compare graph
+// subjects. Equal capabilities identify the same subject; unequal handles say
+// nothing about compatible Domains, fitting, Interface satisfaction, or
+// behavioral equivalence.
 static inline uint8_t ttx_abstract_same(ttx_abstract left, ttx_abstract right) {
-  return (uint8_t)(left.owner == right.owner && left.value == right.value);
+  return (uint8_t)(left == right);
 }
 
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_unknown(void);
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_none(void);
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_constant_requirement(void);
+TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_addressable_requirement(void);
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_callable_requirement(void);
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_route_requirement(void);
 TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_finite_extent_requirement(void);
+TTX_EXTERN_C TTX_API ttx_abstract TTX_CALL ttx_bytes_requirement(void);
 TTX_EXTERN_C TTX_API ttx_layout TTX_CALL ttx_empty_layout(void);
 
 // The reference Context owns every Pack and transferred Layout snapshot until
 // release. Allocation failure returns the all-zero invalid support handle.
 TTX_EXTERN_C TTX_API ttx_context TTX_CALL ttx_context_create(void);
-
-// A host assigns one authority token to each installed owner endpoint. A
-// bridge maps a remote endpoint to one local token and reuses it for that
-// endpoint's complete graph lifetime.
-TTX_EXTERN_C TTX_API uint64_t TTX_CALL ttx_authority_create(void);
 
 #undef TTX_DECLARE_HANDLE
 

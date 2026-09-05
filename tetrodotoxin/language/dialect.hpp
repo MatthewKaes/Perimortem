@@ -10,13 +10,50 @@
 #include "perimortem/memory/dynamic/bytes.hpp"
 
 #include "tetrodotoxin/language/monograph.hpp"
-#include "ttx/bootstrap/concept/abstract.hpp"
-#include "ttx/bootstrap/concept/documentation.hpp"
-#include "ttx/concept/pack.h"
+#include "tetrodotoxin/language/production.h"
+#include "tetrodotoxin/language/provider.h"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/concept/documentation.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/query.hpp"
 
 namespace Tetrodotoxin::Language {
+
+class Dialect;
+
+// Toolchain gives every installed language one entry. The candidate is the
+// identity that proves the Dialect contract. A C++ implementation may also
+// lend its native owner as a local dispatch shortcut, while a provider from
+// another language leaves that pointer empty and supplies the same operations
+// through its retained ABI handle.
+class InstalledDialect {
+ public:
+  constexpr InstalledDialect(
+      Perimortem::Core::View::Bytes name,
+      ttx_abstract candidate,
+      tetrodotoxin_dialect_provider provider,
+      Dialect* local)
+      : name(name), candidate(candidate), provider(provider), local(local) {}
+
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes {
+    return name;
+  }
+
+  constexpr auto get_candidate() const -> ttx_abstract { return candidate; }
+
+  constexpr auto get_provider() const -> tetrodotoxin_dialect_provider {
+    return provider;
+  }
+
+  constexpr auto get_local() const -> Dialect* { return local; }
+
+ private:
+  Perimortem::Core::View::Bytes name;
+  ttx_abstract candidate;
+  tetrodotoxin_dialect_provider provider;
+  Dialect* local;
+};
 
 // A Dialect is one language installed in a Tetrodotoxin Toolchain. It owns the
 // grammar and semantic construction for that language while remaining reusable
@@ -29,7 +66,6 @@ namespace Tetrodotoxin::Language {
 // can focus on the meaning of the source form it recognizes.
 class Dialect : public Ttx::Concept::Abstract {
  public:
-  TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
 
   Dialect(Perimortem::Core::View::Bytes name);
   virtual ~Dialect() = 0;
@@ -41,19 +77,15 @@ class Dialect : public Ttx::Concept::Abstract {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Monograph&> = 0;
 
-  static auto find_installed(
-      Perimortem::Core::View::Vector<Dialect*> installed,
-      Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
-
   // Every Tetrodotoxin source begins with the same documentation and Dialect
   // envelope. Reading it here gives the selected language one consistent entry
   // point and one Monograph result.
   static auto interpret_source(
-      Perimortem::Core::View::Vector<Dialect*> installed,
+      Perimortem::Core::View::Vector<InstalledDialect> installed,
       Ttx::Lexical::Cursor& cursor,
       Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
 
-  // A persistent Dialect retains the complete facts needed to rebuild its own
+  // A persistent Dialect retains the relationships needed to rebuild its own
   // Monograph. An engaged empty value is a valid payload.
   virtual auto encode(const Ttx::Concept::Abstract& monograph) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
@@ -70,10 +102,12 @@ class Dialect : public Ttx::Concept::Abstract {
   // A completed source asks its selected Dialect for the default external
   // product. The graph is supplied only through Abstract concepts, keeping
   // Puffer and concrete Dialects independent from Workspace representation.
-  virtual auto produce(
+  virtual void produce(
+      ttx_context context,
       Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& graph,
-      const Monograph& monograph) const -> const ttx_pack*;
+      tetrodotoxin_workspace_view workspace,
+      const Monograph& monograph,
+      tetrodotoxin_production_result result) const;
 
   constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
     return name;
@@ -86,6 +120,10 @@ class Dialect : public Ttx::Concept::Abstract {
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
+
+ protected:
+  auto negotiate(ttx_abstract requirement) const
+      -> ttx_interface_relation override;
 
  private:
   Perimortem::Core::View::Bytes name;

@@ -15,10 +15,10 @@ pub struct PolicyExports {
 
 #[no_mangle]
 pub extern "C" fn rust_policy_exports() -> PolicyExports {
-    let operation = ttx::register_abstract(ttx::AbstractModel::plain(b"permit"));
+    let operation = ttx::retain_abstract(ttx::AbstractModel::plain(b"permit"));
     let mut requirement = ttx::AbstractModel::plain(b"Visibility");
     requirement.concepts.push((b"permit", operation));
-    let requirement = ttx::register_abstract(requirement);
+    let requirement = ttx::retain_abstract(requirement);
 
     let mut candidate = ttx::AbstractModel::plain(b"rust_visibility_policy");
     candidate.domain = Arc::new(|_| ttx::DomainProjection::Unknown);
@@ -44,7 +44,7 @@ pub extern "C" fn rust_policy_exports() -> PolicyExports {
             invoke: Some(invoke),
         }
     });
-    let candidate = ttx::register_abstract(candidate);
+    let candidate = ttx::retain_abstract(candidate);
     if ttx::relation(candidate, requirement) != ttx::InterfaceRelation::Satisfied {
         std::process::abort();
     }
