@@ -16,9 +16,8 @@ static constexpr auto contains(Lexical::Span span, Count offset) -> Bool {
          offset < Count(span.get_offset()) + span.get_size();
 }
 
-auto Lexical::Associations::create(
-    Anchor anchor,
-    const Concept::Abstract& semantic) -> void {
+auto Lexical::Associations::create(Anchor anchor, ttx_abstract semantic)
+    -> void {
   if (!anchor.get_span()) {
     return;
   }
@@ -52,7 +51,7 @@ auto Lexical::Associations::create(
 }
 
 auto Lexical::Associations::find_at(Count offset) const
-    -> Option<const Concept::Abstract&> {
+    -> Option<ttx_abstract> {
   Option<const Associations::Entry&> selected;
   Bool selected_focus = False;
   Count selected_extent = Count(-1);
@@ -85,10 +84,10 @@ auto Lexical::Associations::find_at(Count offset) const
   return selected->get_semantic();
 }
 
-auto Lexical::Associations::find(const Concept::Abstract& semantic) const
+auto Lexical::Associations::find(ttx_abstract semantic) const
     -> Option<Lexical::Anchor> {
   for (const Entry& association : associations.get_view()) {
-    if (&association.get_semantic() == &semantic) {
+    if (ttx_abstract_same(association.get_semantic(), semantic)) {
       return association.get_anchor();
     }
   }

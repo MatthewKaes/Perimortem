@@ -55,9 +55,9 @@ struct PolicyInterfaceCapture {
 };
 
 struct PolicyDomainCapture {
-  ttx_domain_result_ops operations;
-  bool answered;
-  Addressable::LayerAnswer<DomainObservation> answer;
+  ttx_domain_result result;
+  bool answered = false;
+  bool stopped = false;
 };
 
 struct PolicyCallableCapture {
@@ -165,17 +165,13 @@ static auto select(ttx_domain_result self) -> PolicyDomainCapture& {
 static void TTX_CALL policy_domain_unknown(ttx_domain_result self) {
   PolicyDomainCapture& capture = select(self);
   capture.answered = true;
-  capture.answer = Addressable::LayerAnswer<DomainObservation>::stop({
-    .state = Observation::Unknown,
-    .domain = ttx_unknown(),
-    .layout = {},
-  });
+  capture.stopped = true;
+  capture.result.operations->unknown(capture.result);
 }
 
 static void TTX_CALL policy_domain_none(ttx_domain_result self) {
   PolicyDomainCapture& capture = select(self);
   capture.answered = true;
-  capture.answer = Addressable::LayerAnswer<DomainObservation>::pass();
 }
 
 static void TTX_CALL policy_domain_resolved(
@@ -184,11 +180,10 @@ static void TTX_CALL policy_domain_resolved(
     ttx_layout layout) {
   PolicyDomainCapture& capture = select(self);
   capture.answered = true;
-  capture.answer = Addressable::LayerAnswer<DomainObservation>::stop({
-    .state = Observation::Resolved,
-    .domain = domain,
-    .layout = layout,
-  });
+  capture.stopped = true;
+  // Consume a synthetic policy shape while its dispatch frame is still alive.
+  // Only the final consumer decides whether keeping it merits a snapshot.
+  capture.result.operations->resolved(capture.result, domain, layout);
 }
 
 static auto select(ttx_callable_result self) -> PolicyCallableCapture& {
@@ -429,46 +424,30 @@ static auto observe_interface(
 
 static auto observe_domain(
     ttx_addressable_policy policy,
-    ttx_abstract candidate) -> Addressable::LayerAnswer<DomainObservation> {
+    ttx_abstract candidate,
+    ttx_domain_result result) -> bool {
   if (!valid_policy(policy)) {
-    return Addressable::LayerAnswer<DomainObservation>::stop({
-      .state = Observation::Unknown,
-      .domain = ttx_unknown(),
-      .layout = {},
-    });
+    result.operations->unknown(result);
+    return true;
   }
-  PolicyDomainCapture capture = {
-    .operations =
-        {
-          .header =
-              {
-                .size = sizeof(ttx_domain_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = policy_domain_unknown,
-          .none = policy_domain_none,
-          .resolved = policy_domain_resolved,
-        },
-    .answered = false,
-    .answer = Addressable::LayerAnswer<DomainObservation>::stop({
-      .state = Observation::Unknown,
-      .domain = ttx_unknown(),
-      .layout = {},
-    }),
+  static const ttx_domain_result_ops operations = {
+    .header = {sizeof(ttx_domain_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .unknown = policy_domain_unknown,
+    .none = policy_domain_none,
+    .resolved = policy_domain_resolved,
   };
+  PolicyDomainCapture capture{result};
   policy.operations->resolve_domain(
       policy, candidate,
       {
-        .operations = &capture.operations,
+        .operations = &operations,
         .self = reinterpret_cast<ttx_domain_result_self*>(&capture),
       });
-  return capture.answered ? capture.answer
-                          : Addressable::LayerAnswer<DomainObservation>::stop({
-                              .state = Observation::Unknown,
-                              .domain = ttx_unknown(),
-                              .layout = {},
-                            });
+  if (!capture.answered) {
+    result.operations->unknown(result);
+    return true;
+  }
+  return capture.stopped;
 }
 
 static auto observe_callable(
@@ -746,31 +725,29 @@ static auto to_interface_relation(Addressable::InterfaceAnswer answer)
   std::abort();
 }
 
-Addressable::Layer::Layer()
-    : binding({
-        .operations =
-            {
-              .header =
-                  {
-                    .size = sizeof(ttx_addressable_policy_ops),
-                    .abi_major = TTX_ABI_MAJOR,
-                    .abi_minor = TTX_ABI_MINOR,
-                  },
-              .resolve_concept = resolve_concept_abi,
-              .visit_concepts = visit_concepts_abi,
-              .interface = interface_abi,
-              .resolve_domain = domain_abi,
-              .resolve_callable = callable_abi,
-              .resolve_route = route_abi,
-              .resolve_finite_extent = extent_abi,
-              .resolve_bytes = bytes_abi,
-              .invoke = invoke_abi,
-            },
-      }) {}
+Addressable::Layer::Layer() = default;
+
+const ttx_addressable_policy_ops Addressable::Layer::operations = {
+  .header =
+      {
+        .size = sizeof(ttx_addressable_policy_ops),
+        .abi_major = TTX_ABI_MAJOR,
+        .abi_minor = TTX_ABI_MINOR,
+      },
+  .resolve_concept = resolve_concept_abi,
+  .visit_concepts = visit_concepts_abi,
+  .interface = interface_abi,
+  .resolve_domain = domain_abi,
+  .resolve_callable = callable_abi,
+  .resolve_route = route_abi,
+  .resolve_finite_extent = extent_abi,
+  .resolve_bytes = bytes_abi,
+  .invoke = invoke_abi,
+};
 
 auto Addressable::Layer::get_abi() const -> ttx_addressable_policy {
   return {
-    .operations = &binding.operations,
+    .operations = &operations,
     .self = reinterpret_cast<ttx_addressable_policy_self*>(
         const_cast<Layer*>(this)),
   };
@@ -813,15 +790,7 @@ void Addressable::Layer::domain_abi(
     ttx_addressable_policy self,
     ttx_abstract candidate,
     ttx_domain_result result) {
-  const LayerAnswer<DomainObservation> answer = select(self).domain(candidate);
-  if (!answer.stops || answer.answer.state == Observation::None) {
-    result.operations->none(result);
-  } else if (answer.answer.state == Observation::Unknown) {
-    result.operations->unknown(result);
-  } else {
-    result.operations->resolved(
-        result, answer.answer.domain, answer.answer.layout);
-  }
+  select(self).domain(candidate, result);
 }
 
 void Addressable::Layer::callable_abi(
@@ -905,9 +874,8 @@ void Addressable::Layer::visit_concepts(ttx_abstract, ttx_concept_sink result)
   result.operations->completed(result);
 }
 
-auto Addressable::Layer::domain(ttx_abstract) const
-    -> LayerAnswer<DomainObservation> {
-  return LayerAnswer<DomainObservation>::pass();
+void Addressable::Layer::domain(ttx_abstract, ttx_domain_result result) const {
+  result.operations->none(result);
 }
 
 auto Addressable::Layer::callable(ttx_abstract) const
@@ -1134,19 +1102,8 @@ void Addressable::interface(
 
 void Addressable::domain(ttx_abstract self, ttx_domain_result result) const {
   for (ttx_addressable_policy policy : policies) {
-    const LayerAnswer<DomainObservation> answer = observe_domain(policy, self);
-    if (!answer.stops) {
-      continue;
-    }
-    switch (answer.answer.state) {
-    case Observation::Unknown:
-      result.operations->unknown(result);
-      return;
-    case Observation::None:
-      continue;
-    case Observation::Resolved:
-      result.operations->resolved(
-          result, answer.answer.domain, answer.answer.layout);
+    const bool stopped = observe_domain(policy, self, result);
+    if (stopped) {
       return;
     }
   }

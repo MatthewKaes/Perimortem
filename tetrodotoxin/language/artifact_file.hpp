@@ -33,7 +33,6 @@ auto observe_artifact(ttx_abstract candidate)
 // Publisher access to a provider's buffer or filesystem.
 class ArtifactFile : public Ttx::Concept::Constant {
  public:
-
   ArtifactFile();
 
   virtual constexpr auto get_artifact_route() const
@@ -55,8 +54,16 @@ class ArtifactFile : public Ttx::Concept::Constant {
       -> ttx_interface_relation override;
 
  private:
-  struct InterfaceBinding {
-    tetrodotoxin_artifact_file_ops operations;
+  struct InterfaceBinding : ttx_interface_capability {
+    InterfaceBinding(
+        const tetrodotoxin_artifact_file_ops* operations,
+        const ArtifactFile* owner,
+        ttx_abstract requirement,
+        ttx_abstract candidate)
+        : ttx_interface_capability{&operations->interface},
+          owner(owner),
+          requirement(requirement),
+          candidate(candidate) {}
     const ArtifactFile* owner;
     ttx_abstract requirement;
     ttx_abstract candidate;

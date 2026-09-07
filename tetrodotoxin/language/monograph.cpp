@@ -3,107 +3,75 @@
 
 #include "tetrodotoxin/language/monograph.hpp"
 
-#include "ttx/concept/unknown.hpp"
-#include "ttx/reference/model/layouts/fluid.hpp"
+using namespace Tetrodotoxin::Language;
+using namespace Perimortem;
 
-using namespace Perimortem::Core;
-using namespace Perimortem::Memory;
-using namespace Ttx::Concept;
-using namespace Ttx::Lexical;
-using namespace Tetrodotoxin;
-
-static constexpr Ttx::Model::Layouts::Fluid monograph_layout;
-
-Language::Monograph::~Monograph() {}
-
-Language::Monograph::Monograph(
-    Allocator::Arena& domain,
-    const Abstract& language,
-    const Documentation& documentation,
-    Abstract& context)
-    : domain(domain),
-      documentation(documentation),
+Monograph::Monograph(
+    Memory::Allocator::Arena& arena,
+    ttx_abstract language,
+    const Ttx::Concept::Documentation& documentation,
+    ttx_abstract context)
+    : arena(arena),
       context(context),
       language(language),
-      imports(domain) {}
+      documentation(documentation),
+      imports(arena) {}
 
-auto Language::Monograph::get_layer(const Abstract& requested) const
-    -> Option<const Monograph&> {
-  if (&requested == &language) {
-    return *this;
-  }
-
-  return {};
+auto Monograph::get_layer(ttx_abstract requested) const -> ttx_abstract {
+  return ttx_abstract_same(requested, language) ? get_abi() : ttx_none();
 }
 
-auto Language::Monograph::get_root() const -> const Abstract& {
-  return *this;
-}
-
-auto Language::Monograph::retain_import(
+auto Monograph::retain_import(
     const Import::Description& description,
-    Option<Associations&> associations) -> Bool {
-  for (const Import* import : imports.get_view()) {
-    BAIL_IF(import->get_name() == description.get_name());
+    Core::Option<Ttx::Lexical::Associations&> associations) -> Bool {
+  for (const auto* retained : imports.get_view()) {
+    if (retained->get_name() == description.get_name()) {
+      return False;
+    }
   }
-
-  Import& import = domain.construct<Import>(domain, description);
-  imports.insert(&import);
+  auto& imported = arena.construct<Import>(arena, description);
+  imports.insert(&imported);
   if (associations) {
-    associations->create(description.get_declaration_anchor(), import);
-    associations->create(description.get_expression_anchor(), import);
+    associations->create(
+        description.get_declaration_anchor(), imported.get_abi());
+    associations->create(
+        description.get_expression_anchor(), imported.get_abi());
   }
   return True;
 }
 
-auto Language::Monograph::link(Cursor&) -> Bool {
-  return True;
-}
-
-auto Language::Monograph::finalize(Cursor&) -> Bool {
-  return True;
-}
-
-auto Language::Monograph::link_restored() -> Bool {
-  return True;
-}
-
-auto Language::Monograph::finalize_restored() -> Bool {
-  return True;
-}
-
-auto Language::Monograph::resolve_concept(View::Bytes route) const
-    -> const Abstract& {
-  // A base Monograph contributes no synthetic lookup surface. Concrete roots
-  // answer their own names first and use this boundary only for the borrowed
-  // outer context supplied by the source transaction.
-  const Abstract& imported = resolve_type(route, Visibility::Public);
-  return imported.is<Unknown>() ? context.resolve_concept(route) : imported;
-}
-
-auto Language::Monograph::resolve_lexical_context(View::Bytes route) const
-    -> const Abstract& {
-  const Abstract& imported = resolve_type(route, Visibility::Private);
-  return imported.is<Unknown>() ? context.resolve_concept(route) : imported;
-}
-
-auto Language::Monograph::resolve_type(View::Bytes route, Visibility visibility)
-    const -> const Abstract& {
-  for (const Import* retained : imports.get_view()) {
-    const Import& selected = *retained;
-    if (selected.get_name() != route) {
-      continue;
-    }
-
-    if (visibility == Visibility::Private ||
-        selected.get_visibility() != Visibility::Private) {
-      return selected;
+auto Monograph::resolve_concept(ttx_borrowed_bytes route) const
+    -> ttx_abstract {
+  const Core::View::Bytes name(route.data, route.size);
+  for (const auto* imported : imports.get_view()) {
+    if (imported->get_name() == name) {
+      return imported->get_visibility() == Visibility::Private
+                 ? ttx_unknown()
+                 : imported->get_abi();
     }
   }
-
-  return Unknown::get_unknown();
+  return Ttx::resolve_concept(context, route);
 }
 
-auto Language::Monograph::get_layout() const -> const Layout& {
-  return monograph_layout;
+void Monograph::visit_concepts(ttx_concept_sink result) const {
+  for (const auto* imported : imports.get_view()) {
+    if (imported->get_visibility() != Visibility::Private) {
+      const auto name = imported->get_name();
+      result.operations->item(
+          result, {name.get_data(), name.get_size()}, imported->get_abi());
+    }
+  }
+  result.operations->completed(result);
+}
+
+auto Monograph::layout() const -> ttx_layout {
+  return ttx_empty_layout();
+}
+
+auto Monograph::validate(Ttx::Lexical::Cursor& cursor) const -> Bool {
+  Bool complete = True;
+  for (const auto* imported : imports.get_view()) {
+    complete &= imported->validate(cursor);
+  }
+  return complete;
 }

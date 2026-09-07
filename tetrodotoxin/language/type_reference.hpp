@@ -7,9 +7,9 @@
 #include "perimortem/core/option.hpp"
 
 #include "ttx/concept/abstract.hpp"
-#include "ttx/ffi/cpp/domain.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "ttx/query.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -25,27 +25,23 @@ class TypeReference {
     return TypeReference(route, anchor);
   }
 
-  auto resolve(
-      Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& context) const
-      -> Perimortem::Core::Option<const Ttx::Model::Domain&>;
+  auto resolve(Ttx::Lexical::Cursor& cursor, ttx_abstract context) const
+      -> ttx_abstract;
 
   // A concrete declaration owner may select the first route segment through
   // its private lexical policy, then return to ordinary public Type context
   // queries for every explicit `::` suffix.
   auto resolve_selected(
       Ttx::Lexical::Cursor& cursor,
-      const Ttx::Concept::Abstract& selected_root) const
-      -> Perimortem::Core::Option<const Ttx::Model::Domain&>;
+      ttx_abstract selected_root) const -> ttx_abstract;
 
   // Archive restoration follows the same semantic route after every owner has
   // reconstructed its identities. It has no authored Cursor to report through,
   // so absence lets the persistent Dialect reject the complete transaction.
-  auto resolve_restored(const Ttx::Concept::Abstract& context) const
-      -> Perimortem::Core::Option<const Ttx::Model::Domain&>;
+  auto resolve_restored(ttx_abstract context) const -> ttx_abstract;
 
-  auto resolve_restored_selected(const Ttx::Concept::Abstract& selected_root)
-      const -> Perimortem::Core::Option<const Ttx::Model::Domain&>;
+  auto resolve_restored_selected(ttx_abstract selected_root) const
+      -> ttx_abstract;
 
   auto get_root() const -> Perimortem::Core::View::Bytes;
 

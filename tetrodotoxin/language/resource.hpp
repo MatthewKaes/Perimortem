@@ -14,10 +14,7 @@ namespace Tetrodotoxin::Language {
 // satisfies that contract without another allocation.
 class Resource : public Ttx::Concept::Abstract {
  public:
-
   TTX_NAME("Resource"_view);
-
-  TTX_EMPTY_DOCUMENTATION();
 
   virtual constexpr auto get_value() const -> Perimortem::Core::View::Bytes = 0;
 };

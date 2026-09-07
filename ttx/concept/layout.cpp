@@ -8,9 +8,25 @@
 
 using namespace Ttx;
 
+// Every native Layout uses these same dispatch functions. Keeping the table
+// beside the implementation leaves each projection with just its own state
+// instead of copying nine function pointers into every temporary shape.
+const ttx_layout_ops Layout::operations = {
+  .header = {sizeof(ttx_layout_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+  .fit = fit_abi,
+  .enumerable = enumerable_abi,
+  .named = named_abi,
+  .snapshot = snapshot_abi,
+  .fluid = fluid_abi,
+  .value = value_abi,
+  .composite = composite_abi,
+  .ranged = ranged_abi,
+  .reindexed = reindexed_abi,
+};
+
 auto Layout::get_abi() const -> ttx_layout {
   return {
-    .operations = &binding.operations,
+    .operations = &operations,
     .self = reinterpret_cast<ttx_layout_self*>(const_cast<Layout*>(this)),
   };
 }
@@ -48,7 +64,7 @@ auto Layout::select(ttx_layout self) -> const Layout& {
     std::abort();
   }
   const auto& selected = *reinterpret_cast<const Layout*>(self.self);
-  if (&selected.binding.operations != self.operations) {
+  if (&operations != self.operations) {
     std::abort();
   }
   return selected;

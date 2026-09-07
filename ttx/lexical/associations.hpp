@@ -9,7 +9,7 @@
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "ttx/concept/abstract.hpp"
+#include "ttx/abi.h"
 #include "ttx/lexical/anchor.hpp"
 
 namespace Ttx::Lexical {
@@ -22,18 +22,16 @@ class Associations {
  public:
   class Entry {
    public:
-    constexpr Entry(Anchor anchor, const Ttx::Concept::Abstract& semantic)
-        : anchor(anchor), semantic(&semantic) {}
+    constexpr Entry(Anchor anchor, ttx_abstract semantic)
+        : anchor(anchor), semantic(semantic) {}
 
     constexpr auto get_anchor() const -> Anchor { return anchor; }
 
-    constexpr auto get_semantic() const -> const Ttx::Concept::Abstract& {
-      return *semantic;
-    }
+    constexpr auto get_semantic() const -> ttx_abstract { return semantic; }
 
    private:
     Anchor anchor;
-    const Ttx::Concept::Abstract* semantic;
+    ttx_abstract semantic;
   };
 
   constexpr Associations(Perimortem::Memory::Allocator::Arena& arena)
@@ -42,19 +40,18 @@ class Associations {
 
   // An authored Span gives an identity a place in source. Repeating the exact
   // Anchor replaces a provisional association with the identity established
-  // by linking. Synthetic identities have no authored place and are omitted.
-  auto create(Anchor anchor, const Ttx::Concept::Abstract& semantic) -> void;
+  // during construction. Synthetic identities have no authored place and are
+  // omitted.
+  auto create(Anchor anchor, ttx_abstract semantic) -> void;
 
   // An exact Token is the best answer when several authored ranges cover one
   // byte. When only Spans overlap, the narrower range gives editor tooling the
   // most specific identity, and construction order keeps equal ranges stable.
-  auto find_at(Count offset) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
+  auto find_at(Count offset) const -> Perimortem::Core::Option<ttx_abstract>;
 
   // Looking up the same semantic identity returns the Anchor captured while its
   // source transaction built the graph.
-  auto find(const Ttx::Concept::Abstract& semantic) const
-      -> Perimortem::Core::Option<Anchor>;
+  auto find(ttx_abstract semantic) const -> Perimortem::Core::Option<Anchor>;
 
   // Some editor features need to walk every authored identity rather than
   // select one byte. Sharing this same index keeps those features on the

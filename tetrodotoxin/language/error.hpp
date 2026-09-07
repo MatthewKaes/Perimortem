@@ -5,9 +5,9 @@
 
 #include "tetrodotoxin/language/error.h"
 #include "ttx/concept/abstract.hpp"
+#include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/model/requirement.hpp"
-#include "ttx/concept/unknown.hpp"
 
 namespace Tetrodotoxin::Language {
 
@@ -15,14 +15,11 @@ namespace Tetrodotoxin::Language {
 // the subsystem that understood the request. The consumer still constructs a
 // Report because only it knows which authored source and range led to the
 // request, preserving acquisition, compilation, and provider failures as
-// owner-specific outcomes instead of flattening them into None or a
-// process-wide enum.
+// outcomes owned by those systems instead of flattening them into None or
+// an enum shared by the whole process.
 class Error : public Ttx::Concept::Abstract {
  public:
-
   TTX_NAME("Error"_view);
-
-  TTX_EMPTY_DOCUMENTATION();
 
   static auto requirement() -> ttx_abstract;
   static auto recognizes(ttx_abstract candidate) -> Bool;

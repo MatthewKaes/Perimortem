@@ -152,6 +152,61 @@ static void TTX_CALL enumerable_satisfied(
   capture.enumerable = enumerable;
 }
 
+struct DomainAdmission {
+  bool answered = false;
+  bool valid = false;
+};
+
+static void TTX_CALL admission_unknown(ttx_domain_result result) {
+  auto& admission = *reinterpret_cast<DomainAdmission*>(result.self);
+  admission.valid = !admission.answered;
+  admission.answered = true;
+}
+
+static void TTX_CALL admission_none(ttx_domain_result result) {
+  auto& admission = *reinterpret_cast<DomainAdmission*>(result.self);
+  admission.answered = true;
+  admission.valid = false;
+}
+
+static void TTX_CALL admission_partial(ttx_enumerable_result) {}
+
+static void TTX_CALL admission_enumerable(
+    ttx_enumerable_result result,
+    ttx_enumerable enumerable) {
+  auto& admission = *reinterpret_cast<DomainAdmission*>(result.self);
+  admission.valid =
+      supports(enumerable.operations, sizeof(ttx_enumerable_ops)) &&
+      enumerable.operations->cardinality(enumerable) != 0;
+}
+
+static void TTX_CALL admission_domain(
+    ttx_domain_result result,
+    ttx_abstract,
+    ttx_layout layout) {
+  auto& admission = *reinterpret_cast<DomainAdmission*>(result.self);
+  admission.valid = !admission.answered &&
+                    supports(layout.operations, sizeof(ttx_layout_ops));
+  admission.answered = true;
+  if (!admission.valid) {
+    return;
+  }
+  // The producer already has a position in the supplied flow. We only need to
+  // exclude a Domain that proves zero values, so inspect its temporary shape
+  // here instead of allocating another snapshot for each Pack entry.
+  static const ttx_enumerable_result_ops operations = {
+    .header = {sizeof(ttx_enumerable_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .rejected = admission_partial,
+    .satisfied = admission_enumerable,
+  };
+  layout.operations->enumerable(
+      layout,
+      {
+        .operations = &operations,
+        .self = reinterpret_cast<ttx_enumerable_result_self*>(&admission),
+      });
+}
+
 static void TTX_CALL validate_entry(
     ttx_layout_entry_sink self,
     ttx_borrowed_bytes path,
@@ -172,41 +227,21 @@ static void TTX_CALL validate_entry(
     validation.valid = false;
     return;
   }
-  const Ttx::DomainObservation domain = Ttx::resolve_domain(producer);
-  if (domain.state == Ttx::Observation::None) {
+  DomainAdmission admission;
+  static const ttx_domain_result_ops operations = {
+    .header = {sizeof(ttx_domain_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .unknown = admission_unknown,
+    .none = admission_none,
+    .resolved = admission_domain,
+  };
+  Ttx::resolve_domain(
+      producer, {
+                  .operations = &operations,
+                  .self = reinterpret_cast<ttx_domain_result_self*>(&admission),
+                });
+  if (!admission.answered || !admission.valid) {
     validation.valid = false;
     return;
-  }
-  if (domain.state == Ttx::Observation::Resolved &&
-      supports(domain.layout.operations, sizeof(ttx_layout_ops))) {
-    EnumerableCapture capture = {
-      .operations =
-          {
-            .header =
-                {
-                  .size = sizeof(ttx_enumerable_result_ops),
-                  .abi_major = TTX_ABI_MAJOR,
-                  .abi_minor = TTX_ABI_MINOR,
-                },
-            .rejected = enumerable_rejected,
-            .satisfied = enumerable_satisfied,
-          },
-      .answered = false,
-      .valid = true,
-      .satisfied = false,
-      .enumerable = {},
-    };
-    const ttx_enumerable_result result = {
-      .operations = &capture.operations,
-      .self = reinterpret_cast<ttx_enumerable_result_self*>(&capture),
-    };
-    domain.layout.operations->enumerable(domain.layout, result);
-    if (capture.answered && capture.valid && capture.satisfied &&
-        supports(capture.enumerable.operations, sizeof(ttx_enumerable_ops)) &&
-        capture.enumerable.operations->cardinality(capture.enumerable) == 0) {
-      validation.valid = false;
-      return;
-    }
   }
   ++validation.observed;
 }

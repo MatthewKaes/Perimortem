@@ -7,38 +7,20 @@
 
 namespace Ttx {
 
-// Layout is the modern C++ owner for one identity-free structural projection.
-// Its handle points directly to this owner for the borrowed lifetime rather
-// than assigning graph identity to query-time support data.
+// An operation can assemble a shape for just one query. These overrides let
+// that shape offer fitting and structural views through the same C ABI used
+// by foreign producers. Sharing the dispatch table leaves each temporary with
+// only its own state. Its caller borrows the projection during that operation
+// or asks snapshot() to preserve the support it needs afterward.
 class Layout {
  public:
-  constexpr Layout()
-      : binding({
-          .operations =
-              {
-                .header =
-                    {
-                      .size = sizeof(ttx_layout_ops),
-                      .abi_major = TTX_ABI_MAJOR,
-                      .abi_minor = TTX_ABI_MINOR,
-                    },
-                .fit = fit_abi,
-                .enumerable = enumerable_abi,
-                .named = named_abi,
-                .snapshot = snapshot_abi,
-                .fluid = fluid_abi,
-                .value = value_abi,
-                .composite = composite_abi,
-                .ranged = ranged_abi,
-                .reindexed = reindexed_abi,
-              },
-        }) {}
+  constexpr Layout() = default;
   virtual constexpr ~Layout() = default;
 
   // Layout carries no semantic identity, so a native owner may copy or move
   // its support value while constructing a larger projection. The new C++
-  // object lends its own direct capability; crossing an ABI lifetime still
-  // requires snapshot(), which transfers independently owned support to the
+  // object lends its own direct capability. Crossing an ABI lifetime requires
+  // snapshot(), which transfers independently owned support to the
   // caller rather than borrowing this native copy.
   constexpr Layout(const Layout&) : Layout() {}
   constexpr Layout(Layout&&) : Layout() {}
@@ -59,9 +41,7 @@ class Layout {
   virtual void reindexed(ttx_reindexed_layout_result result) const;
 
  private:
-  struct AbiBinding {
-    ttx_layout_ops operations;
-  };
+  static const ttx_layout_ops operations;
 
   static auto select(ttx_layout self) -> const Layout&;
   static void TTX_CALL fit_abi(
@@ -83,8 +63,6 @@ class Layout {
       ranged_abi(ttx_layout self, ttx_ranged_layout_result result);
   static void TTX_CALL
       reindexed_abi(ttx_layout self, ttx_reindexed_layout_result result);
-
-  AbiBinding binding;
 };
 
 }  // namespace Ttx

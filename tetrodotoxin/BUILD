@@ -10,6 +10,17 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "language",
+    srcs = glob(["language/**/*.cpp"]),
+    hdrs = glob(["language/**/*.h", "language/**/*.hpp"]),
+    deps = [
+        "//perimortem:headless",
+        "//tetrodotoxin/terminal:provider_abi",
+        "//ttx",
+    ],
+)
+
+cc_library(
     name = "package",
     srcs = glob([
         "package/**/*.cpp",
@@ -22,7 +33,7 @@ cc_library(
         ":environment_provider_abi",
         ":linker",
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//tetrodotoxin/library",
         "//tetrodotoxin/terminal:provider",
         "//ttx",
@@ -54,7 +65,7 @@ cc_library(
     includes = ["."],
     deps = [
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//ttx",
     ],
 )
@@ -101,7 +112,7 @@ cc_library(
         ":package",
         ":plugin",
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//tetrodotoxin/terminal:native_toolchain",
         "//tetrodotoxin/terminal:provider",
         "//ttx",
@@ -116,7 +127,7 @@ cc_library(
     deps = [
         ":environment",
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//ttx",
     ],
 )
@@ -125,7 +136,7 @@ cc_library(
     name = "plugin_abi",
     hdrs = ["plugin/abi.h"],
     deps = [
-        "//tetrodotoxin/language:provider_abi",
+        "//tetrodotoxin:language",
         "//tetrodotoxin/terminal:provider_abi",
         "//ttx:abi",
     ],
@@ -142,8 +153,7 @@ cc_library(
     linkopts = ["-ldl"],
     deps = [
         ":plugin_abi",
-        "//tetrodotoxin/language",
-        "//tetrodotoxin/language:provider_abi",
+        "//tetrodotoxin:language",
         "//tetrodotoxin/terminal:provider_abi",
         "//ttx",
     ],

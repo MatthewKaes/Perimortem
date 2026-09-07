@@ -8,7 +8,7 @@ using namespace Tetrodotoxin;
 void Plugin::DialectLibrary::Error::describe(
     Ttx::Lexical::Errors::Report& report) const {
   report
-      << "This bundled Dialect requires the matching C++ SDK implementation."_view;
+      << "The requested Dialect provider is closed or does not own this export."_view;
 }
 
 Plugin::DialectLibrary::DialectLibrary(
@@ -126,14 +126,16 @@ auto Plugin::DialectLibrary::name(tetrodotoxin_dialect_provider_self* self)
 
 void Plugin::DialectLibrary::interpret(
     tetrodotoxin_dialect_provider_self* self,
-    tetrodotoxin_source_input,
-    ttx_abstract,
+    tetrodotoxin_source_input input,
+    ttx_abstract context,
     tetrodotoxin_interpret_result result) {
-  // Existing Tetrodotoxin Dialects still receive a C++ Cursor and context.
-  // Environment uses the proved local owner until those frontends consume the
-  // portable SourceInput directly; returning an owned error keeps a foreign
-  // host from silently constructing a second or incomplete graph.
-  result.operations->failed(result.self, select(self).error.get_abi());
+  auto& library = select(self);
+  if (library.closed) {
+    result.operations->failed(result.self, library.error.get_abi());
+    return;
+  }
+  const auto provider = library.dialect.get_provider();
+  provider.operations->interpret(provider.self, input, context, result);
 }
 
 auto Plugin::DialectLibrary::plugin_handle() -> ttx_plugin {

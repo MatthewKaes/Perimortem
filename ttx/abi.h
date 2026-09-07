@@ -202,7 +202,10 @@ struct ttx_domain_result_ops {
 
 // A resolved Domain result carries the exact Domain Abstract and its immutable
 // Layout for this observation. Returning both through the typed callback lets a
-// provider synthesize the Layout without exposing a native Domain object.
+// provider synthesize the Layout without exposing a native Domain object. The
+// Layout is borrowed for this callback. A consumer that needs it afterward
+// requests an owned snapshot here, while a consumer needing only the Domain
+// keeps that graph identity without allocating shape storage.
 
 struct ttx_pack_result_ops {
   ttx_abi_header header;

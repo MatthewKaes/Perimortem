@@ -17,7 +17,7 @@ cc_library(
     hdrs = glob(["**/*.hpp"]),
     deps = [
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//tetrodotoxin/library",
         "//tetrodotoxin/render",
         "//ttx",

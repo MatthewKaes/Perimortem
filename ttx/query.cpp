@@ -10,20 +10,18 @@
 using namespace Ttx;
 
 struct ResolveCapture {
-  ttx_abstract_sink_ops operations;
   bool answered;
   ttx_abstract answer;
 };
 
 struct DomainCapture {
-  ttx_domain_result_ops operations;
+  ttx_abstract domain;
+  Observation state;
   bool answered;
   bool valid;
-  DomainObservation observation;
 };
 
 struct CallableCapture {
-  ttx_callable_result_ops operations;
   bool answered;
   bool valid;
   CallableObservation observation;
@@ -103,28 +101,24 @@ static auto callable_layout_snapshot(
 }
 
 struct RouteCapture {
-  ttx_route_result_ops operations;
   bool answered;
   bool valid;
   RouteObservation observation;
 };
 
 struct ExtentCapture {
-  ttx_finite_extent_result_ops operations;
   bool answered;
   bool valid;
   ExtentObservation observation;
 };
 
 struct BytesCapture {
-  ttx_bytes_result_ops operations;
   bool answered;
   bool valid;
   BytesObservation observation;
 };
 
 struct InterfaceCapture {
-  ttx_interface_sink_ops operations;
   bool answered;
   ttx_abstract requirement;
   ttx_abstract candidate;
@@ -132,14 +126,12 @@ struct InterfaceCapture {
 };
 
 struct PackCapture {
-  ttx_pack_result_ops operations;
   bool answered;
   bool valid;
   PackObservation observation;
 };
 
 struct InvocationCapture {
-  ttx_interface_sink_ops operations;
   bool answered;
   bool valid;
   ttx_abstract candidate;
@@ -151,21 +143,18 @@ struct InvocationCapture {
 };
 
 struct ProducerCapture {
-  ttx_layout_entry_sink_ops operations;
   std::vector<PackEntry> values;
   bool valid;
   bool completed;
 };
 
 struct PackEnumerableCapture {
-  ttx_enumerable_result_ops operations;
   bool answered;
   bool satisfied;
   ttx_enumerable enumerable;
 };
 
 struct ByteCopyCapture {
-  ttx_bytes_sink_ops operations;
   std::vector<uint8_t> value;
   bool valid;
   bool completed;
@@ -278,11 +267,8 @@ static void TTX_CALL domain_unknown(ttx_domain_result self) {
     return;
   }
   capture.answered = true;
-  capture.observation = {
-    .state = Observation::Unknown,
-    .domain = ttx_unknown(),
-    .layout = {},
-  };
+  capture.state = Observation::Unknown;
+  capture.domain = ttx_unknown();
 }
 
 static void TTX_CALL domain_none(ttx_domain_result self) {
@@ -292,11 +278,8 @@ static void TTX_CALL domain_none(ttx_domain_result self) {
     return;
   }
   capture.answered = true;
-  capture.observation = {
-    .state = Observation::None,
-    .domain = ttx_none(),
-    .layout = {},
-  };
+  capture.state = Observation::None;
+  capture.domain = ttx_none();
 }
 
 static void TTX_CALL domain_resolved(
@@ -309,11 +292,9 @@ static void TTX_CALL domain_resolved(
     return;
   }
   capture.answered = true;
-  capture.observation = {
-    .state = Observation::Resolved,
-    .domain = domain,
-    .layout = layout,
-  };
+  capture.valid = supports(layout.operations, sizeof(ttx_layout_ops));
+  capture.state = Observation::Resolved;
+  capture.domain = domain;
 }
 
 static auto select(ttx_callable_result self) -> CallableCapture& {
@@ -474,20 +455,19 @@ auto Ttx::retain_bytes(ttx_bytes bytes) -> BytesObservation {
   if (!bytes.operations) {
     return {.state = Observation::Unknown, .bytes = {}};
   }
+  static const ttx_bytes_sink_ops copied_operations = {
+    .header = {sizeof(ttx_bytes_sink_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .bytes = copy_byte_chunk,
+    .completed = complete_byte_copy,
+  };
   ByteCopyCapture copied = {
-    .operations =
-        {
-          .header = {sizeof(ttx_bytes_sink_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
-          .bytes = copy_byte_chunk,
-          .completed = complete_byte_copy,
-        },
     .value = {},
     .valid = true,
     .completed = false,
   };
   const auto expected = bytes.operations->size(bytes);
   bytes.operations->visit(
-      bytes, {.operations = &copied.operations,
+      bytes, {.operations = &copied_operations,
               .self = reinterpret_cast<ttx_bytes_sink_self*>(&copied)});
   if (!copied.valid || !copied.completed || copied.value.size() != expected) {
     return {.state = Observation::Unknown, .bytes = {}};
@@ -779,22 +759,21 @@ static auto capture(ttx_abstract source, ttx_borrowed_bytes* route)
       source->operations->header.size < TTX_ABSTRACT_INTERFACE_PREFIX_SIZE) {
     return ttx_unknown();
   }
-  ResolveCapture state = {
-    .operations =
+  static const ttx_abstract_sink_ops state_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_abstract_sink_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .answer = answer,
+          .size = sizeof(ttx_abstract_sink_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .answer = answer,
+  };
+  ResolveCapture state = {
     .answered = false,
     .answer = ttx_unknown(),
   };
   const ttx_abstract_sink result = {
-    .operations = &state.operations,
+    .operations = &state_operations,
     .self = reinterpret_cast<ttx_abstract_sink_self*>(&state),
   };
   if (route == nullptr) {
@@ -818,54 +797,55 @@ static auto unknown_domain() -> DomainObservation {
   return {
     .state = Observation::Unknown,
     .domain = ttx_unknown(),
-    .layout = {},
   };
 }
 
 static auto observe_domain(ttx_abstract source) -> DomainObservation {
-  DomainCapture capture = {
-    .operations =
+  static const ttx_domain_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_domain_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = domain_unknown,
-          .none = domain_none,
-          .resolved = domain_resolved,
+          .size = sizeof(ttx_domain_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = domain_unknown,
+    .none = domain_none,
+    .resolved = domain_resolved,
+  };
+  DomainCapture capture = {
+    .domain = ttx_unknown(),
+    .state = Observation::Unknown,
     .answered = false,
     .valid = true,
-    .observation =
-        {
-          .state = Observation::Unknown,
-          .domain = ttx_unknown(),
-          .layout = {},
-        },
   };
   if (source == nullptr ||
       !supports(source->operations, sizeof(ttx_abstract_ops))) {
     return unknown_domain();
   }
   const ttx_domain_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_domain_result_self*>(&capture),
   };
   source->operations->resolve_domain(source, result);
   if (!capture.answered || !capture.valid) {
     return unknown_domain();
   }
-  if (capture.observation.state == Observation::Resolved &&
-      (capture.observation.domain == nullptr ||
-       !supports(
-           capture.observation.domain->operations, sizeof(ttx_abstract_ops)) ||
-       !supports(
-           capture.observation.layout.operations, sizeof(ttx_layout_ops)))) {
+  if (capture.state == Observation::Resolved &&
+      (capture.domain == nullptr ||
+       !supports(capture.domain->operations, sizeof(ttx_abstract_ops)))) {
     return unknown_domain();
   }
-  return capture.observation;
+  return {.state = capture.state, .domain = capture.domain};
+}
+
+void Ttx::resolve_domain(ttx_abstract source, ttx_domain_result result) {
+  source = Ttx::resolve(source);
+  if (source == nullptr ||
+      !supports(source->operations, sizeof(ttx_abstract_ops))) {
+    result.operations->unknown(result);
+    return;
+  }
+  source->operations->resolve_domain(source, result);
 }
 
 auto Ttx::resolve_domain(ttx_abstract source) -> DomainObservation {
@@ -899,20 +879,19 @@ auto Ttx::resolve_domain(ttx_abstract source) -> DomainObservation {
 }
 
 auto Ttx::resolve_callable(ttx_abstract source) -> CallableObservation {
-  CallableCapture capture = {
-    .operations =
+  static const ttx_callable_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_callable_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = callable_unknown,
-          .none = callable_none,
-          .resolved = callable_resolved,
-          .support_failed = callable_failed,
+          .size = sizeof(ttx_callable_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = callable_unknown,
+    .none = callable_none,
+    .resolved = callable_resolved,
+    .support_failed = callable_failed,
+  };
+  CallableCapture capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -937,7 +916,7 @@ auto Ttx::resolve_callable(ttx_abstract source) -> CallableObservation {
     return capture.observation;
   }
   const ttx_callable_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_callable_result_self*>(&capture),
   };
   source->operations->resolve_callable(source, result);
@@ -957,19 +936,18 @@ auto Ttx::resolve_callable(ttx_abstract source) -> CallableObservation {
 }
 
 auto Ttx::resolve_route(ttx_abstract source) -> RouteObservation {
-  RouteCapture capture = {
-    .operations =
+  static const ttx_route_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_route_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = route_unknown,
-          .none = route_none,
-          .resolved = route_resolved,
+          .size = sizeof(ttx_route_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = route_unknown,
+    .none = route_none,
+    .resolved = route_resolved,
+  };
+  RouteCapture capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -1000,7 +978,7 @@ auto Ttx::resolve_route(ttx_abstract source) -> RouteObservation {
     return capture.observation;
   }
   const ttx_route_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_route_result_self*>(&capture),
   };
   source->operations->resolve_route(source, result);
@@ -1020,19 +998,18 @@ auto Ttx::resolve_route(ttx_abstract source) -> RouteObservation {
 }
 
 auto Ttx::resolve_finite_extent(ttx_abstract source) -> ExtentObservation {
-  ExtentCapture capture = {
-    .operations =
+  static const ttx_finite_extent_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_finite_extent_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = finite_extent_unknown,
-          .none = finite_extent_none,
-          .resolved = finite_extent_resolved,
+          .size = sizeof(ttx_finite_extent_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = finite_extent_unknown,
+    .none = finite_extent_none,
+    .resolved = finite_extent_resolved,
+  };
+  ExtentCapture capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -1058,7 +1035,7 @@ auto Ttx::resolve_finite_extent(ttx_abstract source) -> ExtentObservation {
     return capture.observation;
   }
   const ttx_finite_extent_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_finite_extent_result_self*>(&capture),
   };
   source->operations->resolve_finite_extent(source, result);
@@ -1080,19 +1057,18 @@ auto Ttx::resolve_finite_extent(ttx_abstract source) -> ExtentObservation {
 }
 
 auto Ttx::resolve_bytes(ttx_abstract source) -> BytesObservation {
-  BytesCapture capture = {
-    .operations =
+  static const ttx_bytes_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_bytes_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = bytes_unknown,
-          .none = bytes_none,
-          .resolved = bytes_resolved,
+          .size = sizeof(ttx_bytes_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = bytes_unknown,
+    .none = bytes_none,
+    .resolved = bytes_resolved,
+  };
+  BytesCapture capture = {
     .answered = false,
     .valid = true,
     .observation = {.state = Observation::Unknown, .bytes = {}},
@@ -1112,7 +1088,7 @@ auto Ttx::resolve_bytes(ttx_abstract source) -> BytesObservation {
     return capture.observation;
   }
   const ttx_bytes_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_bytes_result_self*>(&capture),
   };
   source->operations->resolve_bytes(source, result);
@@ -1136,18 +1112,17 @@ auto Ttx::copy_bytes(ttx_abstract source)
       !supports(observation.bytes.operations, sizeof(ttx_bytes_ops))) {
     return std::nullopt;
   }
-  ByteCopyCapture capture = {
-    .operations =
+  static const ttx_bytes_sink_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_bytes_sink_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .bytes = copy_byte_chunk,
-          .completed = complete_byte_copy,
+          .size = sizeof(ttx_bytes_sink_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .bytes = copy_byte_chunk,
+    .completed = complete_byte_copy,
+  };
+  ByteCopyCapture capture = {
     .value = {},
     .valid = true,
     .completed = false,
@@ -1155,7 +1130,7 @@ auto Ttx::copy_bytes(ttx_abstract source)
   observation.bytes.operations->visit(
       observation.bytes,
       {
-        .operations = &capture.operations,
+        .operations = &capture_operations,
         .self = reinterpret_cast<ttx_bytes_sink_self*>(&capture),
       });
   if (!capture.valid || !capture.completed ||
@@ -1172,17 +1147,16 @@ auto Ttx::relation(ttx_abstract candidate, ttx_abstract requirement)
   // reported by a witness. Establish that subject before checking the pair.
   candidate = Ttx::resolve(candidate);
   requirement = Ttx::resolve(requirement);
-  InterfaceCapture capture = {
-    .operations =
+  static const ttx_interface_sink_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_interface_sink_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .answer = interface_answer,
+          .size = sizeof(ttx_interface_sink_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .answer = interface_answer,
+  };
+  InterfaceCapture capture = {
     .answered = false,
     .requirement = ttx_unknown(),
     .candidate = ttx_unknown(),
@@ -1195,7 +1169,7 @@ auto Ttx::relation(ttx_abstract candidate, ttx_abstract requirement)
     return TTX_INTERFACE_UNKNOWN;
   }
   const ttx_interface_sink result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_interface_sink_self*>(&capture),
   };
   candidate->operations->interface(candidate, requirement, result);
@@ -1293,20 +1267,19 @@ auto Ttx::invoke(
   candidate = Ttx::resolve(candidate);
   requirement = Ttx::resolve(requirement);
   operation = Ttx::resolve(operation);
-  PackCapture result_capture = {
-    .operations =
+  static const ttx_pack_result_ops result_capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_pack_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = pack_unknown,
-          .none = pack_none,
-          .packed = pack_retained,
-          .support_failed = pack_support_failed,
+          .size = sizeof(ttx_pack_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = pack_unknown,
+    .none = pack_none,
+    .packed = pack_retained,
+    .support_failed = pack_support_failed,
+  };
+  PackCapture result_capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -1317,20 +1290,19 @@ auto Ttx::invoke(
         },
   };
   const ttx_pack_result result = {
-    .operations = &result_capture.operations,
+    .operations = &result_capture_operations,
     .self = reinterpret_cast<ttx_pack_result_self*>(&result_capture),
   };
-  InvocationCapture invocation = {
-    .operations =
+  static const ttx_interface_sink_ops invocation_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_interface_sink_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .answer = invoke_interface,
+          .size = sizeof(ttx_interface_sink_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .answer = invoke_interface,
+  };
+  InvocationCapture invocation = {
     .answered = false,
     .valid = true,
     .candidate = candidate,
@@ -1349,7 +1321,7 @@ auto Ttx::invoke(
     return result_capture.observation;
   }
   const ttx_interface_sink sink = {
-    .operations = &invocation.operations,
+    .operations = &invocation_operations,
     .self = reinterpret_cast<ttx_interface_sink_self*>(&invocation),
   };
   candidate->operations->interface(candidate, requirement, sink);
@@ -1366,20 +1338,19 @@ auto Ttx::invoke(
 
 auto Ttx::fit(ttx_layout receiving, ttx_pack source, ttx_context context)
     -> PackObservation {
-  PackCapture capture = {
-    .operations =
+  static const ttx_pack_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_pack_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = pack_unknown,
-          .none = pack_none,
-          .packed = pack_retained,
-          .support_failed = pack_support_failed,
+          .size = sizeof(ttx_pack_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = pack_unknown,
+    .none = pack_none,
+    .packed = pack_retained,
+    .support_failed = pack_support_failed,
+  };
+  PackCapture capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -1396,7 +1367,7 @@ auto Ttx::fit(ttx_layout receiving, ttx_pack source, ttx_context context)
     return capture.observation;
   }
   const ttx_pack_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_pack_result_self*>(&capture),
   };
   receiving.operations->fit(receiving, source, context, result);
@@ -1412,20 +1383,19 @@ auto Ttx::fit(ttx_layout receiving, ttx_pack source, ttx_context context)
 
 auto Ttx::pack(ttx_context context, ttx_layout produced_flow)
     -> PackObservation {
-  PackCapture capture = {
-    .operations =
+  static const ttx_pack_result_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_pack_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .unknown = pack_unknown,
-          .none = pack_none,
-          .packed = pack_retained,
-          .support_failed = pack_support_failed,
+          .size = sizeof(ttx_pack_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .unknown = pack_unknown,
+    .none = pack_none,
+    .packed = pack_retained,
+    .support_failed = pack_support_failed,
+  };
+  PackCapture capture = {
     .answered = false,
     .valid = true,
     .observation =
@@ -1441,7 +1411,7 @@ auto Ttx::pack(ttx_context context, ttx_layout produced_flow)
     return capture.observation;
   }
   const ttx_pack_result result = {
-    .operations = &capture.operations,
+    .operations = &capture_operations,
     .self = reinterpret_cast<ttx_pack_result_self*>(&capture),
   };
   context.operations->pack(context, produced_flow, result);
@@ -1463,18 +1433,17 @@ auto Ttx::pack_entries(ttx_pack pack) -> std::optional<std::vector<PackEntry>> {
   if (!supports(layout.operations, sizeof(ttx_layout_ops))) {
     return std::nullopt;
   }
-  PackEnumerableCapture enumerable = {
-    .operations =
+  static const ttx_enumerable_result_ops enumerable_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_enumerable_result_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .rejected = reject_enumerable,
-          .satisfied = accept_enumerable,
+          .size = sizeof(ttx_enumerable_result_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .rejected = reject_enumerable,
+    .satisfied = accept_enumerable,
+  };
+  PackEnumerableCapture enumerable = {
     .answered = false,
     .satisfied = false,
     .enumerable = {},
@@ -1482,7 +1451,7 @@ auto Ttx::pack_entries(ttx_pack pack) -> std::optional<std::vector<PackEntry>> {
   layout.operations->enumerable(
       layout,
       {
-        .operations = &enumerable.operations,
+        .operations = &enumerable_operations,
         .self = reinterpret_cast<ttx_enumerable_result_self*>(&enumerable),
       });
   if (!enumerable.answered || !enumerable.satisfied ||
@@ -1490,18 +1459,17 @@ auto Ttx::pack_entries(ttx_pack pack) -> std::optional<std::vector<PackEntry>> {
     return std::nullopt;
   }
 
-  ProducerCapture capture = {
-    .operations =
+  static const ttx_layout_entry_sink_ops capture_operations = {
+    .header =
         {
-          .header =
-              {
-                .size = sizeof(ttx_layout_entry_sink_ops),
-                .abi_major = TTX_ABI_MAJOR,
-                .abi_minor = TTX_ABI_MINOR,
-              },
-          .entry = capture_producer,
-          .completed = complete_producers,
+          .size = sizeof(ttx_layout_entry_sink_ops),
+          .abi_major = TTX_ABI_MAJOR,
+          .abi_minor = TTX_ABI_MINOR,
         },
+    .entry = capture_producer,
+    .completed = complete_producers,
+  };
+  ProducerCapture capture = {
     .values = {},
     .valid = true,
     .completed = false,
@@ -1509,7 +1477,7 @@ auto Ttx::pack_entries(ttx_pack pack) -> std::optional<std::vector<PackEntry>> {
   enumerable.enumerable.operations->visit(
       enumerable.enumerable,
       {
-        .operations = &capture.operations,
+        .operations = &capture_operations,
         .self = reinterpret_cast<ttx_layout_entry_sink_self*>(&capture),
       });
   if (!capture.valid || !capture.completed ||

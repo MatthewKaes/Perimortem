@@ -3,89 +3,115 @@
 
 #include "tetrodotoxin/language/import.hpp"
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
-#include "ttx/lexical/cursor.hpp"
+#include <string>
 
-using namespace Perimortem::Core;
-using namespace Ttx::Concept;
-using namespace Ttx::Lexical;
-using namespace Tetrodotoxin;
+#include "ttx/query.hpp"
 
-auto Language::Import::acquire(const Ttx::Model::Domain& root) -> Bool {
-  if (acquired) {
-    return acquired == &root;
+using namespace Tetrodotoxin::Language;
+using namespace Perimortem;
+
+Import::Import(Memory::Allocator::Arena& arena, const Description& description)
+    : arena(arena), description(description), version_text([&] {
+        const auto version = description.get_version();
+        const std::string text = std::to_string(version.get_major()) + "." +
+                                 std::to_string(version.get_minor());
+        return arena.proxy(
+            Core::View::Bytes(
+                reinterpret_cast<const U8*>(text.data()), text.size()));
+      }()) {}
+
+auto Import::acquire(ttx_abstract authority) -> Bool {
+  if (authority == nullptr || ttx_abstract_same(authority, get_abi()) ||
+      ttx_abstract_same(authority, ttx_none())) {
+    return False;
   }
-
-  acquired = &root;
-  target = &root;
+  if (!ttx_abstract_same(acquired, ttx_unknown())) {
+    return ttx_abstract_same(acquired, authority);
+  }
+  // Keep the source authority itself. Resolving it here would pin this import
+  // to the graph current during acquisition and lose subsequent source edits.
+  acquired = authority;
+  target = authority;
+  const auto route = get_route();
   Count start = 0;
-  for (Count index = 0; index <= route.get_size(); index++) {
-    Bool terminal = index == route.get_size();
-    Bool separator = !terminal && index + 1 < route.get_size() &&
-                     route[index] == ':' && route[index + 1] == ':';
-    if (!terminal && !separator) {
+  for (Count index = 0; index <= route.get_size(); ++index) {
+    const bool end = index == route.get_size();
+    const bool separator = !end && index + 1 < route.get_size() &&
+                           route[index] == ':' && route[index + 1] == ':';
+    if (!end && !separator) {
       continue;
     }
-    View::Bytes name = route.slice(start, index - start);
+    const auto name = route.slice(start, index - start);
     if (!name.is_empty()) {
-      target = &Language::Reference::create(domain, *target, name);
+      target = Reference::create(arena, target, name).get_abi();
     }
     if (separator) {
-      index++;
+      ++index;
       start = index + 1;
     }
   }
   return True;
 }
 
-auto Language::Import::get_acquired() const -> Option<const Ttx::Model::Domain&> {
-  return acquired ? Option<const Ttx::Model::Domain&>(*acquired)
-                  : Option<const Ttx::Model::Domain&>();
+auto Import::resolve(ttx_abstract) const -> ttx_abstract {
+  return Ttx::resolve(target);
 }
 
-auto Language::Import::select_target() const -> const Abstract& {
-  if (!target) {
-    return Unknown::get_unknown();
-  }
-
-  const Abstract& resolved = target->resolve();
-  return resolved.is<Ttx::Model::Domain>() ? resolved : None::get_none();
-}
-
-auto Language::Import::validate(Cursor& cursor) -> Bool {
-  const Abstract& selected = select_target();
-  if (selected.is<Unknown>() || selected.is<None>()) {
-    auto report = cursor.create_report(expression_anchor);
-    report << "Import Type expression `"_view
-           << (kind == Kind::Source ? "source("_view : "package("_view)
-           << locator << ")"_view;
-    if (!route.is_empty()) {
-      report << "::"_view << route;
-    }
-    report << "` did not resolve."_view;
-    report.get_hint()
-        << "Publish every selected Type before importing this source."_view;
+auto Import::validate(Ttx::Lexical::Cursor& cursor) const -> Bool {
+  const auto selected = resolve(get_abi());
+  if (ttx_abstract_same(selected, ttx_unknown()) ||
+      ttx_abstract_same(selected, ttx_none())) {
+    auto report = cursor.create_report(get_expression_anchor());
+    report << "Import `"_view << get_locator()
+           << "` has no resolved source yet."_view;
     return False;
   }
-
-  cursor.get_associations().create(route_anchor, selected);
   return True;
 }
 
-auto Language::Import::validate_restored() -> Bool {
-  const Abstract& selected = select_target();
-  if (selected.is<Unknown>() || selected.is<None>()) {
-    return False;
-  }
-
-  return True;
-}
-
-auto Language::Import::resolve() const -> const Abstract& {
-  return select_target();
-}
-
-auto Language::Import::get_documentation() const -> const Documentation& {
-  return local_documentation;
+auto Import::dependency() -> tetrodotoxin_source_dependency {
+  static const tetrodotoxin_source_dependency_ops operations = {
+    .header =
+        {sizeof(tetrodotoxin_source_dependency_ops), TTX_ABI_MAJOR,
+         TTX_ABI_MINOR},
+    .kind =
+        [](tetrodotoxin_source_dependency_self* self) {
+          return reinterpret_cast<Import*>(self)->get_kind() == Kind::Source
+                     ? TETRODOTOXIN_DEPENDENCY_SOURCE
+                     : TETRODOTOXIN_DEPENDENCY_PACKAGE;
+        },
+    .local_name =
+        [](tetrodotoxin_source_dependency_self* self) -> ttx_borrowed_bytes {
+      const auto name = reinterpret_cast<Import*>(self)->get_name();
+      return {name.get_data(), name.get_size()};
+    },
+    .locator =
+        [](tetrodotoxin_source_dependency_self* self) -> ttx_borrowed_bytes {
+      const auto value = reinterpret_cast<Import*>(self)->get_locator();
+      return {value.get_data(), value.get_size()};
+    },
+    .version =
+        [](tetrodotoxin_source_dependency_self* self) -> ttx_borrowed_bytes {
+      const auto value = reinterpret_cast<Import*>(self)->version_text;
+      return {value.get_data(), value.get_size()};
+    },
+    .route =
+        [](tetrodotoxin_source_dependency_self* self) -> ttx_borrowed_bytes {
+      const auto value = reinterpret_cast<Import*>(self)->get_route();
+      return {value.get_data(), value.get_size()};
+    },
+    .acquire =
+        [](tetrodotoxin_source_dependency_self* self, ttx_abstract target,
+           tetrodotoxin_dependency_result result) {
+          const auto acquired =
+              reinterpret_cast<Import*>(self)->acquire(target);
+          if (acquired) {
+            result.operations->acquired(result.self);
+          } else {
+            result.operations->rejected(result.self);
+          }
+        },
+  };
+  return {
+    &operations, reinterpret_cast<tetrodotoxin_source_dependency_self*>(this)};
 }

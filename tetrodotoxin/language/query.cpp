@@ -11,6 +11,19 @@ struct ProductionPlanCapture {
   bool completed;
 };
 
+struct InterpretationCapture {
+  InterpretationObservation observation = {
+    InterpretationState::Invalid,
+    {},
+    {}};
+  bool answered = false;
+};
+
+struct ValidationCapture {
+  ValidationObservation observation = {ValidationState::Invalid, {}};
+  bool answered = false;
+};
+
 template <typename Operations>
 static auto supports(const Operations* operations, uint32_t size) -> bool {
   return operations != nullptr &&
@@ -19,14 +32,15 @@ static auto supports(const Operations* operations, uint32_t size) -> bool {
 }
 
 static auto interpretation(tetrodotoxin_interpret_result_self* self)
-    -> InterpretationObservation& {
-  return *reinterpret_cast<InterpretationObservation*>(self);
+    -> InterpretationCapture& {
+  return *reinterpret_cast<InterpretationCapture*>(self);
 }
 
 static void TTX_CALL constructed(
     tetrodotoxin_interpret_result_self* self,
     tetrodotoxin_source_graph graph) {
-  InterpretationObservation& observation = interpretation(self);
+  auto& capture = interpretation(self);
+  auto& observation = capture.observation;
   const bool valid =
       supports(graph.operations, sizeof(tetrodotoxin_source_graph_ops)) &&
       graph.self != nullptr && graph.operations->retain != nullptr &&
@@ -35,10 +49,17 @@ static void TTX_CALL constructed(
       graph.operations->dialect != nullptr &&
       graph.operations->visit_dependencies != nullptr &&
       graph.operations->validate != nullptr &&
-      graph.operations->produce != nullptr;
-  if (observation.graph.operations != nullptr ||
-      observation.error.operations != nullptr || !valid) {
-    if (valid) {
+      graph.operations->produce != nullptr &&
+      graph.operations->visit_associations != nullptr &&
+      graph.operations->visit_diagnostics != nullptr;
+  const bool repeated = capture.answered;
+  capture.answered = true;
+  if (repeated || !valid) {
+    // Construction transfers ownership even if a later service is missing.
+    // Release through the supplied table when its complete ABI is available
+    // so rejecting a malformed graph does not strand its input and storage.
+    if (supports(graph.operations, sizeof(tetrodotoxin_source_graph_ops)) &&
+        graph.self && graph.operations->release) {
       graph.operations->release(graph.self);
     }
     if (observation.graph.operations != nullptr) {
@@ -55,9 +76,11 @@ static void TTX_CALL constructed(
 static void TTX_CALL interpretation_failed(
     tetrodotoxin_interpret_result_self* self,
     ttx_abstract error) {
-  InterpretationObservation& observation = interpretation(self);
-  if (observation.graph.operations != nullptr ||
-      observation.error.operations != nullptr || error.operations == nullptr) {
+  auto& capture = interpretation(self);
+  auto& observation = capture.observation;
+  const bool repeated = capture.answered;
+  capture.answered = true;
+  if (repeated || error == nullptr || error->operations == nullptr) {
     if (observation.graph.operations != nullptr) {
       observation.graph.operations->release(observation.graph.self);
       observation.graph = {};
@@ -73,19 +96,19 @@ auto Tetrodotoxin::Language::interpret(
     tetrodotoxin_dialect_provider provider,
     tetrodotoxin_source_input source,
     ttx_abstract context) -> InterpretationObservation {
-  InterpretationObservation observation = {
-    .state = InterpretationState::Invalid,
-    .graph = {},
-    .error = {},
-  };
+  InterpretationCapture capture;
   if (!supports(
           provider.operations, sizeof(tetrodotoxin_dialect_provider_ops)) ||
-      provider.self == nullptr ||
+      provider.self == nullptr || provider.operations->interpret == nullptr ||
       !supports(source.operations, sizeof(tetrodotoxin_source_input_ops)) ||
-      source.self == nullptr || context.operations == nullptr) {
-    return observation;
+      source.self == nullptr || source.operations->bytes == nullptr ||
+      source.operations->diagnostic_path == nullptr ||
+      source.operations->retain == nullptr ||
+      source.operations->release == nullptr || context == nullptr ||
+      context->operations == nullptr) {
+    return capture.observation;
   }
-  const tetrodotoxin_interpret_result_ops operations = {
+  static const tetrodotoxin_interpret_result_ops operations = {
     .header =
         {
           .size = sizeof(tetrodotoxin_interpret_result_ops),
@@ -99,25 +122,24 @@ auto Tetrodotoxin::Language::interpret(
       provider.self, source, context,
       {
         .operations = &operations,
-        .self =
-            reinterpret_cast<tetrodotoxin_interpret_result_self*>(&observation),
+        .self = reinterpret_cast<tetrodotoxin_interpret_result_self*>(&capture),
       });
-  return observation;
+  return capture.observation;
 }
 
 static auto validation(tetrodotoxin_validation_result_self* self)
-    -> ValidationObservation& {
-  return *reinterpret_cast<ValidationObservation*>(self);
+    -> ValidationCapture& {
+  return *reinterpret_cast<ValidationCapture*>(self);
 }
 
 static auto validation_answer(
     tetrodotoxin_validation_result_self* self,
     ValidationState state) -> ValidationObservation& {
-  ValidationObservation& observation = validation(self);
-  observation.state = observation.state == ValidationState::Invalid
-                          ? state
-                          : ValidationState::Invalid;
-  return observation;
+  auto& capture = validation(self);
+  capture.observation.state =
+      capture.answered ? ValidationState::Invalid : state;
+  capture.answered = true;
+  return capture.observation;
 }
 
 static void TTX_CALL accepted(tetrodotoxin_validation_result_self* self) {
@@ -133,7 +155,7 @@ static void TTX_CALL validation_failed(
     ttx_abstract error) {
   ValidationObservation& observation =
       validation_answer(self, ValidationState::Failed);
-  if (error.operations == nullptr) {
+  if (error == nullptr || error->operations == nullptr) {
     observation.state = ValidationState::Invalid;
   }
   observation.error = error;
@@ -141,15 +163,12 @@ static void TTX_CALL validation_failed(
 
 auto Tetrodotoxin::Language::validate(tetrodotoxin_source_graph graph)
     -> ValidationObservation {
-  ValidationObservation observation = {
-    .state = ValidationState::Invalid,
-    .error = {},
-  };
+  ValidationCapture capture;
   if (!supports(graph.operations, sizeof(tetrodotoxin_source_graph_ops)) ||
       graph.self == nullptr || graph.operations->validate == nullptr) {
-    return observation;
+    return capture.observation;
   }
-  const tetrodotoxin_validation_result_ops operations = {
+  static const tetrodotoxin_validation_result_ops operations = {
     .header =
         {
           .size = sizeof(tetrodotoxin_validation_result_ops),
@@ -164,10 +183,10 @@ auto Tetrodotoxin::Language::validate(tetrodotoxin_source_graph graph)
       graph.self,
       {
         .operations = &operations,
-        .self = reinterpret_cast<tetrodotoxin_validation_result_self*>(
-            &observation),
+        .self =
+            reinterpret_cast<tetrodotoxin_validation_result_self*>(&capture),
       });
-  return observation;
+  return capture.observation;
 }
 
 ProductionSink::ProductionSink()
@@ -222,7 +241,7 @@ void TTX_CALL ProductionSink::failed(
     ttx_abstract error) {
   ProductionObservation& observation =
       select(self).answer(ProductionState::Failed);
-  if (error.operations == nullptr) {
+  if (error == nullptr || error->operations == nullptr) {
     observation.state = ProductionState::Invalid;
   }
   observation.error = error;
@@ -266,7 +285,7 @@ static void TTX_CALL production_request(
     tetrodotoxin_product_request_sink_self* self,
     tetrodotoxin_product_request request) {
   ProductionPlanCapture& capture = select(self);
-  if (capture.completed || capture.observation.error.operations != nullptr ||
+  if (capture.completed || capture.observation.error != nullptr ||
       !supports(request.operations, TETRODOTOXIN_PRODUCT_REQUEST_PREFIX_SIZE) ||
       request.self == nullptr || request.operations->observe == nullptr ||
       request.operations->cancel == nullptr ||
@@ -281,7 +300,7 @@ static void TTX_CALL production_request(
 static void TTX_CALL
     production_completed(tetrodotoxin_product_request_sink_self* self) {
   ProductionPlanCapture& capture = select(self);
-  if (capture.completed || capture.observation.error.operations != nullptr) {
+  if (capture.completed || capture.observation.error != nullptr) {
     capture.observation.valid = false;
   }
   capture.completed = true;
@@ -291,8 +310,8 @@ static void TTX_CALL production_failed(
     tetrodotoxin_product_request_sink_self* self,
     ttx_abstract error) {
   ProductionPlanCapture& capture = select(self);
-  if (capture.completed || capture.observation.error.operations != nullptr ||
-      error.operations == nullptr) {
+  if (capture.completed || capture.observation.error != nullptr ||
+      error == nullptr || error->operations == nullptr) {
     capture.observation.valid = false;
     return;
   }
@@ -346,7 +365,7 @@ auto Tetrodotoxin::Language::observe(tetrodotoxin_source_production production)
             reinterpret_cast<tetrodotoxin_product_request_sink_self*>(&capture),
       });
   if (!capture.completed || capture.observation.requests.empty() ||
-      capture.observation.error.operations != nullptr) {
+      capture.observation.error != nullptr) {
     capture.observation.valid = false;
   }
   return std::move(capture.observation);

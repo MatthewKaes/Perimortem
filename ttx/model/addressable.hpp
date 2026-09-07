@@ -60,8 +60,7 @@ class Addressable final : public Abstract {
         ttx_borrowed_bytes route) const -> ttx_abstract;
     virtual void visit_concepts(ttx_abstract candidate, ttx_concept_sink result)
         const;
-    virtual auto domain(ttx_abstract candidate) const
-        -> LayerAnswer<DomainObservation>;
+    virtual void domain(ttx_abstract candidate, ttx_domain_result result) const;
     virtual auto callable(ttx_abstract candidate) const
         -> LayerAnswer<CallableObservation>;
     virtual auto route(ttx_abstract candidate) const
@@ -81,9 +80,7 @@ class Addressable final : public Abstract {
         ttx_pack_result result) const;
 
    private:
-    struct Binding {
-      ttx_addressable_policy_ops operations;
-    };
+    static const ttx_addressable_policy_ops operations;
 
     static auto select(ttx_addressable_policy self) -> const Layer&;
     static void TTX_CALL resolve_concept_abi(
@@ -128,8 +125,6 @@ class Addressable final : public Abstract {
         ttx_pack input,
         ttx_context context,
         ttx_pack_result result);
-
-    const Binding binding;
   };
 
   Addressable(

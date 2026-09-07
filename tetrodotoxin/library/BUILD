@@ -29,7 +29,7 @@ cc_library(
     ]),
     deps = [
         "//perimortem:headless",
-        "//tetrodotoxin/language",
+        "//tetrodotoxin:language",
         "//ttx",
     ],
 )

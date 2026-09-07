@@ -121,13 +121,99 @@ struct MappingCapture {
   bool completed;
 };
 
+// Graph discovery finishes after the query callbacks return. Keep the shapes
+// needed by that later traversal, but leave their producer identities borrowed
+// from the graph supplied to this Terminal invocation.
+struct DomainShape {
+  ttx_abstract domain = ttx_unknown();
+  ttx_layout_snapshot snapshot = {};
+  Ttx::Observation state = Ttx::Observation::Unknown;
+  bool failed = false;
+
+  DomainShape() = default;
+  DomainShape(const DomainShape&) = delete;
+  DomainShape(DomainShape&& other) noexcept
+      : domain(other.domain),
+        snapshot(std::exchange(other.snapshot, {})),
+        state(other.state),
+        failed(other.failed) {}
+  ~DomainShape() {
+    if (snapshot.operations) {
+      snapshot.operations->release(snapshot);
+    }
+  }
+
+  auto layout() const -> ttx_layout {
+    return snapshot.operations ? snapshot.operations->layout(snapshot)
+                               : ttx_layout{};
+  }
+};
+
+static void TTX_CALL domain_shape_retained(
+    ttx_layout_snapshot_result result,
+    ttx_layout_snapshot snapshot) {
+  auto& shape = *reinterpret_cast<DomainShape*>(result.self);
+  if (shape.snapshot.operations) {
+    shape.failed = true;
+    if (snapshot.operations) {
+      snapshot.operations->release(snapshot);
+    }
+    return;
+  }
+  shape.snapshot = snapshot;
+}
+
+static void TTX_CALL domain_shape_failed(
+    ttx_layout_snapshot_result result,
+    ttx_pack_support_failure) {
+  reinterpret_cast<DomainShape*>(result.self)->failed = true;
+}
+
+static void TTX_CALL domain_unknown(ttx_domain_result result) {
+  reinterpret_cast<DomainShape*>(result.self)->state =
+      Ttx::Observation::Unknown;
+}
+
+static void TTX_CALL domain_none(ttx_domain_result result) {
+  reinterpret_cast<DomainShape*>(result.self)->state = Ttx::Observation::None;
+}
+
+static void TTX_CALL domain_resolved(
+    ttx_domain_result result,
+    ttx_abstract domain,
+    ttx_layout layout) {
+  auto& shape = *reinterpret_cast<DomainShape*>(result.self);
+  shape.state = Ttx::Observation::Resolved;
+  shape.domain = domain;
+  if (layout.operations == nullptr ||
+      layout.operations->header.abi_major != TTX_ABI_MAJOR ||
+      layout.operations->header.size < sizeof(ttx_layout_ops) ||
+      layout.operations->snapshot == nullptr) {
+    shape.failed = true;
+    return;
+  }
+  static const ttx_layout_snapshot_result_ops operations = {
+    .header =
+        {sizeof(ttx_layout_snapshot_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .retained = domain_shape_retained,
+    .support_failed = domain_shape_failed,
+  };
+  layout.operations->snapshot(
+      layout,
+      {
+        .operations = &operations,
+        .self = reinterpret_cast<ttx_layout_snapshot_result_self*>(&shape),
+      });
+  shape.failed |= shape.snapshot.operations == nullptr;
+}
+
 struct Node {
   ttx_abstract abstract;
   Bytes name;
   std::vector<Bytes> documentation;
   ttx_abstract resolved;
   std::vector<ConceptEdge> concepts;
-  Ttx::DomainObservation domain;
+  DomainShape domain;
   Ttx::CallableObservation callable;
   Ttx::RouteObservation route;
   Ttx::ExtentObservation extent;
@@ -179,7 +265,9 @@ static auto copy(ttx_borrowed_bytes value) -> Bytes {
 }
 
 static auto same(ttx_layout left, ttx_layout right) -> bool {
-  return left.self == right.self;
+  // One support owner may expose different views over the same private state.
+  // Deduplicate only the complete borrowed handle within this report.
+  return left.self == right.self && left.operations == right.operations;
 }
 
 static void TTX_CALL
@@ -725,7 +813,18 @@ class Observation {
         node.abstract->operations->documentation(node.abstract));
     node.resolved = Ttx::resolve(node.abstract);
     node.concepts = observe_concepts(node.abstract);
-    node.domain = Ttx::resolve_domain(node.abstract);
+    static const ttx_domain_result_ops domain_operations = {
+      .header = {sizeof(ttx_domain_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+      .unknown = domain_unknown,
+      .none = domain_none,
+      .resolved = domain_resolved,
+    };
+    Ttx::resolve_domain(
+        node.abstract,
+        {
+          .operations = &domain_operations,
+          .self = reinterpret_cast<ttx_domain_result_self*>(&node.domain),
+        });
     node.callable = Ttx::resolve_callable(node.abstract);
     node.route = Ttx::resolve_route(node.abstract);
     node.extent = Ttx::resolve_finite_extent(node.abstract);
@@ -739,7 +838,7 @@ class Observation {
     }
     if (node.domain.state == Ttx::Observation::Resolved) {
       retain(node.domain.domain);
-      retain(node.domain.layout);
+      retain(node.domain.layout());
     }
     if (node.callable.state == Ttx::CallableObservationState::Resolved) {
       const ttx_callable callable = node.callable.callable;
@@ -907,12 +1006,14 @@ static void write_node(
   append(output, "\n  addressable ");
   append(output, relation_name(node.addressable));
   append(output, "\n  domain ");
-  append(output, observation_name(node.domain.state));
-  if (node.domain.state == Ttx::Observation::Resolved) {
+  append(
+      output, node.domain.failed ? "support-failed"
+                                 : observation_name(node.domain.state));
+  if (node.domain.state == Ttx::Observation::Resolved && !node.domain.failed) {
     append(output, " ");
     append(output, observation.node_id(node.domain.domain));
     append(output, " layout ");
-    append(output, observation.layout_id(node.domain.layout));
+    append(output, observation.layout_id(node.domain.layout()));
   }
   append(output, "\n  callable ");
   append(output, observation_name(node.callable.state));

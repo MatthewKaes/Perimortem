@@ -3,86 +3,52 @@
 
 #pragma once
 
-#include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/view/vector.hpp"
-#include "perimortem/core/option.hpp"
+#include <memory>
+#include <vector>
 
 #include "perimortem/memory/allocator/arena.hpp"
-#include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/dialect.hpp"
 
 namespace Tetrodotoxin::Environment {
 
-// Toolchain owns the installed family of Tetrodotoxin languages. Every
-// Workspace can borrow the same immutable Dialect identities, while the
-// semantic objects produced from a source stay with that Workspace. Installing
-// dependencies first makes the language family one clear directed graph.
+// Installation keeps provider code and names available to every borrowing
+// Workspace. Native construction is a convenience at this boundary. Lookup and
+// interpretation use the same retained provider handle for every language.
 class Toolchain {
  public:
-  Toolchain();
+  Toolchain() = default;
   ~Toolchain();
-
   Toolchain(const Toolchain&) = delete;
-  Toolchain(Toolchain&&) = delete;
   auto operator=(const Toolchain&) -> Toolchain& = delete;
-  auto operator=(Toolchain&&) -> Toolchain& = delete;
 
-  template <typename TargetDialect, typename... DependencyDialects>
+  template <typename Target, typename... Dependencies>
   auto install(
       Perimortem::Core::View::Bytes name,
-      DependencyDialects&... dependencies)
-      -> Perimortem::Core::Option<TargetDialect&> {
-    BAIL_IF(contains_name(name));
-
-    Bool dependencies_installed =
-        (contains(static_cast<Language::Dialect&>(dependencies)) && ...);
-    BAIL_IF(!dependencies_installed);
-
-    Perimortem::Core::View::Bytes retained_name = arena.proxy(name);
-    auto& dialect =
-        arena.construct<TargetDialect>(retained_name, dependencies...);
-    const ttx_abstract candidate = dialect.get_handle();
-    BAIL_IF(
-        Ttx::relation(candidate, tetrodotoxin_dialect_requirement()) !=
-        TTX_INTERFACE_SATISFIED);
-    dialects.insert(
-        Language::InstalledDialect(retained_name, candidate, {}, &dialect));
-    return dialect;
+      Dependencies&... dependencies) -> Perimortem::Core::Option<Target&> {
+    if (find(name).operations || !(contains(dependencies.get_abi()) && ...)) {
+      return {};
+    }
+    const auto retained_name = arena.proxy(name);
+    auto owner = std::make_unique<Target>(retained_name, dependencies...);
+    auto& concrete = *owner;
+    const bool installed = install(owner->get_provider());
+    if (!installed) {
+      return {};
+    }
+    native_owners.push_back(std::move(owner));
+    return concrete;
   }
-
-  // A foreign provider enters the same installed family as a native Dialect.
-  // Toolchain retains its operation handle only after the candidate proves the
-  // shared contract and its authored name is unique. No native object is
-  // manufactured to imitate the provider.
-  auto install(tetrodotoxin_dialect_provider provider) -> Bool;
-
-  // A bundled C++ plugin may lend the exact Dialect behind its portable handle
-  // after both the Dialect and SDK-owner relationships have been proved. The
-  // provider retains that object; Toolchain releases the handle rather than
-  // destroying memory owned by the loaded library.
-  auto install(tetrodotoxin_dialect_provider provider, Language::Dialect& local)
-      -> Bool;
-
+  auto install(tetrodotoxin_dialect_provider provider) -> bool;
   auto find(Perimortem::Core::View::Bytes name) const
-      -> Perimortem::Core::Option<Language::Dialect&>;
-
-  constexpr auto get_dialects() const
-      -> Perimortem::Core::View::Vector<Language::InstalledDialect> {
-    return dialects;
-  }
-
-  auto find_provider(Perimortem::Core::View::Bytes name) const
-      -> Perimortem::Core::Option<tetrodotoxin_dialect_provider>;
-
-  auto is_installed(tetrodotoxin_dialect_provider provider) const -> Bool;
+      -> tetrodotoxin_dialect_provider;
+  auto contains(ttx_abstract candidate) const -> bool;
+  auto is_installed(tetrodotoxin_dialect_provider provider) const -> bool;
 
  private:
-  auto contains_name(Perimortem::Core::View::Bytes name) const -> Bool;
-  auto contains(const Language::Dialect& dialect) const -> Bool;
-
   Perimortem::Memory::Allocator::Arena arena;
-  Perimortem::Memory::Managed::Vector<Language::InstalledDialect> dialects;
+  std::vector<std::unique_ptr<Language::Dialect>> native_owners;
+  std::vector<tetrodotoxin_dialect_provider> providers;
 };
 
 }  // namespace Tetrodotoxin::Environment

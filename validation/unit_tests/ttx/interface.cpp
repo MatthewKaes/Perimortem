@@ -5,12 +5,16 @@
 
 #include "validation/unit_test.hpp"
 
+#include <string>
+
+#include "tetrodotoxin/terminal/graph_text.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/callable.hpp"
 #include "ttx/concept/domain.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/extent.hpp"
+#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/value.hpp"
 #include "ttx/model/route.hpp"
 #include "ttx/query.hpp"
@@ -22,6 +26,156 @@ using namespace Validation;
 static Harness InterfaceTests = {
   .name = "TTX::Interface"_view,
 };
+
+class FlowDomain : public Ttx::Domain {
+ public:
+  FlowDomain() : shape(get_abi()) {}
+  auto layout() const -> ttx_layout override { return shape.get_abi(); }
+
+ private:
+  const Ttx::Layouts::Value shape;
+};
+
+class TemporaryDomain : public Ttx::Abstract {
+ public:
+  explicit TemporaryDomain(std::vector<ttx_abstract> producers)
+      : producers(std::move(producers)) {}
+
+  void domain(ttx_abstract self, ttx_domain_result result) const override {
+    std::vector<Ttx::Layouts::Fluid::Entry> entries;
+    for (size_t index = 0; index < producers.size(); ++index) {
+      const std::string path = std::to_string(index);
+      entries.push_back(
+          {.path = std::vector<uint8_t>(path.begin(), path.end()),
+           .producer = producers[index]});
+    }
+    Ttx::Layouts::Fluid shape(std::move(entries));
+    result.operations->resolved(result, self, shape.get_abi());
+  }
+
+ private:
+  const std::vector<ttx_abstract> producers;
+};
+
+class DomainPolicy : public Ttx::Addressable::Layer {
+ public:
+  explicit DomainPolicy(const TemporaryDomain& owner) : owner(owner) {}
+  Ttx::Observation state = Ttx::Observation::Unknown;
+
+  void domain(ttx_abstract, ttx_domain_result result) const override {
+    switch (state) {
+    case Ttx::Observation::Unknown:
+      result.operations->unknown(result);
+      return;
+    case Ttx::Observation::None:
+      result.operations->none(result);
+      return;
+    case Ttx::Observation::Resolved:
+      owner.domain(owner.get_abi(), result);
+      return;
+    }
+  }
+
+ private:
+  const TemporaryDomain& owner;
+};
+
+struct DomainPack {
+  ttx_context context;
+  Ttx::PackObservation pack;
+};
+
+static void TTX_CALL pack_unknown_domain(ttx_domain_result result) {
+  reinterpret_cast<DomainPack*>(result.self)->pack.state =
+      Ttx::PackObservationState::Unknown;
+}
+
+static void TTX_CALL pack_absent_domain(ttx_domain_result result) {
+  reinterpret_cast<DomainPack*>(result.self)->pack.state =
+      Ttx::PackObservationState::None;
+}
+
+static void TTX_CALL
+    pack_domain(ttx_domain_result result, ttx_abstract, ttx_layout layout) {
+  auto& capture = *reinterpret_cast<DomainPack*>(result.self);
+  capture.pack = Ttx::pack(capture.context, layout);
+}
+
+PERIMORTEM_UNIT_TEST(InterfaceTests, domain_shape_ends_before_consumption) {
+  FlowDomain first, second;
+  TemporaryDomain owner({first.get_abi(), second.get_abi()});
+  auto policy = std::make_shared<DomainPolicy>(owner);
+  Ttx::Addressable layered(first.get_abi(), {policy});
+  EXPECT(
+      Ttx::resolve_domain(layered.get_abi()).state ==
+      Ttx::Observation::Unknown);
+  policy->state = Ttx::Observation::None;
+  EXPECT(ttx_abstract_same(
+      Ttx::resolve_domain(layered.get_abi()).domain, first.get_abi()));
+  policy->state = Ttx::Observation::Resolved;
+  const auto identity = Ttx::resolve_domain(layered.get_abi());
+  EXPECT(identity.state == Ttx::Observation::Resolved);
+  EXPECT(ttx_abstract_same(identity.domain, owner.get_abi()));
+
+  DomainPack captured{.context = ttx_context_create(), .pack = {}};
+  static const ttx_domain_result_ops operations = {
+    .header = {sizeof(ttx_domain_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .unknown = pack_unknown_domain,
+    .none = pack_absent_domain,
+    .resolved = pack_domain,
+  };
+  Ttx::resolve_domain(
+      layered.get_abi(),
+      {
+        .operations = &operations,
+        .self = reinterpret_cast<ttx_domain_result_self*>(&captured),
+      });
+  EXPECT(captured.pack.state == Ttx::PackObservationState::Packed);
+  const auto producers = Ttx::producers(captured.pack.pack);
+  EXPECT(producers.has_value());
+  if (producers) {
+    EXPECT(producers->size() == 2);
+    EXPECT(ttx_abstract_same((*producers)[0], first.get_abi()));
+    EXPECT(ttx_abstract_same((*producers)[1], second.get_abi()));
+  }
+
+  // Graph Text queues shape traversal after Domain resolution has returned.
+  // This exercises its snapshot ownership with the same temporary producer.
+  const auto text = Tetrodotoxin::Terminal::GraphText::write(
+      {}, ttx_unknown(), layered.get_abi(), owner.get_abi());
+  const std::string report(text.begin(), text.end());
+  EXPECT(report.find("  enumerable 2\n") != std::string::npos);
+  captured.context.operations->release(captured.context);
+}
+
+class UnretainedDomain : public Ttx::Abstract {
+ public:
+  void domain(ttx_abstract self, ttx_domain_result result) const override {
+    class Shape : public Ttx::Layout {
+     public:
+      void enumerable(ttx_enumerable_result result) const override {
+        result.operations->rejected(result);
+      }
+      void snapshot(ttx_layout_snapshot_result result) const override {
+        result.operations->support_failed(result, TTX_PACK_SUPPORT_EXHAUSTED);
+      }
+    } shape;
+    result.operations->resolved(result, self, shape.get_abi());
+  }
+};
+
+PERIMORTEM_UNIT_TEST(
+    InterfaceTests,
+    domain_storage_failure_preserves_identity) {
+  UnretainedDomain owner;
+  const auto identity = Ttx::resolve_domain(owner.get_abi());
+  EXPECT(identity.state == Ttx::Observation::Resolved);
+  EXPECT(ttx_abstract_same(identity.domain, owner.get_abi()));
+  const auto text = Tetrodotoxin::Terminal::GraphText::write(
+      {}, ttx_unknown(), owner.get_abi(), owner.get_abi());
+  const std::string report(text.begin(), text.end());
+  EXPECT(report.find("  domain support-failed\n") != std::string::npos);
+}
 
 class Contract final : public Ttx::Abstract {
  public:
@@ -273,15 +427,6 @@ PERIMORTEM_UNIT_TEST(InterfaceTests, policy_requeries_before_forwarding) {
   EXPECT(source.calls == 1);
   context.operations->release(context);
 }
-
-class FlowDomain : public Ttx::Domain {
- public:
-  FlowDomain() : shape(get_abi()) {}
-  auto layout() const -> ttx_layout override { return shape.get_abi(); }
-
- private:
-  const Ttx::Layouts::Value shape;
-};
 
 class TemporaryCallable : public Ttx::Abstract {
  public:

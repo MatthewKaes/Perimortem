@@ -9,12 +9,24 @@ A Workspace can bring Package, Library, App, Scene, Pipeline, and Shader sources
 together without asking any of them to become the others. TTX supplies the
 shared identities, Types, Layouts, and Callables they use to cooperate.
 
-Tools come here to complete direct source, interpret a Package source table,
+Tools come here to validate direct source, follow a package's source imports,
 report errors, or restore a Package Archive. Once an executable or another
 Terminal product is complete, it can leave the Workspace and carry only the
 finished representation it needs.
 
 ## Toolchain and Workspace lifetime
+
+All installed languages enter Workspace through the same provider contract.
+Workspace retains source generations and controls their publication, while each
+provider owns its graph storage. Native C++ frontends can keep using Arenas and
+Cursors without requiring foreign frontends to reproduce those objects.
+
+Source lookup reaches a stable authority, whose current graph changes when that
+source is replaced. Callers that retain producer identities across an edit keep
+the corresponding source generations alive explicitly. Retaining the source
+closure for an observation covers flow assembled from several sources. Once
+those borrows end, releasing the generation lets its provider reclaim it.
+Workspace does not keep an edit history solely to make stale pointers usable.
 
 A Toolchain owns one immutable installed Dialect graph. The host constructs it
 once, including every downward Dialect dependency, and passes it to each
@@ -72,29 +84,23 @@ Direct import supplies three independent facts:
 * the path shown in errors
 * the source bytes read by the selected Dialect
 
-Environment reads the common envelope, selects the installed Dialect, and
-copies the path and source bytes into one source transaction Arena. It
-constructs the Tokenizer, Associations index, and operation local Cursor there.
-The selected Dialect receives that Cursor and returns an optional Monograph
-reference. A returned Monograph is the strongest semantic root the operation
-could establish. Reports added to the Cursor's Errors decide whether that root
-can publish, while linking can still enrich the retained graph for tooling. The
-path describes origin. It does not create semantic identity.
+Workspace supplies retained input bytes to the installed provider and adopts
+its returned source graph. A native provider constructs its Tokenizer, Cursor,
+and semantic objects in provider owned storage. Foreign providers expose the
+same root and typed source services without adopting that allocation strategy.
+The path describes origin, while the stable Workspace route determines where
+consumers ask for the current graph.
 
-The envelope begins with required source Documentation. An explicit empty
-comment is valid, but a missing comment is not. Environment passes that exact
-source backed Documentation, its Anchor, the Cursor, and semantic context
-directly to the selected Dialect. Source backed Comments and Attributes remain
-valid because the Monograph and source bytes occupy the same Arena.
+Native TTX sources begin with required documentation. An explicit empty comment
+is valid, but a missing comment is not. The provider passes that documentation,
+its anchor, and the source context to the concrete Dialect. Retaining the source
+input keeps borrowed comments and attributes valid for the graph's lifetime.
 
-Workspace retains one source record containing the transaction Arena, exact
-outer Monograph, Tokens, diagnostics, and immutable Associations index whenever
-interpretation establishes that Monograph. Workspace uses the same Cursor to
-link every fact the current graph can support. Finalization begins only when
-interpretation and linking complete without errors. An incomplete result stays
-available to editor queries but cannot enter a Terminal, Archive writer, or
-another immutable Terminal product. A Package root enters through Package
-import so Workspace can walk its complete reachable Type graph as one island.
+Publishing a generation makes its current answers available to tooling. Even
+when interpretation cannot establish a root, the provider can preserve useful
+diagnostics behind that generation's source services. Read only validation then
+determines whether the relationships required by an immutable product are
+complete. Source publication and artifact publication are separate boundaries.
 
 ## Package import
 
@@ -109,62 +115,52 @@ public Graphics : alias =
 
 Workspace resolves each source path relative to its importer, canonicalizes it,
 and reuses one cached file and Monograph when equivalent spellings reach the
-same route. Each distinct source gets one transaction Arena and its concrete
-Dialect. A source import may extend the same graph; a Package import terminates
-the local walk at one exact completed Package fact.
+same route. Each distinct source gets its own provider owned generation. A
+source import may extend the live graph, while a package import reaches an
+exact supplied immutable package authority.
 
-The build request supplies completed Package facts before a consumer links.
-Editor sessions may inspect Workspace's unresolved exact Package requests,
-acquire them from one Repository, detect request cycles, and rebuild the island
-in dependency order. Repository selects a caller supplied local root or the
+The build request supplies the packages needed by the requested production.
+Editor sessions may inspect unresolved package requests and acquire them from
+the configured repository. Consumers query the supplied authority again instead
+of rebuilding their own graphs. Repository selects a caller supplied root or the
 versioned installed root for the exact requested coordinate. Workspace does not
 invent a standard dependency set or derive a Package identity from a filesystem
 path.
 
 The host may retain immutable filesystem snapshots independently from any one
-source graph transaction and lend them to replacement Workspaces. Package still
+source generation and lend them to later interpretations. Package still
 owns logical routing, confinement, and the decision to request one canonical
 source or resource path. Snapshot storage keys the
 resulting snapshot by the exact Package root and canonical route, retains the
-bytes outside the replaceable graph Arenas, and records a fingerprint obtained
-from the same opened filesystem object that supplied those bytes. A later full
-graph replacement probes that fingerprint and reuses the immutable bytes only
+bytes outside the replaceable provider graphs, and records a fingerprint obtained
+from the same opened filesystem object that supplied those bytes. A later source
+replacement probes that fingerprint and reuses the immutable bytes only
 when the opened object is unchanged. A changed object causes one complete reread
 before the new graph can publish.
 
 This cache is nonsemantic Workspace state. It never resolves a resource name,
 keeps a rejected graph alive, or lets Library open a file. Replacing a document
-still constructs a complete new graph transaction. Persistence avoids repeated
-I/O rather than introducing an incremental semantic graph.
+constructs another generation for that source. Unrelated sources stay alive and
+references requery the replaced authority. The byte cache avoids repeated I/O
+without owning those semantic answers.
 
-## Linking and publication
+## Validation and publication
 
-A direct source retains its strongest result before `interpret_source` returns:
+Interpretation creates one generation, dependency acquisition supplies its
+authorities, and Workspace publishes it under the stable source name. Subsequent
+queries can reach a dependency that was unavailable during interpretation.
+Validation observes those current answers without changing the graph or adding
+a second completion phase.
 
-```text
-interpret to one optional Monograph in the source Arena
--> retain its lexical and semantic evidence
--> link the meaning available from the retained graph
--> finalize only a completely linked error free island
-```
+An immutable producer validates the source closure required for its output and
+retains those generations until its borrowed identities are no longer needed.
+A package's export surface describes what belongs to that closure without
+copying Workspace's source inventory.
 
-Workspace owns the one staged multiple source operation and the local candidate
-Arena handles. It walks common external Type edges, retains every Monograph it
-can create, and links the acyclic graph dependency first. This keeps the
-strongest definitions and inferred Types available while the user edits.
-Finalization waits until every member completes interpretation and linking
-without errors. Only that completed island can enter Terminal production. The
-Package Monograph owns its restricted Library export surface and no parallel
-member inventory.
-
-A Package Alias binds only an exact identity and version already completed in
-the same Workspace. A terminal may acquire that product and rebuild the source
-island, while Archive reconstruction remains an explicit source-free operation.
-
-A Monograph may contain child layers from its dependencies. Environment keeps
-and publishes the outer Monograph, while the outer language moves its children
-through the same linking and finalization steps. Tools ask the outer Monograph
-for a layer instead of looking for another Workspace name.
+A Monograph may contain child layers from its dependencies. The outer provider
+keeps those children alive and validates them through the same source services.
+Tools ask the outer graph for the promised layer instead of inventing another
+Workspace identity for it.
 
 During Archive reconstruction, the Package Monograph is created before its
 members. Every member receives that Package context, including the real Library
@@ -175,23 +171,21 @@ outer member also fails.
 
 ## Contextual lookup
 
-Workspace is an ordinary TTX Abstract context. Looking up an exact imported root
-name returns its retained Monograph. A missing name returns TTX `Unknown` while
-the graph may still acquire that Package.
+Workspace is an ordinary TTX Abstract context. Looking up an imported root name
+reaches its stable source authority, which resolves to the currently retained
+root. A missing source remains Unknown while it may still be supplied.
 
 Deeper `::` access is interpreted by the returned Abstract contexts. Environment
 does not require every Monograph to expose a Type or one common member model.
 
 ## Failure reporting
 
-Each authored source is paired with its text for the complete parse, link, and
-finalize operation. The source and every fixed child layer write textual errors
-through the matching operation local Cursor to the caller's textual error sink,
-preserving order and exact authored locations. Successful publication retains
-the Associations index beside the exact outer Monograph and does not expose the
-spent Cursor. A later compiler receives the exact source path, source bytes, and
-error sink needed for its own source attributed reports. A Monograph never
-retains or serializes a Cursor.
+Each provider preserves the source information needed for its diagnostic and
+association services. Native owners write reports through an operation local
+Cursor, while consumers receive ordered messages, source spans, and exact
+Abstract identities through the shared typed boundary. A later compiler obtains
+the source information and reporting authority it needs without retaining the
+parser's Cursor.
 
 Package paths, Archive bytes, Repository requests, and other source free system
 or toolchain operations report through Perimortem Diagnostics. When an authored

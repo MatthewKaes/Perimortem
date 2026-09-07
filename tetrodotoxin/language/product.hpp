@@ -14,7 +14,6 @@ namespace Tetrodotoxin::Language {
 // the source graph, and its bytes remain valid for the result Arena lifetime.
 class Product : public ArtifactFile {
  public:
-
   static auto create(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes name,
@@ -22,7 +21,6 @@ class Product : public ArtifactFile {
       Bool executable = False) -> Product&;
 
   TTX_NAME(name);
-  TTX_EMPTY_DOCUMENTATION();
 
   constexpr auto get_value() const -> Perimortem::Core::View::Bytes {
     return value;

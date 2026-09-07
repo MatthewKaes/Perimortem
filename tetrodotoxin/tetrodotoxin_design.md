@@ -187,22 +187,20 @@ downward Dialect dependencies may be shared across Workspaces, but semantic
 state, borrowed edges, and cross language results remain inside one Workspace
 lifetime. Source local transaction state never accumulates on the Toolchain.
 
-Environment creates one source transaction Arena, copies the opened path and
-bytes into it, and then constructs a Tokenizer, Associations index, and Cursor
-in that Arena. Environment passes the Cursor, source backed Documentation,
-source Anchor, and semantic context directly to the selected installed Dialect.
-The Dialect constructs one Monograph in the Cursor's Arena and returns it
-as an optional reference. Presence means the Dialect established a real
-semantic root. Absence means it could not establish one.
+Workspace supplies immutable source input to an exact installed provider and
+retains the resulting source graph. Each provider chooses how to allocate its
+semantic objects. The native C++ provider uses an Arena and Cursor, while a C,
+Rust, or managed frontend may use storage appropriate to that implementation.
+One source transaction is the publication and lifetime boundary across those
+allocations, rather than a requirement to share one allocator.
 
-Workspace retains one source record containing the Arena owner, outer
-Monograph, and immutable Associations index whenever interpretation establishes
-that root. Comments, Attributes, Tokens, semantic facts, and association edges
-can therefore borrow the retained source directly. Reports written to the
-Cursor during that operation keep the source from publishing, while independent
-and earlier facts remain available through live queries. Repeatable validation
-decides whether a Terminal may consume the result. There is no second graph
-Arena, semantic linking phase, or defensive source copy phase.
+Providers retain source input when their graph borrows its bytes. They expose
+diagnostics and exact source associations through typed synchronous visits, so
+Workspace does not need to recover native parser objects or build another
+symbol model. A source graph may preserve these services while its semantic
+root remains Unknown. A failed or unfinished edit therefore stays inspectable
+without manufacturing a placeholder Monograph. Read-only validation determines
+whether its current meaning may enter immutable Terminal production.
 
 Installed Dialect dependencies form a strict directed acyclic graph. The host
 constructing a Toolchain injects each exact dependency instance. An outer
@@ -215,35 +213,41 @@ has been assigned to the wrong owner.
 
 One direct source has three semantic stages:
 
-1. The selected Dialect constructs one optional Monograph in the source
-   transaction Arena and writes any source reports through the Cursor.
-2. Workspace retains the Monograph and its lexical evidence when present.
+1. The selected provider constructs its source graph and any semantic root it
+   can establish, keeping its allocation and parser machinery private.
+2. Workspace publishes that generation through the source's stable authority.
 3. Repeatable validation asks the current graph queries whether the source is
    complete enough for immutable Terminal production. It retains no selected
    answer and changes no semantic identity.
 
-Workspace performs these stages synchronously with the one source Cursor. An
-incomplete Monograph remains queryable as the author's current source state,
-while a completed Monograph is the only state eligible for Terminal production.
-Replacing an editor document rebuilds its complete Workspace session, so no
-consumer keeps pointers into an older source transaction.
+The host serializes source publication with graph observations. Replacing one
+source changes its authority's current answers without reconstructing unrelated
+sources. A live Reference keeps that authority and asks again. A retained Pack
+instead borrows the exact producers selected by its earlier observation.
+
+A caller keeping those borrows across replacement retains the supplying source
+generations, or the complete source closure for that observation. Releasing the
+last owner lets each provider reclaim its generation. Workspace keeps the
+current graphs rather than an unbounded history of edits, and Context does not
+quietly acquire ownership of the graphs whose producers it borrows.
 
 Package supplies one restricted Library export surface. Common Alias imports in
 each source name local source or exact Package edges. Workspace owns the
-candidate Arena handles, operation Cursors, durable Associations indexes, path
-canonicalization, and source graph walk. It retains every Monograph it can
-create and validates the complete current query graph before publication. A
+source generation handles, path canonicalization, and the source graph walk.
+Each provider owns parsing state and exposes diagnostics and associations through
+typed source services. Workspace publishes partial generations for tooling and
+validates the required current query graph before immutable production. A
 Package import is one immutable authority already supplied to that Workspace.
 
 This model gives immutable consumers a clear starting point. A compiler,
-Archive writer, or other Terminal producer begins after completion. Only code
-inside an active Package transaction may observe a route that is not settled
-yet, and every later observation asks the owning authority again.
+Archive writer, or other immutable Terminal producer begins after its required
+relationships are complete. Tooling may observe unsettled routes throughout the
+source lifetime, and every later observation asks the owning authority again.
 
 Authored parsing and validation report textual failures through the operation
 Cursor. The outer Monograph and every fixed child receive the matching source
-Cursor explicitly. Later tools recover the immutable
-Associations index from Workspace using the completed outer Monograph. A
+Cursor explicitly. Later tools query the retained provider's typed association
+service for authored locations and exact Abstract identities. A
 compiler receives the exact source path and bytes with the caller owned
 textual error sink for its own source attributed reports. No completed consumer
 recovers or retains the spent operation Cursor.

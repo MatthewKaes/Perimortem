@@ -8,8 +8,8 @@
 #include <limits>
 #include <utility>
 
-#include "ttx/query.hpp"
 #include "ttx/model/requirement.hpp"
+#include "ttx/query.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin;
@@ -58,9 +58,10 @@ static void TTX_CALL observe_artifact_interface(
     ttx_interface_sink self,
     ttx_interface interface) {
   auto& capture = observed_owner<ObservedArtifact>(self.self);
-  if (capture.answered || interface.operations == nullptr ||
-      interface.operations->header.abi_major != TTX_ABI_MAJOR ||
-      interface.operations->header.size <
+  if (capture.answered || interface == nullptr ||
+      interface->operations == nullptr ||
+      interface->operations->header.abi_major != TTX_ABI_MAJOR ||
+      interface->operations->header.size <
           sizeof(tetrodotoxin_artifact_file_ops)) {
     capture.answered = true;
     capture.observation.reset();
@@ -69,7 +70,7 @@ static void TTX_CALL observe_artifact_interface(
   capture.answered = true;
   const auto* operations =
       reinterpret_cast<const tetrodotoxin_artifact_file_ops*>(
-          interface.operations);
+          interface->operations);
   if (!ttx_abstract_same(
           operations->interface.requirement(interface),
           tetrodotoxin_artifact_file_requirement()) ||
@@ -120,9 +121,10 @@ static void TTX_CALL observe_artifact_interface(
 
 auto Tetrodotoxin::Language::observe_artifact(ttx_abstract candidate)
     -> std::optional<ArtifactObservation> {
+  candidate = Ttx::resolve(candidate);
   const ttx_interface_relation constant =
       Ttx::relation(candidate, ttx_constant_requirement());
-  if (candidate.operations == nullptr ||
+  if (candidate == nullptr || candidate->operations == nullptr ||
       (constant != TTX_INTERFACE_SATISFIED &&
        constant != TTX_INTERFACE_EQUIVALENT)) {
     return std::nullopt;
@@ -142,7 +144,7 @@ auto Tetrodotoxin::Language::observe_artifact(ttx_abstract candidate)
     .observation = std::nullopt,
     .answered = false,
   };
-  candidate.operations->interface(
+  candidate->operations->interface(
       candidate, tetrodotoxin_artifact_file_requirement(),
       {
         .operations = &capture.operations,
@@ -210,37 +212,27 @@ void Language::ArtifactFile::interface(
     return;
   }
 
-  const InterfaceBinding binding = {
-    .operations =
+  static const tetrodotoxin_artifact_file_ops operations = {
+    .interface =
         {
-          .interface =
+          .header =
               {
-                .header =
-                    {
-                      .size = sizeof(tetrodotoxin_artifact_file_ops),
-                      .abi_major = TTX_ABI_MAJOR,
-                      .abi_minor = TTX_ABI_MINOR,
-                    },
-                .requirement = interface_requirement,
-                .candidate = interface_candidate,
-                .negotiate = interface_relation,
-                .invoke = interface_invoke,
+                .size = sizeof(tetrodotoxin_artifact_file_ops),
+                .abi_major = TTX_ABI_MAJOR,
+                .abi_minor = TTX_ABI_MINOR,
               },
-          .route = artifact_route,
-          .size = artifact_size,
-          .visit_bytes = artifact_visit,
-          .executable = artifact_executable,
+          .requirement = interface_requirement,
+          .candidate = interface_candidate,
+          .negotiate = interface_relation,
+          .invoke = interface_invoke,
         },
-    .owner = this,
-    .requirement = requirement,
-    .candidate = self,
+    .route = artifact_route,
+    .size = artifact_size,
+    .visit_bytes = artifact_visit,
+    .executable = artifact_executable,
   };
-  result.operations->answer(
-      result, {
-                .operations = &binding.operations.interface,
-                .self = reinterpret_cast<ttx_interface_self*>(
-                    const_cast<InterfaceBinding*>(&binding)),
-              });
+  const InterfaceBinding binding(&operations, this, requirement, self);
+  result.operations->answer(result, &binding);
 }
 
 void Language::ArtifactFile::route(ttx_abstract self, ttx_route_result result)
@@ -272,15 +264,9 @@ void Language::ArtifactFile::domain(ttx_abstract self, ttx_domain_result result)
 
 auto Language::ArtifactFile::select(ttx_interface self)
     -> const InterfaceBinding& {
-  if (self.operations == nullptr || self.self == nullptr) {
-    std::abort();
-  }
-  const auto& binding = *reinterpret_cast<const InterfaceBinding*>(self.self);
-  if (binding.owner == nullptr ||
-      !ttx_abstract_same(binding.candidate, binding.owner->get_handle())) {
-    std::abort();
-  }
-  return binding;
+  // This callback receives the binding constructed by interface(), not an
+  // arbitrary candidate. The public witness still names that candidate exactly.
+  return *static_cast<const InterfaceBinding*>(self);
 }
 
 auto Language::ArtifactFile::select(ttx_route self) -> const ArtifactFile& {

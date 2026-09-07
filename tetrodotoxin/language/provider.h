@@ -5,6 +5,7 @@
 #define TETRODOTOXIN_LANGUAGE_PROVIDER_H
 
 #include "tetrodotoxin/language/production.h"
+#include "tetrodotoxin/language/source.h"
 #include "ttx/abi.h"
 
 typedef struct tetrodotoxin_dialect_provider_self
@@ -99,8 +100,9 @@ typedef enum {
 // SourceInput exposes one immutable source snapshot. A frontend may consume
 // the host's lexical projection or classify the raw bytes itself, keeping the
 // shared TTX lexer useful without making it mandatory for another language.
-// Source byte views remain valid until the returned SourceGraph is released;
-// the input handle and token sink remain borrowed only for each operation.
+// A provider retaining source bytes retains this input for the same lifetime.
+// Workspace can then replace its current generation without invalidating an
+// older graph held by another caller. Allocation remains private to each owner.
 struct tetrodotoxin_source_input_ops {
   ttx_abi_header header;
   ttx_borrowed_bytes(TTX_CALL* diagnostic_path)(
@@ -109,6 +111,8 @@ struct tetrodotoxin_source_input_ops {
   void(TTX_CALL* visit_tokens)(
       tetrodotoxin_source_input_self*,
       tetrodotoxin_token_sink);
+  void(TTX_CALL* retain)(tetrodotoxin_source_input_self*);
+  void(TTX_CALL* release)(tetrodotoxin_source_input_self*);
 };
 
 struct tetrodotoxin_token_sink_ops {
@@ -148,7 +152,10 @@ struct tetrodotoxin_interpret_result_ops {
 // Environment acquires its dependencies, and the selected language answers a
 // default production request. Dependency handles remain identity-free source
 // support, allowing Environment to bind an acquisition without introducing
-// another dependency registry into the graph.
+// another dependency registry into the graph. constructed transfers one owned
+// reference to the receiver. A caller retaining Abstracts beyond replacement
+// retains this graph until those borrows end, within the installed provider's
+// lifetime. Its allocator and destruction mechanism remain private.
 struct tetrodotoxin_source_graph_ops {
   ttx_abi_header header;
   void(TTX_CALL* retain)(tetrodotoxin_source_graph_self*);
@@ -165,6 +172,10 @@ struct tetrodotoxin_source_graph_ops {
       tetrodotoxin_source_graph_self*,
       ttx_context,
       tetrodotoxin_production_result);
+  void(TTX_CALL* visit_associations)(tetrodotoxin_source_graph_self*,
+      tetrodotoxin_source_associations);
+  void(TTX_CALL* visit_diagnostics)(tetrodotoxin_source_graph_self*,
+      tetrodotoxin_source_diagnostics);
 };
 
 struct tetrodotoxin_source_dependency_sink_ops {

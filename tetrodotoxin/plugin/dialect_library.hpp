@@ -14,8 +14,8 @@ namespace Tetrodotoxin::Plugin {
 
 // DialectLibrary gives one existing C++ Dialect the canonical provider and
 // plugin handles expected by Environment. The plugin continues to own the
-// Dialect object; a matching SDK host may borrow it as a proved local shortcut,
-// while every identity and lifetime still crosses the C operation tables.
+// Dialect object while source construction crosses the same provider operations
+// used by foreign frontends. Hosts need no native recovery operation.
 class DialectLibrary {
  public:
   DialectLibrary(

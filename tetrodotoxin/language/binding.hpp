@@ -3,77 +3,37 @@
 
 #pragma once
 
-#include "ttx/concept/none.hpp"
-#include "ttx/concept/unknown.hpp"
+#include "ttx/concept/abstract.hpp"
+#include "ttx/query.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Binding gives an authored language name and documentation to one selected
-// graph identity. It remains visible so source tools can observe the spelling,
-// then resolve() reaches the selected context. This is intentionally different
-// from TTX Alias, whose indirection cannot be observed or negotiated.
-//
-// Import, Reference, and concrete definitional aliases specialize how the
-// target is selected. A staged binding begins at Unknown and accepts one target
-// from its source transaction; later callers re-resolve the same language owner
-// instead of retaining a copied answer.
-class Binding : public Ttx::Concept::Abstract {
+// An authored binding keeps its spelling and documentation visible to source
+// tools while resolve reaches the selected subject. Unlike the transparent TTX
+// Alias, it may retain a live authority whose answer changes after a source
+// edit. Storing that authority rather than its current answer keeps the next
+// observation on the same route.
+class Binding : public Ttx::Abstract {
  public:
-
   Binding(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Abstract& target);
-
-  Binding(
-      Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Abstract& target,
+      ttx_abstract target,
       const Ttx::Concept::Documentation& documentation);
-
-  TTX_NAME(name);
-  TTX_DOCUMENTATION(documentation);
-
-  constexpr auto resolve() const -> const Abstract& override {
-    if (!target) {
-      return Ttx::Concept::Unknown::get_unknown();
-    }
-
-    return (**target).visit<Binding>(
-        [](const Binding& binding) -> const Ttx::Concept::Abstract& {
-          return binding.resolve();
-        },
-        [](const Ttx::Concept::Abstract& direct)
-            -> const Ttx::Concept::Abstract& { return direct; });
-  }
-
-  // The authored name selects a target but does not inherit that target's
-  // contextual routes. A consumer resolves the Binding before directing a
-  // question to the selected owner.
-  constexpr auto resolve_concept(Perimortem::Core::View::Bytes) const
-      -> const Abstract& override {
-    return target ? static_cast<const Abstract&>(Ttx::Concept::None::get_none())
-                  : static_cast<const Abstract&>(
-                        Ttx::Concept::Unknown::get_unknown());
-  }
+  auto get_name() const -> Perimortem::Core::View::Bytes override;
+  auto get_documentation() const -> const Ttx::Concept::Documentation& override;
+  auto resolve(ttx_abstract self) const -> ttx_abstract override;
+  auto resolve_concept(ttx_borrowed_bytes route) const -> ttx_abstract override;
 
  protected:
   Binding(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Concept::Documentation& documentation)
-      : name(name), documentation(documentation) {}
-
-  constexpr auto bind_target(const Ttx::Concept::Abstract& selected) -> Bool {
-    if (target) {
-      return *target == &selected;
-    }
-
-    target = &selected;
-    return True;
-  }
+      const Ttx::Concept::Documentation& documentation);
+  auto bind_target(ttx_abstract target) -> bool;
 
  private:
-  Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<const Ttx::Concept::Abstract*> target;
+  const Perimortem::Core::View::Bytes name;
   const Ttx::Concept::Documentation& documentation;
+  ttx_abstract target;
 };
 
 }  // namespace Tetrodotoxin::Language

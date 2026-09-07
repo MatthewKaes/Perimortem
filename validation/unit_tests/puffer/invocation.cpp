@@ -57,11 +57,11 @@ static auto read_bytes(ttx_abstract source) -> std::vector<uint8_t> {
     .completed = false,
   };
   observation.bytes.operations->visit(
-      observation.bytes, {
-                           .operations = &capture.operations,
-                           .self = reinterpret_cast<ttx_bytes_sink_self*>(
-                               &capture),
-                         });
+      observation.bytes,
+      {
+        .operations = &capture.operations,
+        .self = reinterpret_cast<ttx_bytes_sink_self*>(&capture),
+      });
   return capture.completed ? capture.bytes : std::vector<uint8_t>();
 }
 
@@ -73,7 +73,35 @@ PERIMORTEM_UNIT_TEST(PufferInvocation, raises_dialect_owned_arguments) {
   const Ttx::DomainObservation domain =
       Ttx::resolve_domain(arguments.get_handle());
   const ttx_context context = ttx_context_create();
-  const Ttx::PackObservation pack = Ttx::pack(context, domain.layout);
+  struct Flow {
+    ttx_context context;
+    Ttx::PackObservation pack;
+  } flow{context, {}};
+  static const ttx_domain_result_ops operations = {
+    .header = {sizeof(ttx_domain_result_ops), TTX_ABI_MAJOR, TTX_ABI_MINOR},
+    .unknown =
+        [](ttx_domain_result result) {
+          reinterpret_cast<Flow*>(result.self)->pack.state =
+              Ttx::PackObservationState::Unknown;
+        },
+    .none =
+        [](ttx_domain_result result) {
+          reinterpret_cast<Flow*>(result.self)->pack.state =
+              Ttx::PackObservationState::None;
+        },
+    .resolved =
+        [](ttx_domain_result result, ttx_abstract, ttx_layout layout) {
+          auto& flow = *reinterpret_cast<Flow*>(result.self);
+          flow.pack = Ttx::pack(flow.context, layout);
+        },
+  };
+  Ttx::resolve_domain(
+      arguments.get_handle(),
+      {
+        .operations = &operations,
+        .self = reinterpret_cast<ttx_domain_result_self*>(&flow),
+      });
+  const Ttx::PackObservation pack = flow.pack;
 
   ASSERT(domain.state == Ttx::Observation::Resolved);
   ASSERT(pack.state == Ttx::PackObservationState::Packed);

@@ -77,30 +77,28 @@ each concrete Dialect under the exact name accepted by the source envelope:
 dialect : Library;
 ```
 
-Environment consumes the envelope with one source transaction Cursor and calls
-the selected Dialect directly with that Cursor, the source backed
-Documentation, its Anchor, and the semantic context. The Dialect constructs one
-Monograph in the Cursor's Arena and returns an optional reference. Presence
-means the Dialect established a real semantic root, even if it also reported
-source errors. Absence means no Monograph could be established. Environment
-retains a returned Monograph for tooling and attempts to link every fact its
-current graph can answer. Existing errors still keep it from finalization and
-publication.
+Workspace lends the selected provider a retained source input and the semantic
+context. The provider returns one source graph whose root and typed source
+services remain available together. A native provider reads the common envelope
+with a Cursor and passes its documentation and anchor to the concrete Dialect.
+Another frontend may construct its graph directly from its own source format.
+Both return through the same ownership boundary, including when a partial graph
+can support tooling but cannot yet produce an immutable output.
 
 An installed Dialect is itself an ordinary TTX Abstract context. Its exact live
 identity selects Monograph layers, its installed name answers source dispatch,
 and its contextual resolution exposes immutable language vocabulary. A Dialect
 is stateless after Toolchain construction and can serve every Workspace that
-borrows that Toolchain. The operation local Cursor traverses the source and
-publishes textual reports, while Workspace's local Arena handle carries the
-produced root until the Workspace retains or releases it.
+borrows that Toolchain. Parsing state and allocations belong to the provider's
+source graph, which Workspace retains until replacement or release. The installed
+provider and its dependencies outlive every source graph that uses them.
 
 The context local to a source during interpretation is an ordinary TTX
 Abstract. A direct source may receive the Workspace, while every source in a
-Package graph receives that Package root. A Monograph is itself a contextual
-Type with an empty value Layout. Its reachable Type graph includes common
-Import Types, which Environment acquires before linking. The concrete Dialect
-decides which contextual queries each acquired root supports.
+Package graph receives that Package root. A Monograph exposes contextual names
+with an empty value Layout. Its imports retain stable source authorities, so a
+later query can reach newly supplied meaning without interpreting the importer
+again. The concrete Dialect decides which questions each imported root supports.
 
 Package can be installed in a Tetrodotoxin Toolchain without becoming an
 implicit context for every source. A standalone Toolchain may omit the Package
@@ -109,27 +107,43 @@ resources, or restores an Archive.
 
 ## Source transaction
 
-Environment owns one local Arena handle and constructs the retained source
-bytes, Tokenizer, and operation local Cursor in that Arena. It passes the
-Cursor, opening Documentation, source Anchor, and source semantic context
-directly to the selected installed Dialect. The Dialect uses
-`Cursor::get_arena()` for every source backed semantic fact and returns one
-optional Monograph reference from that same Arena.
+Workspace owns publication and the lifetime of its current source generations.
+Providers own their graph allocations and expose source services through the
+same typed C boundary. Using a C++ Arena is a native implementation choice, so
+another frontend can use its own allocator or managed storage without adding a
+second Workspace path.
 
-Comments, Attributes, Tokens, and semantic objects may therefore retain direct
-source backed views without proxying them into another domain. Workspace keeps
-the Arena handle once the Dialect returns a Monograph. A result accompanied by
-source errors remains useful to editor queries, and linking may still establish
-independent or earlier semantic edges. Finalization and Terminal production
-continue to require the complete error free island. An embedded layer uses the
-same Cursor, Arena, and semantic context with its exact child language identity.
+A provider which borrows source bytes retains the source input. Its returned
+source graph owns the semantic root, diagnostics, and source associations needed
+by readers. Diagnostics and associations are synchronous projections from that
+owner. An incomplete graph can still provide those services while its root or
+some of its routes remain Unknown.
 
-Archive reconstruction does not introduce a parallel Restoration context. A
-persistent Dialect receives its destination Arena, opaque payload, and exact
-Package context directly and returns one optional Monograph reference through
-the same ownership contract. A fixed child receives its own payload section
-with that same Package context. Source free validation and toolchain failures are written to
-Perimortem Diagnostics instead of manufacturing a source Cursor.
+Replacing a source publishes another generation through its stable authority.
+References query that authority again. Callers keeping immutable Packs across
+replacement retain the supplying source generations until those producer
+borrows end. Context retains Layout support, but does not retain source graphs
+on the caller's behalf. This lets unused generations be reclaimed promptly.
+
+### Native construction
+
+The native provider retains the input bytes and owns an Arena, Tokenizer,
+associations, and parse reports. Its operation local Cursor lends that storage
+to the concrete Dialect, which uses `Cursor::get_arena()` to construct its
+Monograph and source backed support values. Comments and attributes can then
+borrow authored bytes without forcing another frontend to adopt a C++ allocator.
+
+Workspace retains the returned source graph even when its root is Unknown.
+That keeps useful diagnostics available after parsing fails before a Monograph
+exists. When a root does exist, read only validation reports which current
+relationships remain incomplete. An embedded native layer uses the same Cursor,
+Arena, and semantic context with its exact installed child language identity.
+
+Reconstruction follows the same ownership split. The provider owns reconstructed
+allocations and receives the exact package context, while Workspace retains the
+resulting source graph. A fixed child receives its own opaque payload section
+and the same context. Reconstruction failures use their source free diagnostic
+contract rather than manufacturing a Cursor over nonexistent authored text.
 
 ## Dialect dependencies
 
@@ -174,11 +188,11 @@ names, invocation, or receiver policy into a shared routing table.
 A Monograph is the retained result of reading one source with one Dialect. It
 provides:
 
-* stable TTX identity
-* opening Documentation
-* the source transaction Arena that owns source bytes and its semantic graph
-* name resolution defined by its Dialect
-* link and finalize lifecycle stages
+* Stable TTX identity.
+* Opening documentation.
+* Native graph storage supplied by its provider.
+* Name resolution defined by its Dialect.
+* Repeatable read only validation of its current answers.
 
 A Monograph may expose no Types, one global Type, several independent Types,
 package members, entry policy, or another semantic context. Its role is the
@@ -196,14 +210,15 @@ or create a wrapper around the child. A top level Monograph answers with itself.
 Scene and Shader answer with their real Library child. Any other request has no
 result.
 
-Workspace owns each outer member Monograph and moves those handles through
-linking and finalization with their exact source Cursors. Package owns no member
-table; its restricted Library source exports Types and common Alias imports name
-the graph. A fixed child layer remains owned by its outer Monograph and does not
-become a separate Archive member or copied view of the same declarations.
+Workspace retains each outer source graph and publishes it through a stable
+source authority. The package's restricted Library source exports identities,
+while common imports name the graph. A fixed child remains owned by its outer
+Monograph rather than becoming a separate archive member.
 
-The Monograph remains queryable for the lifetime of its Workspace. It retains
-semantic facts rather than parser positions or source traversal state.
+A Monograph remains queryable while its supplying generation is retained and
+its borrowed Workspace and provider still exist. Keeping an older generation
+preserves existing producer borrows, but does not freeze live Reference answers.
+A query after replacement therefore retains the source closure it observes.
 
 The concrete Dialect creates its Types, Addressables, Callables, lifecycle facts,
 or Package members directly. An object keeps the Definition that introduced it,
@@ -242,35 +257,29 @@ absence without introducing a universal error enum.
 
 ## Failure reporting
 
-The Cursor owns all textual TTX contents and the ordered reports produced while
-that source is parsed, linked, and finalized. The outer Monograph and its fixed
-child layers receive that operation local Cursor explicitly, so lexical and
-semantic failures point into the authored text without a retained Language
-Diagnostic collection. A Monograph never keeps a Cursor after the operation.
+The native source graph retains parsing reports beside its authored bytes.
+The outer Monograph and its fixed children receive an operation local Cursor
+when parsing or validating, so reports keep their source locations without
+keeping the Cursor alive. Typed source services lend diagnostics and associations
+to editors and other consumers regardless of the provider's implementation
+language.
 
-Puffer, an editor, or another source evaluation caller presents the textual
-reports written through that Cursor directly to the end user. Binary Archive
-validation and other source free system or toolchain failures use Perimortem
-Diagnostics, whose severity and persistence policy belongs to the host. They do
-not invent an authored Token or a second Tetrodotoxin diagnostic model.
+Validation may produce new reports about current references without rewriting
+the earlier parse reports. Binary archive and other source free failures keep
+their own reporting context rather than inventing an authored Token.
 
 ## Semantic lifecycle
 
-One source participates in four stages:
+The provider constructs a source graph once, then Workspace connects its
+declared dependencies to stable authorities and publishes that generation.
+Queries follow those authorities whenever they need the current answer. Adding
+another source can therefore satisfy an import without reparsing its consumer.
 
-1. The selected Dialect constructs one optional Monograph in the source
-   transaction Arena and writes any source reports through the Cursor.
-2. Workspace retains every Monograph and its lexical evidence.
-3. Linking attempts every route the retained graph can currently answer and
-   reports its own failures to the Cursor.
-4. Finalization performs language work only after interpretation and linking
-   complete without errors across the island.
-
-Workspace performs these stages in one direct source call or across one Package
-source graph. Retained incomplete meaning remains available to tooling, while
-only completed meaning can enter a Terminal producer. Workspace interprets all
-reachable source imports first and finalizes none of them until the island
-links.
+Read only validation determines whether the requested output has enough evidence
+to proceed. Tooling can inspect partial generations immediately, while immutable
+production waits for its required relationships to be complete. Replacing a
+source changes its authority's current graph, leaving unrelated sources and
+previously retained immutable support snapshots intact.
 
 ## Persistence
 
@@ -290,8 +299,8 @@ live runtime handles, or process addresses. Debug symbols and source mapping
 belong to a separate output.
 
 Archive reconstruction creates a fresh graph with equivalent observable
-semantic facts and identity relations. It applies the same link and finalize
-lifecycle as authored source. Package remains independent of the payload schema.
+semantic relationships. Its queries and read only validation follow the same
+contracts as authored source. Package remains independent of the payload schema.
 
 The payload is part of a Terminal product and carries reconstruction facts
 rather than live graph identities. Equivalence means that a fresh Workspace
@@ -310,11 +319,9 @@ and Shader pass the surrounding context to their child layers. Exact Package
 dependencies still come from the Workspace. If a child rejects its data, the
 outer Monograph also fails.
 
-The Dialect validates its complete bounded payload before returning an optional
-Monograph reference from its reconstruction Arena. Workspace holds those Arena
-handles, links every member, and then finalizes every member before it publishes
-the completed root.
-A target
+The provider validates its bounded payload before returning a reconstructed
+source graph. Workspace retains that graph, connects its dependencies, and
+validates the observations required for the requested product. A target
 representation such as LLVM IR cannot substitute for this payload because it
 has already lost owner facts that were meaningful in the source language.
 

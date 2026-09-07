@@ -5,38 +5,27 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
-#include "tetrodotoxin/language/binding.hpp"
+#include "ttx/concept/abstract.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Reference is one delayed authored query. It retains its stable host and asks
-// that host for the same name whenever the represented identity is requested.
-class Reference : public Tetrodotoxin::Language::Binding {
+// A reference remembers where to ask and the authored question. The host can
+// be a foreign capability or a stable source authority, so resolving another
+// edit needs neither a native object conversion nor a cached target to repair.
+class Reference : public Ttx::Abstract {
  public:
-
+  Reference(ttx_abstract host, Perimortem::Core::View::Bytes name);
   static auto create(
-      Perimortem::Memory::Allocator::Arena& domain,
-      const Ttx::Concept::Abstract& host,
+      Perimortem::Memory::Allocator::Arena& arena,
+      ttx_abstract host,
       Perimortem::Core::View::Bytes name) -> Reference&;
-
-  auto resolve() const -> const Ttx::Concept::Abstract& override;
-
-  constexpr auto get_host() const -> const Ttx::Concept::Abstract& {
-    return *host;
-  }
+  auto resolve(ttx_abstract self) const -> ttx_abstract override;
+  auto get_name() const -> Perimortem::Core::View::Bytes override;
+  auto get_host() const -> ttx_abstract;
 
  private:
-  constexpr Reference(
-      const Ttx::Concept::Abstract& host,
-      Perimortem::Core::View::Bytes name)
-      : Tetrodotoxin::Language::Binding(
-            name,
-            Ttx::Concept::Documentation::get_empty()),
-        host(&host),
-        name(name) {}
-
-  const Ttx::Concept::Abstract* host;
-  Perimortem::Core::View::Bytes name;
+  const ttx_abstract host;
+  const Perimortem::Core::View::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Language

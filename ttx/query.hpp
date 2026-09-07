@@ -20,7 +20,6 @@ enum class Observation {
 struct DomainObservation {
   Observation state;
   ttx_abstract domain;
-  ttx_layout layout;
 };
 
 enum class CallableObservationState {
@@ -87,6 +86,11 @@ auto resolve(ttx_abstract source) -> ttx_abstract;
 auto resolve_concept(ttx_abstract source, ttx_borrowed_bytes route)
     -> ttx_abstract;
 auto resolve_domain(ttx_abstract source) -> DomainObservation;
+// Shape can be synthesized on the provider's stack. Consume it in this callback
+// or ask its Layout owner for a snapshot before returning. The value overload
+// keeps only the borrowed Domain identity, so fitting and category checks pay
+// neither a shape allocation nor a second lifetime obligation.
+void resolve_domain(ttx_abstract source, ttx_domain_result result);
 auto resolve_callable(ttx_abstract source) -> CallableObservation;
 // Retain an identity free call shape while its provider callback is active.
 auto retain_callable(ttx_callable source) -> CallableObservation;

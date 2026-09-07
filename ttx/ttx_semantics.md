@@ -243,6 +243,13 @@ relationship is indeterminate, None when the owner proves that no Domain
 relationship exists, or one exact Domain identity beside its immutable Layout
 for that observation.
 
+The Layout is borrowed during the result callback, allowing an owner to
+construct a temporary projection without retaining it in its graph. Consumers
+that only need the Domain identity keep that borrowed identity. A consumer
+which needs the shape after the callback requests a Layout snapshot while the
+projection is available. Failure to retain support remains distinct from an
+indeterminate Domain relationship.
+
 A Domain answers its own Domain relationship with itself. That reflexive edge
 does not create a type system, parent relation, or subtyping hierarchy. Domains
 may participate in cycles and recursive value descriptions because every query

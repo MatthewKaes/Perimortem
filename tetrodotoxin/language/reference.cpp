@@ -3,18 +3,30 @@
 
 #include "tetrodotoxin/language/reference.hpp"
 
-using namespace Perimortem;
-using namespace Tetrodotoxin;
+#include "ttx/query.hpp"
 
-auto Language::Reference::create(
-    Memory::Allocator::Arena& domain,
-    const Ttx::Concept::Abstract& host,
+using namespace Tetrodotoxin::Language;
+using namespace Perimortem;
+
+Reference::Reference(ttx_abstract host, Core::View::Bytes name)
+    : host(host), name(name) {}
+
+auto Reference::create(
+    Memory::Allocator::Arena& arena,
+    ttx_abstract host,
     Core::View::Bytes name) -> Reference& {
-  return domain.construct_from<Reference>(
-      [&]() { return Reference(host, name); });
+  return arena.construct<Reference>(host, name);
 }
 
-auto Language::Reference::resolve() const -> const Ttx::Concept::Abstract& {
-  const Ttx::Concept::Abstract& context = host->resolve();
-  return context.resolve_concept(name).resolve();
+auto Reference::resolve(ttx_abstract) const -> ttx_abstract {
+  const auto context = Ttx::resolve(host);
+  return Ttx::resolve(
+      Ttx::resolve_concept(context, {name.get_data(), name.get_size()}));
+}
+
+auto Reference::get_name() const -> Core::View::Bytes {
+  return name;
+}
+auto Reference::get_host() const -> ttx_abstract {
+  return host;
 }

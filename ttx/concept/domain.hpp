@@ -17,6 +17,9 @@ namespace Ttx {
 // Returning Layout beside the Domain identity also lets an owner synthesize
 // partial shape for the current observation. A consumer receives that shape
 // through the C ABI without acquiring the C++ object that produced it.
+// This convenience owner borrows layout() through the enclosing query. An
+// implementation building a shape on its stack implements Abstract::domain
+// directly so it can publish the result before that stack frame ends.
 class Domain : public Abstract {
  public:
   using Abstract::Abstract;
