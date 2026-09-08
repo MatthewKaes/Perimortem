@@ -23,7 +23,7 @@ using namespace Validation;
 
 class DefinitionDialect : public Dialect {
  public:
-  DefinitionDialect() : Dialect("Definition"_view) {}
+  TTX_NAME("Definition"_view);
 
   auto interpret(Cursor&, const Documentation&, const Anchor&, Abstract&)
       -> Option<Monograph&> override {

@@ -80,6 +80,7 @@ cc_binary(
         "//perimortem",
         "//puffer:position_encoding",
         "//puffer:publisher",
+        "//tetrodotoxin:build",
         "//tetrodotoxin:diagnostics",
         "//tetrodotoxin:environment",
         "//tetrodotoxin:formatting",

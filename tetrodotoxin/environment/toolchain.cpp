@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/environment/toolchain.hpp"
 
-#include "perimortem/core/diagnostics/log.hpp"
-
 #include "perimortem/system/file.hpp"
 
 #include "tetrodotoxin/language/parser/comment.hpp"
@@ -18,11 +16,15 @@ using namespace Tetrodotoxin::Environment;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 
-auto parse_dialect(const Toolchain& toolchain, Cursor& cursor)
+static auto parse_dialect(const Toolchain& toolchain, Cursor& cursor)
     -> Option<Dialect&> {
   // Parse the actual Dialect
   const Token declaration = cursor.current();
   const auto name = Parser::Dialect::parse(cursor);
+  if (name.is_empty()) {
+    return {};
+  }
+
   auto dialect = toolchain.find(name);
   if (!dialect) {
     auto report = cursor.create_report(Span(declaration));
@@ -40,10 +42,6 @@ Toolchain::~Toolchain() {
   for (Count index = sources.get_size(); index > 0; index--) {
     sources[index - 1].get().~Monograph();
   }
-
-  for (Count index = dialects.get_size(); index > 0; index--) {
-    dialects[index - 1].get().~Dialect();
-  }
 }
 
 auto Toolchain::process(View::Bytes source, Errors& errors)
@@ -55,8 +53,8 @@ auto Toolchain::process(View::Bytes source, Errors& errors)
   const auto path = arena.proxy(source);
   auto contents = Perimortem::System::File::read(arena, path);
   if (!contents) {
-    Diagnostics::Log::Message<512> message(Diagnostics::Log::Level::Error);
-    message << "Could not read source "_view << path;
+    Errors::Report report(errors, path, {}, Anchor::create(Span()));
+    report << "Could not read source "_view << path;
     return {};
   }
 
@@ -68,8 +66,11 @@ auto Toolchain::process(View::Bytes source, Errors& errors)
   Token opening = cursor.current();
   const Documentation& documentation = Language::Parser::Comment::parse(cursor);
   if (documentation.is_empty()) {
+    Errors::Report report(errors, path, {}, Anchor::create(Span()));
+    report << "Could not read source "_view << path;
     cursor.create_token_error(
         opening, "Source TTX requires a documentation header."_view);
+    return {};
   }
 
   // Parse the actual Dialect requested by the file and see if we have it
@@ -84,10 +85,14 @@ auto Toolchain::process(View::Bytes source, Errors& errors)
   // interpreter receives the body unchanged and creates its own root.
   const auto anchor =
       Anchor::create(declaration, Span(opening, cursor.peek(-1)));
+  const Count error_count = errors.get_size();
   Option<Monograph&> result =
       dialect->interpret(cursor, documentation, anchor, *dialect);
   if (result) {
     sources.insert(*result);
+  } else if (errors.get_size() == error_count) {
+    cursor.create_error(
+        "The selected Dialect could not interpret this source."_view);
   }
 
   return result;

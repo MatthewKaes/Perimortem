@@ -98,7 +98,9 @@ static auto parse_expression(
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -107,7 +109,9 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source, View::Bytes diagnostic) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -146,7 +150,9 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, receiving_type_fit) {
       "dialect : Library;\n"
       "public Maybe : alias = Option[U64];\n"
       "private const present : Maybe = 7;"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -203,7 +209,9 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, target_unwrap) {
       "}\n"
       "private absent_call := Options -> consume(());\n"
       "private present_call := Options -> consume(8);"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -281,7 +289,9 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, edge_folding) {
       "  value = ();\n"
       "  return value;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -459,7 +469,10 @@ PERIMORTEM_UNIT_TEST(PropagationAccessTests, propagation_fixture) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;

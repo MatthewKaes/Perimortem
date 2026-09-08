@@ -15,11 +15,10 @@
 
 namespace Tetrodotoxin::Environment {
 
-// Toolchain owns the installed family of Tetrodotoxin languages. Every
-// Workspace can borrow the same immutable Dialect identities, while the
-// semantic objects produced through process stay with the Toolchain. Workspace
-// can still own its independent source transactions. Installed Dialects outlive
-// every source processed here.
+// Toolchain borrows the installed family of Tetrodotoxin languages. Their
+// caller constructs the dependencies and keeps them alive until this Toolchain
+// and every Workspace borrowing them have ended. Only sources created through
+// process belong to the Toolchain itself.
 class Toolchain {
  public:
   Toolchain();
@@ -36,7 +35,7 @@ class Toolchain {
     BAIL_IF(contains_name(dialect.get_name()));
 
     dialects.insert(dialect);
-    return true;
+    return True;
   }
 
   auto find(Perimortem::Core::View::Bytes name) const

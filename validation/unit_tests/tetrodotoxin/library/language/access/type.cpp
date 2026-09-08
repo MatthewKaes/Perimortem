@@ -20,7 +20,9 @@ static Harness TypeAccessTests = {
 };
 
 static auto links_library_source(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
@@ -29,7 +31,9 @@ static auto links_library_source(View::Bytes source) -> Bool {
 }
 
 static auto rejects_library_link(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(

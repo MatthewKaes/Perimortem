@@ -51,8 +51,9 @@ PERIMORTEM_UNIT_TEST(StructureInterface, negotiates_real_library_types) {
       "  public state z_index : S64;\n"
       "}"_view;
 
+  Library::Dialect installed_library;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
+  ASSERT(toolchain.install(installed_library));
   Environment::Workspace workspace(toolchain);
   Errors errors;
   auto monograph = workspace.interpret_source(

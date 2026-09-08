@@ -6,7 +6,7 @@
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
-#include "perimortem/system/args.hpp"
+#include "perimortem/memory/managed/vector.hpp"
 
 #include "puffer/lsp/methods.hpp"
 #include "tetrodotoxin/build/dialect.hpp"
@@ -60,18 +60,27 @@ S32 main(S32 argc, char** argv) {
     return Puffer::Lsp::run(source);
   }
 
-  // Create the smallest possible toolchain with just Build.
+  // Build interprets the meaning of the remaining arguments so we preserve
+  // their order and spelling but strip the source argument that's consumed
+  // to point at the first file to load.
+  Allocator::Arena arguments_arena;
+  Managed::Vector<View::Bytes> arguments(arguments_arena);
+  for (S32 index = 2; index < argc; index++) {
+    arguments.insert(NullTerminated::to_view(argv[index]));
+  }
+
+  // Registration borrows the actual Dialect so we need to make sure it lives
+  // longer than the toolchain it's installed into. The toolchain itself doesn't
+  // perform any clean up so we can use a stack reference for this oneshot.
+  Tetrodotoxin::Build::Dialect build(arguments.get_view());
   Tetrodotoxin::Environment::Toolchain toolchain;
-  Tetrodotoxin::Build::Dialect build("Build"_view);
   if (!toolchain.install(build)) {
     return 1;
   }
 
   // Run the toolchain and pass down an error accumulator.
   Ttx::Lexical::Errors errors;
-  if (!toolchain.process(source, errors)) {
-    return -1;
-  }
+  auto processed = toolchain.process(source, errors);
 
   // Render out any error messages that were accumulated from processing.
   if (errors.get_size() > 0) {
@@ -81,5 +90,5 @@ S32 main(S32 argc, char** argv) {
     }
   }
 
-  return errors.get_size();
+  return processed && errors.is_empty() ? 0 : 1;
 }

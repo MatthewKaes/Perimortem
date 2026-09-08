@@ -58,7 +58,9 @@ static auto find_function(
 }
 
 static auto rejects_source(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   return !interpret(workspace, errors, source) && !errors.is_empty() &&
@@ -88,7 +90,9 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, lowest_precedence) {
       "  access[0] = local;\n"
       "  return;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -177,7 +181,9 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, pack_fitting) {
       "  pair = (1, true);\n"
       "  return pair;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   ASSERT(interpret(workspace, errors, source));
@@ -191,7 +197,9 @@ PERIMORTEM_UNIT_TEST(AssignmentTests, immutable_targets) {
       "public Data : struct { public state value : U64; }\n"
       "private data : Data;\n"
       "private write : func = [] -> [] { data.value = 1; return; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   ASSERT(interpret(workspace, errors, writable));

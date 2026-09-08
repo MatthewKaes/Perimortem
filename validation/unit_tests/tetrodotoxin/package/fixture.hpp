@@ -5,6 +5,8 @@
 
 #include "perimortem/core/static/vector.hpp"
 
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/language/monograph.hpp"
 #include "ttx/concept/reference.hpp"
@@ -29,20 +31,24 @@ inline auto interpret_package(
   Ttx::Lexical::Tokenizer tokenizer(arena, retained_source, retained_path);
   Ttx::Lexical::Associations associations(tokenizer.get_arena());
   Ttx::Lexical::Cursor cursor(tokenizer, errors, associations);
-  Perimortem::Core::Static::Vector<
-      Ttx::Concept::Reference<Tetrodotoxin::Language::Dialect>, 1>
-      installed = {{dialect}};
-
   Count error_count = errors.get_size();
-  auto interpreted = Tetrodotoxin::Language::Dialect::interpret_source(
-      installed.get_view(), cursor, dialect);
+  const auto opening = cursor.current();
+  const auto& documentation =
+      Tetrodotoxin::Language::Parser::Comment::parse(cursor);
+  const auto declaration = cursor.current();
+  const auto name = Tetrodotoxin::Language::Parser::Dialect::parse(cursor);
+  if (name != dialect.get_name()) {
+    return {};
+  }
+  const auto anchor = Ttx::Lexical::Anchor::create(
+      declaration, Ttx::Lexical::Span(opening, cursor.peek(-1)));
+  auto interpreted = dialect.interpret(cursor, documentation, anchor, dialect);
   if (!interpreted || errors.get_size() != error_count ||
       !interpreted->is<Tetrodotoxin::Package::Language::Monograph>()) {
     return {};
   }
 
-  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(
-      *interpreted);
+  return static_cast<Tetrodotoxin::Package::Language::Monograph&>(*interpreted);
 }
 
 }  // namespace Validation

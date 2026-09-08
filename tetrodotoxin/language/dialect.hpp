@@ -4,7 +4,6 @@
 #pragma once
 
 #include "perimortem/core/view/bytes.hpp"
-#include "perimortem/core/view/vector.hpp"
 #include "perimortem/core/option.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -12,28 +11,53 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/documentation.hpp"
-#include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// A Dialect is one language installed in a Tetrodotoxin Toolchain. It owns the
-// grammar and semantic construction for that language while remaining reusable
-// across every Workspace that borrows the Toolchain. Each source Cursor lends
-// the Arena where that interpretation creates its Monograph and semantic
-// identities.
+// TTX (Toolchain Text Extensions) encode a given instruction stream into a sort
+// of command buffer. While normally this is a richer semantic representation of
+// a tokenized source file, TTX token streams can come from arbitrary sources.
 //
-// Cursor supplies an already classified Code stream. The frontend that produces
-// that stream owns tokenization, preprocessing, and macro policy, so a Dialect
-// can focus on the meaning of the source form it recognizes.
+// Dialects provide a way to execute a variable range of a given token stream to
+// produce any number of side effects + a single optional ABI specified object.
+//
+// It's important to note that `execute` is used here to differentiate Dialect
+// functionality from that of a typical parser. There are some Dialects that use
+// the stream to create something that resembles an AST, but this is not the
+// common case.
+//
+// `interpret` provides the main entry and exit point for plugin Terminals.
+// Since Terminals leave the graph that means any two Dialects that produce the
+// exact same Monograph structure for every possible input are considered to be
+// simulacra and can be substituted just like any other Abstract.
 class Dialect : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
 
-  Dialect(Perimortem::Core::View::Bytes name);
-  virtual ~Dialect() = 0;
+  // START AI GENERATED
+  virtual ~Dialect() = default;
+  // END AI GENERATED
 
+  // The interface for driving the actual Dialect after it's been selected. It's
+  // the main hook that allows plugin's to drive side effect behavior by using a
+  // TTX stream as it's command buffer.
+  //
+  // The Dialect can return any Monograph (including forwarding Monographs from
+  // other Dialects). While other data can be exchanged, all Abstracts reachable
+  // from the Monograph returned are the only ABI stable promises Tetrodotoxin
+  // provides. Any sidecars are undefined behavior to Tetrodotoxin.
+  //
+  // Cursor contains the location the Dialect should start reading from. It has
+  // access to the `Span(cursor, Code::Terimnal)`. Reading any tokens before the
+  // cursor's position is undefined behavior, even if the token itself is well
+  // defined. This allows for Dialects to host sub-Dialects which is the base
+  // case for how the Tetrodotoxin::Toolchain drives source by interpreting the
+  // header of the TTX stream up until it finds the command to use a Dialect.
+  //
+  // TODO: API is still work in progress but this seems about right minus some
+  // context shuffling as we work out plugins.
   virtual auto interpret(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Documentation& documentation,
@@ -41,57 +65,45 @@ class Dialect : public Ttx::Concept::Abstract {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Monograph&> = 0;
 
-  static auto find_installed(
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
-          installed,
-      Perimortem::Core::View::Bytes name) -> Perimortem::Core::Option<Dialect&>;
-
-  // Every Tetrodotoxin source begins with the same documentation and Dialect
-  // envelope. Reading it here gives the selected language one consistent entry
-  // point and one Monograph result.
-  static auto interpret_source(
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Dialect>>
-          installed,
-      Ttx::Lexical::Cursor& cursor,
-      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
-
-  // A persistent Dialect retains the complete facts needed to rebuild its own
-  // Monograph. An engaged empty value is a valid payload.
-  virtual auto encode(const Ttx::Concept::Abstract& monograph) const
-      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes>;
-
-  // Restoration receives the same Arena, Documentation, and outer context as
-  // authored interpretation. The payload replaces source reading while the
-  // language keeps its ordinary construction and completion rules.
-  virtual auto restore(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes payload,
-      const Ttx::Concept::Documentation& documentation,
-      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Monograph&>;
-
-  // A completed source asks its selected Dialect for the default external
-  // product. The graph is supplied only through Abstract concepts, keeping
-  // Puffer and concrete Dialects independent from Workspace representation.
-  virtual auto produce(
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& graph,
-      const Monograph& monograph) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Pack&>;
-
-  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
-    return name;
+  // Uses the Dialect to encode the Abstract in two steps:
+  //
+  // 1. Compress the Abstract if possible into a domain specific simulacra.
+  // 2. Encode that simulacra into an arbitrary byte array.
+  //
+  // This is essentially serialization but gives the Dialect the promise that it
+  // will be the only one ever asked to decode the bytes to regenerate the right
+  // simulacra.
+  virtual auto encode(const Ttx::Concept::Abstract& abstract) const
+      -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes> {
+    return {};
   }
 
+  // Uses the Dialect to create a Abstract simulacra that represents all routes
+  // that the original encoded Abstract could produce.
+  //
+  // It's important to note that the Abstract returned from decode isn't
+  // required to be the same Abstract returned from the Dialect's interpret and
+  // it is undefined behavior to treat them as the same C++ type. You'll first
+  // need to negotiate the simulacra into the Abstract before you can use it as
+  // the exact object.
+  //
+  // This nuance of simulacra is critical for optimal performance as it lets the
+  // resulting Abstract to answer questions with the extra information that the
+  // Abstract can keep a compact representation rather than materialize a 1:1
+  // TTX graph of it's representation.
+  virtual auto decode(
+      Perimortem::Memory::Allocator::Arena& arena,
+      Perimortem::Core::View::Bytes encoding,
+      Ttx::Concept::Abstract& context) -> Perimortem::Core::Option<Abstract&> {
+    return {};
+  }
+
+  // By default Dialects don't produce any useful documentation so the override
+  // is provided at this level to save on Dialect boiler plate.
   constexpr auto get_documentation() const
       -> const Ttx::Concept::Documentation& override {
     return Ttx::Concept::Documentation::get_empty();
   }
-
-  auto resolve_concept(Perimortem::Core::View::Bytes route) const
-      -> const Ttx::Concept::Abstract& override;
-
- private:
-  Perimortem::Core::View::Bytes name;
 };
 
 }  // namespace Tetrodotoxin::Language

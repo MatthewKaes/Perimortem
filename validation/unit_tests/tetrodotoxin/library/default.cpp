@@ -94,7 +94,9 @@ static auto import_types(
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
@@ -153,7 +155,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, scalar_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, carrier_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
@@ -211,7 +215,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, carrier_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
@@ -271,7 +277,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, aggregate_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
@@ -304,7 +312,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, fixed_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, domain_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);
@@ -349,7 +359,9 @@ PERIMORTEM_UNIT_TEST(LibraryDefaults, domain_defaults) {
 
 PERIMORTEM_UNIT_TEST(LibraryDefaults, absent_defaults) {
   Allocator::Arena domain;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Tetrodotoxin::Environment::Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = import_types(workspace, errors);

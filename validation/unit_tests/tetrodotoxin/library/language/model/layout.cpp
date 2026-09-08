@@ -56,7 +56,9 @@ static auto parse_layout(
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
@@ -99,7 +101,9 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, parameter_entries) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_flow) {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
@@ -122,7 +126,9 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, empty_flow) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, rejects_empty_types) {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);
@@ -145,7 +151,9 @@ PERIMORTEM_UNIT_TEST(LibraryModelLayout, rejects_empty_types) {
 }
 
 PERIMORTEM_UNIT_TEST(LibraryModelLayout, named_fitting) {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret_source(workspace, errors);

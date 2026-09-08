@@ -14,10 +14,16 @@
 
 #include "puffer/lsp/document.hpp"
 #include "puffer/lsp/position_encoding.hpp"
+#include "tetrodotoxin/app/dialect.hpp"
 #include "tetrodotoxin/environment/toolchain.hpp"
 #include "tetrodotoxin/environment/workspace.hpp"
+#include "tetrodotoxin/library/dialect.hpp"
+#include "tetrodotoxin/package/dialect.hpp"
 #include "tetrodotoxin/package/repository/repository.hpp"
 #include "tetrodotoxin/package/snapshots.hpp"
+#include "tetrodotoxin/render/dialect.hpp"
+#include "tetrodotoxin/scene/dialect.hpp"
+#include "tetrodotoxin/shader/dialect.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/errors.hpp"
 #include "ttx/lexical/token.hpp"
@@ -112,6 +118,14 @@ class Documents {
   auto invalidate_package(Perimortem::Core::View::Bytes root) -> void;
   auto select_session(Document& document) -> Perimortem::Core::Option<Session&>;
 
+  // Editor sessions borrow these exact Dialects. Declaration order keeps each
+  // dependency alive until the Toolchain and its Workspace sessions are gone.
+  Tetrodotoxin::Library::Dialect library;
+  Tetrodotoxin::Package::Dialect package;
+  Tetrodotoxin::App::Dialect app;
+  Tetrodotoxin::Render::Dialect render;
+  Tetrodotoxin::Scene::Dialect scene;
+  Tetrodotoxin::Shader::Dialect shader;
   Tetrodotoxin::Environment::Toolchain toolchain;
   Perimortem::Memory::Dynamic::Record<Tetrodotoxin::Package::Snapshots>
       snapshots;

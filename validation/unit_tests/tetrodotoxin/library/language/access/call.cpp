@@ -68,7 +68,9 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -80,7 +82,9 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -129,7 +133,9 @@ PERIMORTEM_UNIT_TEST(CallTests, builtin_callables) {
       "  borrowed -> is_empty();\n"
       "  return borrowed -> get_size();\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -263,7 +269,9 @@ PERIMORTEM_UNIT_TEST(CallTests, borrow_operations) {
       "  return label -> get_size() + tail -> get_size() + "
       "write_tail -> get_size();\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -319,7 +327,9 @@ PERIMORTEM_UNIT_TEST(CallTests, folded_bytes_borrow) {
       "  const view : View[U8] = repack -> get_view();\n"
       "  return;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -422,7 +432,9 @@ PERIMORTEM_UNIT_TEST(CallTests, call_selection) {
       "  }\n"
       "}\n"
       "public Later : struct { public state value : Bool; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -556,7 +568,9 @@ PERIMORTEM_UNIT_TEST(CallTests, host_authority) {
       "}\n"
       "public VaultAlias : alias = Vault;\n"
       "private public_alias := VaultAlias -> open();"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
@@ -617,7 +631,9 @@ PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
       "  seed -> self_none();\n"
       "  seed -> self_one();\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -692,7 +708,9 @@ PERIMORTEM_UNIT_TEST(CallTests, call_result_access) {
       "}\n"
       "private seed : Packet;\n"
       "private invalid := Results -> identity(seed).value;"_view;
-  auto invalid_workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect invalid_workspace_toolchain_library;
+  auto invalid_workspace_toolchain =
+      Validation::create_library_toolchain(invalid_workspace_toolchain_library);
   Workspace invalid_workspace(*invalid_workspace_toolchain);
   Errors invalid_errors;
   auto invalid_monograph =

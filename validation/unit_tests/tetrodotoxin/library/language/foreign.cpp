@@ -41,7 +41,9 @@ static auto interpret(
 }
 
 static auto rejects(View::Bytes source, View::Bytes expected) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -75,7 +77,10 @@ PERIMORTEM_UNIT_TEST(ForeignTests, source_lifecycle) {
       "  public state shared : U64;\n"
       "}\n"_view;
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -180,7 +185,10 @@ PERIMORTEM_UNIT_TEST(ForeignTests, foreign_categories) {
       "  return foreign -> shared(foreign.output);\n"
       "}\n"_view;
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;

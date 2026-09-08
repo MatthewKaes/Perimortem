@@ -51,7 +51,9 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, materializes_implementation_surface) {
       "  return drawable.visible;\n"
       "}"_view;
 
-  auto toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect toolchain_library;
+
+  auto toolchain = Validation::create_library_toolchain(toolchain_library);
   Environment::Workspace workspace(*toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
@@ -141,7 +143,8 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, rejects_duplicate_and_wrong_requirement) {
   }};
 
   for (Count index = 0; index < sources.get_size(); index++) {
-    auto toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect toolchain_library;
+    auto toolchain = Validation::create_library_toolchain(toolchain_library);
     Environment::Workspace workspace(*toolchain);
     Errors errors;
     auto interpreted = workspace.interpret_source(
@@ -163,7 +166,9 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, archive_round_trip) {
       "  public state texture : U64;\n"
       "}"_view;
 
-  auto toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect toolchain_library;
+
+  auto toolchain = Validation::create_library_toolchain(toolchain_library);
   Environment::Workspace workspace(*toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
@@ -179,8 +184,12 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, archive_round_trip) {
   ASSERT(encoded);
 
   Allocator::Arena restored_domain;
-  auto restored = dialect.restore(
-      restored_domain, *encoded, Documentation::get_empty(), workspace);
+  // START AI GENERATED
+  auto decoded = dialect.decode(restored_domain, *encoded, workspace);
+  auto restored =
+      decoded ? decoded->select<Tetrodotoxin::Library::Language::Monograph>()
+              : Option<Tetrodotoxin::Library::Language::Monograph&>();
+  // END AI GENERATED
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());

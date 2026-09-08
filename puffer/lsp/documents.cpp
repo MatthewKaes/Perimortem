@@ -178,21 +178,17 @@ static auto find_package(
 }
 
 Lsp::Documents::Documents(Package::Repository::Repository& selected_repository)
-    : snapshots(), repository(selected_repository) {
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto package =
-      library ? toolchain.install<Package::Dialect>("Package"_view, *library)
-              : Option<Package::Dialect&>();
-  auto app = toolchain.install<App::Dialect>("App"_view);
-  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
-  if (!package || !library || !app || !render) {
-    return;
-  }
-
-  auto scene = toolchain.install<Scene::Dialect>("Scene"_view, *library);
-  auto shader =
-      toolchain.install<Shader::Dialect>("Shader"_view, *library, *render);
-  toolchain_ready = Bool(scene && shader);
+    : package(library),
+      scene(library),
+      shader(library, render),
+      snapshots(),
+      repository(selected_repository) {
+  toolchain_ready = toolchain.install(library);
+  toolchain_ready &= toolchain.install(package);
+  toolchain_ready &= toolchain.install(app);
+  toolchain_ready &= toolchain.install(render);
+  toolchain_ready &= toolchain.install(scene);
+  toolchain_ready &= toolchain.install(shader);
 }
 
 auto Lsp::Documents::find(View::Bytes uri) const -> Count {

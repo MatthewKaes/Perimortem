@@ -10,6 +10,9 @@
 
 #include "perimortem/system/path.hpp"
 
+#include "tetrodotoxin/language/parser/comment.hpp"
+#include "tetrodotoxin/language/parser/dialect.hpp"
+#include "tetrodotoxin/language/parser/import.hpp"
 #include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
@@ -68,6 +71,92 @@ Environment::Workspace::Workspace(
 
 Environment::Workspace::~Workspace() = default;
 
+// Workspace owns acquisition for its retained graphs, so this input pass
+// records source imports before interpretation. The bootstrap Toolchain path
+// instead leaves the body and its commands to the selected Dialect.
+static auto interpret_source(
+    Environment::Toolchain& toolchain,
+    Cursor& cursor,
+    Abstract& context) -> Option<Language::Monograph&> {
+  // The common envelope is consumed before protocol dispatch so every Dialect
+  // receives the same source documentation and Anchor contract. Concrete
+  // grammar begins only after that shared ownership boundary.
+  Token source_opening = cursor.current();
+  if (!cursor.get_code().is_comment()) {
+    cursor.require(
+        Code::Type::Comment,
+        "Source is missing required documentation comment. Provide at least an "
+        "explicit empty comment."_view);
+    return {};
+  }
+
+  const Documentation& documentation = Language::Parser::Comment::parse(cursor);
+  if (documentation.is_empty()) {
+    cursor.create_token_error(
+        source_opening,
+        "Source is missing required documentation comment. Raw comments do "
+        "not become Documentation."_view);
+    return {};
+  }
+  Token dialect_declaration = cursor.current();
+  View::Bytes dialect_name = Language::Parser::Dialect::parse(cursor);
+  if (dialect_name.is_empty()) {
+    return {};
+  }
+
+  Anchor source_anchor = Anchor::create(
+      dialect_declaration, Span(source_opening, cursor.peek(-1)));
+  Option<Language::Dialect&> dialect = toolchain.find(dialect_name);
+  if (!dialect) {
+    // Dispatch is exact installed name routing. Listing the same live instances
+    // in the diagnostic avoids a second registry or an implied fallback rule.
+    auto report = cursor.create_report(Span(dialect_declaration));
+    auto& hint = report.get_hint();
+
+    report << "Unknown dialect "_view << dialect_name
+           << " can't be used to interpret this source."_view;
+    hint << "Installed dialects: "_view;
+    const auto installed = toolchain.get_dialects();
+    if (installed.is_empty()) {
+      hint << "<None>"_view;
+    } else {
+      for (Count i = 0; i < installed.get_size(); i++) {
+        if (i != 0) {
+          hint << ", "_view;
+        }
+        hint << installed.get_data()[i].get().get_name();
+      }
+    }
+    hint << "."_view;
+    return {};
+  }
+
+  Managed::Vector<Language::Import::Description> imports(cursor.get_arena());
+  while (Language::Parser::Import::is_next(cursor)) {
+    const Documentation& import_documentation =
+        Language::Parser::Comment::parse(cursor);
+    auto import = Language::Parser::Import::parse(cursor, import_documentation);
+    if (import) {
+      imports.insert(*import);
+    } else {
+      cursor.recover_to_statement();
+    }
+  }
+
+  auto interpretation =
+      dialect->interpret(cursor, documentation, source_anchor, context);
+  BAIL_IF(!interpretation);
+  for (const Language::Import::Description& import : imports.get_view()) {
+    if (!interpretation->retain_import(import, cursor.get_associations())) {
+      cursor.create_expression_error(
+          import.get_declaration_anchor(),
+          "Source repeats one local Import Type name."_view,
+          "Give each imported source or Package one distinct local name."_view);
+    }
+  }
+  return *interpretation;
+}
+
 auto Environment::Workspace::interpret_source(
     Errors& errors,
     View::Bytes semantic_name,
@@ -94,8 +183,7 @@ auto Environment::Workspace::interpret_source(
   }
 
   Count source_error_count = errors.get_size();
-  auto interpretation = Language::Dialect::interpret_source(
-      toolchain.get_dialects(), cursor, *this);
+  auto interpretation = ::interpret_source(toolchain, cursor, *this);
   if (!interpretation) {
     if (errors.get_size() == source_error_count) {
       cursor.create_error(
@@ -229,8 +317,7 @@ auto Environment::Workspace::import_package(
   // Import Types. Workspace discovers the complete source graph by walking
   // those external Type edges.
   Count root_error_count = errors.get_size();
-  auto root_interpretation = Language::Dialect::interpret_source(
-      toolchain.get_dialects(), root_cursor, *this);
+  auto root_interpretation = ::interpret_source(toolchain, root_cursor, *this);
   if (!root_interpretation) {
     if (errors.get_size() == root_error_count) {
       root_cursor.create_error(
@@ -431,8 +518,7 @@ auto Environment::Workspace::import_package(
         Cursor& cursor = source_transaction->construct<Cursor>(
             tokenizer, errors, associations, retained_route);
         Count source_error_count = errors.get_size();
-        auto interpretation = Language::Dialect::interpret_source(
-            toolchain.get_dialects(), cursor, root);
+        auto interpretation = ::interpret_source(toolchain, cursor, root);
         if (!interpretation) {
           if (errors.get_size() == source_error_count) {
             cursor.create_error(
@@ -683,8 +769,13 @@ auto Environment::Workspace::restore_package(
     }
 
     Dynamic::Record<Allocator::Arena> transaction;
-    auto restored = dialect->restore(
-        *transaction, member.get_payload(), Documentation::get_empty(), root);
+    // START AI GENERATED
+    auto decoded = dialect->decode(*transaction, member.get_payload(), root);
+    // This legacy completion path uses native Monograph operations. A decoder
+    // may return a different simulacrum, so check that capability before use.
+    auto restored = decoded ? decoded->select<Language::Monograph>()
+                            : Option<Language::Monograph&>();
+    // END AI GENERATED
     View::Bytes member_name =
         root_transaction->proxy(member.get_semantic_name());
     if (!restored || restored->is<Package::Language::Monograph>()) {

@@ -1,14 +1,16 @@
 # Puffer
 
-Puffer accepts one source file or one local LSP socket path:
+Puffer takes a source file or local LSP socket path as its first argument:
 
 ```sh
-puffer build.ttx
+puffer build.ttx -help
 puffer /path/to/editor.sock
 ```
 
-The entry loads arguments through Perimortem `System::Args`. A source invocation
-registers only Build in its Toolchain and calls `toolchain.process(source)`.
+The entry converts arguments after the source path to Perimortem byte views and
+passes them unchanged to Build's constructor. Build owns their interpretation.
+A source invocation registers the caller-owned Build instance in its Toolchain
+and calls `toolchain.process(source, errors)` with a caller-owned accumulator.
 The engine reads the documentation comment and `dialect : Name;` header, finds
 the installed Dialect by name, and passes it the remaining source unchanged.
 
@@ -17,12 +19,14 @@ It does not invoke Workspace, acquire Packages, schedule linking or finalization
 or select terminal generators. Build orchestration and plugin loading belong to
 the next Build Dialect stage. The former Package CLI and native application
 commands are deliberately regressed during this stage.
+Build currently reports that execution is unimplemented. Its old Environment
+parser and product request records have been removed for the new Build design.
 
 A Unix socket path enters the retained LSP implementation. The TODO at this
 entry records its future move to an LSP Dialect. That existing subsystem still
 owns its language support and repository setup, independently of the minimal
-source bootstrap. The editor launcher must supply the socket as the first and
-only argument. The previous `-lsp=` and repository flags are not accepted.
+source bootstrap. The editor launcher must supply the socket as the first
+argument. The previous `-lsp=` entry flag is not accepted.
 
 Build and package the executable from the repository root:
 

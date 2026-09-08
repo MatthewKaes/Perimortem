@@ -44,13 +44,13 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
       "@direction(\"upload\") @marshal(\"copy\") @sync(\"submission\")\n"
       "public count : bridge Cpu::U64 -> U64;"_view;
 
+  Library::Dialect library;
+  Render::Dialect render;
+  Shader::Dialect shader(library, render);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
-  ASSERT(library && render);
-  auto shader =
-      toolchain.install<Shader::Dialect>("Shader"_view, *library, *render);
-  ASSERT(shader);
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(render));
+  ASSERT(toolchain.install(shader));
   Environment::Workspace workspace(toolchain);
   Errors render_errors;
   Errors shader_errors;
@@ -65,11 +65,11 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, workspace_contract_and_stage) {
   ASSERT(interpreted && interpreted->is<Shader::Language::Monograph>());
   const auto& monograph =
       static_cast<const Shader::Language::Monograph&>(*interpreted);
-  ASSERT(monograph.get_layer(*shader));
-  EXPECT(&*monograph.get_layer(*shader) == &monograph);
-  ASSERT(monograph.get_layer(*library));
-  EXPECT(&*monograph.get_layer(*library) == &monograph.get_library());
-  EXPECT_NOT(monograph.get_layer(*render));
+  ASSERT(monograph.get_layer(shader));
+  EXPECT(&*monograph.get_layer(shader) == &monograph);
+  ASSERT(monograph.get_layer(library));
+  EXPECT(&*monograph.get_layer(library) == &monograph.get_library());
+  EXPECT_NOT(monograph.get_layer(render));
   ASSERT_EQ(monograph.get_programs().get_size(), Count(1));
   ASSERT_EQ(monograph.get_bridges().get_size(), Count(1));
   const auto& program = monograph.get_programs().get_data()[0].get();
@@ -125,11 +125,13 @@ PERIMORTEM_UNIT_TEST(ShaderDialect, rejects_incomplete_contract) {
       "implements Formats;\n"
       "public seed : uniform Cpu::R64 = 0.0;"_view;
 
+  Library::Dialect library;
+  Render::Dialect render;
+  Shader::Dialect installed_shader(library, render);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  auto render = toolchain.install<Render::Dialect>("Pipeline"_view);
-  ASSERT(library && render);
-  ASSERT(toolchain.install<Shader::Dialect>("Shader"_view, *library, *render));
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(render));
+  ASSERT(toolchain.install(installed_shader));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 

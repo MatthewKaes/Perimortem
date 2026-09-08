@@ -47,7 +47,9 @@ static auto interpret(Workspace& workspace, Errors& errors, View::Bytes source)
 static auto rejects_interpretation(
     View::Bytes source,
     View::Bytes diagnostic = {}) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   BAIL_IF(interpret(workspace, errors, source) || errors.is_empty());
@@ -66,7 +68,9 @@ static auto rejects_interpretation(
 }
 
 static auto rejects_link_without_publication(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -115,7 +119,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, value_defaults) {
       "public scalar : U32 = new[U32];\n"
       "public bytes : Fixed[U8, 4] = "
       "new[Fixed[U8, 4]];"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -170,7 +176,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_arguments) {
       "public empty : Defaults = new[Defaults];\n"
       "public configured : Required = "
       "new[Required](.second = true, .first = 4,);"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -240,7 +248,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, private_arguments) {
       "    private value : Owner = new[Owner](.hidden = true);\n"
       "  }\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -269,7 +279,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, inferred_object) {
       "dialect : Library;\n"
       "public Session : object { public state active : Bool; }\n"
       "public inferred := new[Session];"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -294,7 +306,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, explicit_scalar_conversion) {
       "public const narrow_signed : S8 = new[S8](300);\n"
       "public const narrow_unsigned : U8 = new[U8](300.9);\n"
       "public const rounded_real : R32 = new[R32](16777217);"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -371,7 +385,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, nested_defaults) {
       "  private state inner : Inner; private state enabled : Bool;\n"
       "}\n"
       "public created : Outer = new[Outer];"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -438,7 +454,9 @@ PERIMORTEM_UNIT_TEST(InitializerTests, object_cycles) {
       "dialect : Library;\n"
       "public Node : object { private state next : Option[Node]; }\n"
       "public valid : Node = new[Node];"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, optional);

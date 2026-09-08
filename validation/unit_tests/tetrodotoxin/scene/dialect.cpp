@@ -37,11 +37,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, exact_layers) {
       "Scene prepare[self] -> [] {}\n"
       "Scene update[self, .delta_time : R64] -> [] {}\n"
       "Scene release[self] -> [] {}"_view;
+  Library::Dialect library;
+  Scene::Dialect dialect(library);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  ASSERT(library);
-  auto dialect = toolchain.install<Scene::Dialect>("Scene"_view, *library);
-  ASSERT(dialect);
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(dialect));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -54,11 +54,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, exact_layers) {
   const auto& child = immutable.get_library();
   Allocator::Arena other_domain;
   Library::Dialect other_library;
-  Scene::Dialect other_scene(*library);
-  ASSERT(immutable.get_layer(*dialect));
-  ASSERT(immutable.get_layer(*library));
-  EXPECT(&*immutable.get_layer(*dialect) == &immutable);
-  EXPECT(&*immutable.get_layer(*library) == &child);
+  Scene::Dialect other_scene(library);
+  ASSERT(immutable.get_layer(dialect));
+  ASSERT(immutable.get_layer(library));
+  EXPECT(&*immutable.get_layer(dialect) == &immutable);
+  EXPECT(&*immutable.get_layer(library) == &child);
   EXPECT_NOT(immutable.get_layer(other_scene));
   EXPECT_NOT(immutable.get_layer(other_library));
   EXPECT(&child.resolve_concept("Empty"_view) == &immutable);
@@ -85,10 +85,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, child_rejection) {
       "Scene prepare[self] -> [] {}\n"
       "Scene update[self, .delta_time : R64] -> [] {}\n"
       "Scene release[self] -> [] {}"_view;
+  Library::Dialect library;
+  Scene::Dialect installed_scene(library);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  ASSERT(library);
-  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(installed_scene));
   Environment::Workspace workspace(toolchain);
   Errors errors;
   auto interpreted = workspace.interpret_source(
@@ -105,10 +106,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, delayed_declarations) {
       "//\n"
       "dialect : Scene;\n"
       "signal later;"_view;
+  Library::Dialect library;
+  Scene::Dialect installed_scene(library);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  ASSERT(library);
-  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(installed_scene));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -136,10 +138,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, library_declarations) {
       "Scene prepare[self] -> [] {}\n"
       "Scene update[self, .delta_time : R64] -> [] {}\n"
       "Scene release[self] -> [] {}"_view;
+  Library::Dialect library;
+  Scene::Dialect installed_scene(library);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  ASSERT(library);
-  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(installed_scene));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -173,10 +176,11 @@ PERIMORTEM_UNIT_TEST(SceneDialect, expands_fixed_hosted_objects) {
       "Scene prepare[self] -> [] {}\n"
       "Scene update[self, .delta_time : R64] -> [] {}\n"
       "Scene release[self] -> [] {}"_view;
+  Library::Dialect library;
+  Scene::Dialect installed_scene(library);
   Environment::Toolchain toolchain;
-  auto library = toolchain.install<Library::Dialect>("Library"_view);
-  ASSERT(library);
-  ASSERT(toolchain.install<Scene::Dialect>("Scene"_view, *library));
+  ASSERT(toolchain.install(library));
+  ASSERT(toolchain.install(installed_scene));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 

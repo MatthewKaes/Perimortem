@@ -163,7 +163,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_identity) {
       "  public state ready : Bool;\n"
       "  public children : View[Node];\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
@@ -248,7 +250,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_aliases) {
       "  public NestedAlias : alias = Later;\n"
       "}\n"
       "public Later : struct { public state ready : Bool; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
@@ -287,7 +291,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, alias_cycle) {
       "dialect : Library;\n"
       "public First : alias = View[Second];\n"
       "public Second : alias = View[First];"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph =
@@ -376,7 +382,9 @@ PERIMORTEM_UNIT_TEST(LibraryTypeReference, generic_errors) {
 
   for (Count i = 0; i < rejections.get_size(); i++) {
     const Rejection& rejection = rejections.get_data()[i];
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph =

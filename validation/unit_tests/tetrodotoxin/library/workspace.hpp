@@ -12,13 +12,14 @@
 
 namespace Validation {
 
-// Each fixture owns its Toolchain longer than the Workspace graph borrowing
-// it. Product hosts exercise the same contract with one shared installation.
-inline auto create_library_toolchain() -> Perimortem::Memory::Dynamic::Record<
-    Tetrodotoxin::Environment::Toolchain> {
+// The caller keeps Library alive beyond this Toolchain and every Workspace
+// borrowing it. Fixtures supply the dependency just as a product host does.
+inline auto create_library_toolchain(Tetrodotoxin::Library::Dialect& library)
+    -> Perimortem::Memory::Dynamic::Record<
+        Tetrodotoxin::Environment::Toolchain> {
   Perimortem::Memory::Dynamic::Record<Tetrodotoxin::Environment::Toolchain>
       toolchain;
-  toolchain->install<Tetrodotoxin::Library::Dialect>("Library"_view);
+  toolchain->install(library);
   return toolchain;
 }
 

@@ -13,7 +13,7 @@ cc_library(
     name = "build",
     srcs = glob(["build/**/*.cpp"]),
     hdrs = glob(["build/**/*.hpp"]),
-    deps = [":environment", "//tetrodotoxin/language", "//ttx"],
+    deps = ["//tetrodotoxin/language", "//ttx"],
 )
 
 cc_library(

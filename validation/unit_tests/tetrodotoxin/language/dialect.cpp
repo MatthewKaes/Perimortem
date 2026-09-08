@@ -20,7 +20,7 @@ using namespace Validation;
 
 class DefaultDialect : public Language::Dialect {
  public:
-  DefaultDialect(View::Bytes name = "Default"_view) : Language::Dialect(name) {}
+  TTX_NAME("Default"_view);
 
   auto interpret(Cursor&, const Documentation&, const Anchor&, Abstract&)
       -> Option<Language::Monograph&> override {
@@ -59,7 +59,7 @@ class SemanticContext final : public Abstract {
 
 class EmptyEncodingDialect final : public DefaultDialect {
  public:
-  EmptyEncodingDialect() : DefaultDialect("EmptyEncoding"_view) {}
+  TTX_NAME("EmptyEncoding"_view);
 
   auto encode(const Abstract&) const -> Option<Dynamic::Bytes> override {
     return Dynamic::Bytes();
@@ -85,8 +85,9 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
   const Bool linked = monograph.link(cursor);
   const Bool finalized = monograph.finalize(cursor);
   auto unsupported = dialect.encode(monograph);
-  auto missing = dialect.restore(
-      arena, "unsupported"_view, Documentation::get_empty(), context);
+  // START AI GENERATED
+  auto missing = dialect.decode(arena, "unsupported"_view, context);
+  // END AI GENERATED
   auto empty = empty_dialect.encode(empty_monograph);
   Bool successful_empty = empty.visit(
       []() { return False; },
@@ -106,8 +107,8 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
   Allocator::Arena arena;
-  DefaultDialect installed("Installed"_view);
-  DefaultDialect same_type("SameType"_view);
+  DefaultDialect installed;
+  DefaultDialect same_type;
   SemanticContext context;
   DefaultMonograph monograph(arena, installed, context);
 
@@ -122,7 +123,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, exact_layer_identity) {
 
 PERIMORTEM_UNIT_TEST(LanguageDialect, parent_context) {
   Allocator::Arena arena;
-  DefaultDialect installed("Installed"_view);
+  DefaultDialect installed;
   SemanticContext context;
   DefaultMonograph monograph(arena, installed, context);
 

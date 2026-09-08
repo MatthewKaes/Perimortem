@@ -50,7 +50,9 @@ PERIMORTEM_UNIT_TEST(AddressTests, private_access) {
       "    }\n"
       "  }\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
@@ -68,7 +70,9 @@ PERIMORTEM_UNIT_TEST(AddressTests, private_access) {
       "    }\n"
       "  }\n"
       "}"_view;
-  auto rejected_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect rejected_toolchain_library;
+  auto rejected_toolchain =
+      Validation::create_library_toolchain(rejected_toolchain_library);
   Environment::Workspace rejected_workspace(*rejected_toolchain);
   Errors rejected_errors;
   auto rejected_monograph =
@@ -92,7 +96,9 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
       "private from_type := Data.static_value;\n"
       "private from_instance := data.instance_value;\n"
       "private const_from_type := Data.fixed;"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Environment::Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, accepted);
@@ -124,7 +130,9 @@ PERIMORTEM_UNIT_TEST(AddressTests, receiver_storage) {
     "// Type rejects state.\ndialect : Library; public Data : struct { public state instance_value : Bool; } private invalid := Data.instance_value;"_view,
   }};
   for (Count index = 0; index < rejected.get_size(); index++) {
-    auto rejected_workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect rejected_workspace_toolchain_library;
+    auto rejected_workspace_toolchain = Validation::create_library_toolchain(
+        rejected_workspace_toolchain_library);
     Environment::Workspace rejected_workspace(*rejected_workspace_toolchain);
     Errors rejected_errors;
     auto rejected_monograph =

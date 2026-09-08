@@ -109,7 +109,9 @@ static auto parse_authored(
 }
 
 static auto rejects_interpretation(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -117,7 +119,9 @@ static auto rejects_interpretation(View::Bytes source) -> Bool {
 }
 
 static auto rejects_link(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -136,7 +140,9 @@ static auto rejects_link(View::Bytes source) -> Bool {
 }
 
 static auto rejects_finalize(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -176,7 +182,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, nested_type_aliases) {
       "  private flag : Flag;\n"
       "}\n"
       "public Selected : alias = Packet::Visible;"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -251,7 +259,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, contextual_routes) {
       "  public state redirected : Visible;\n"
       "  private state qualified : Outer::Inner::Leaf;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -306,7 +316,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, access_axes) {
       "  public const const_public : Bool = false;\n"
       "  private const const_private : Bool = false;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -379,7 +391,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, declaration_reorder) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph = interpret(workspace, errors, sources[i]);
@@ -412,7 +426,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
     "public Packet : struct { public state value : Bool; public inspect : func = [self, .value : Bool] -> Bool { return value; } }"_view,
   }};
   for (Count i = 0; i < accepted.get_size(); i++) {
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto monograph = interpret(workspace, errors, accepted[i]);
@@ -436,7 +452,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, category_names) {
       "public run : func = [] -> [] {\n"
       "  state later : U8;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   EXPECT(interpret(workspace, errors, static_state_collision));
@@ -456,7 +474,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, indexed_name_domains) {
       "  public Visible : struct {}\n"
       "  private Hidden : struct {}\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -505,7 +525,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, field_access) {
       "  private state value : Bool;\n"
       "  public read : func = [self] -> Bool { return self.value; }\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -595,7 +617,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, static_empty_types) {
       "public Empty : struct { public create : func = [] -> [] {} }\n"
       "private first_empty_result : func = [] -> [] {}\n"
       "private empty_result : func = [] -> [] {}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -679,7 +703,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, private_surface) {
       "}\n"
       "}\n"
       "private root : func = [.value : Hidden] -> Hidden { return value; }"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -725,7 +751,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_fitting) {
       "  private copy : Bool = exact;\n"
       "  private narrow : U8 = 255;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -788,7 +816,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, inferred_fields) {
       "  private scalar := 7;\n"
       "  private scalar_copy := scalar;\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -876,7 +906,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, inference_rollback) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -916,7 +948,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, public_inference) {
       "private Hidden : struct { private state value : Bool; }\n"
       "private seed : Hidden;\n"
       "public revealed := seed;"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto& dialect = get_library_dialect(*workspace_toolchain);
@@ -950,7 +984,9 @@ PERIMORTEM_UNIT_TEST(StructureTests, initializer_mismatch) {
   }};
 
   for (Count i = 0; i < sources.get_size(); i++) {
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Errors errors;
     auto& dialect = get_library_dialect(*workspace_toolchain);

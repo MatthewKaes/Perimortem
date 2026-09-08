@@ -60,7 +60,9 @@ PERIMORTEM_UNIT_TEST(SignatureTests, signature_shape) {
       "public inspect : func = [.input : Bool,] -> [\n"
       "    .count : U64, .accepted : Bool,\n"
       "  ] { return (.count = 0, .accepted = false); }"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -103,7 +105,9 @@ PERIMORTEM_UNIT_TEST(SignatureTests, self_reference) {
       "    self.size = 0;\n"
       "  }\n"
       "}\n"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Ttx::Lexical::Errors errors;
   auto monograph = interpret(workspace, errors, source);
@@ -138,7 +142,9 @@ PERIMORTEM_UNIT_TEST(SignatureTests, strict_descriptor) {
   }};
 
   for (Count i = 0; i < rejected.get_size(); i++) {
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
     Workspace workspace(*workspace_toolchain);
     Ttx::Lexical::Errors errors;
     EXPECT_NOT(interpret(workspace, errors, rejected[i]));

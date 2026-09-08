@@ -222,7 +222,9 @@ static auto import_library(
 }
 
 static auto rejects_library_source(View::Bytes source) -> Bool {
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
 
@@ -260,7 +262,7 @@ PERIMORTEM_UNIT_TEST(DialectTests, root_vocabulary) {
   Allocator::Arena arena;
   EmptyRegistry context;
   Dialect dialect;
-  Dialect same_type("OtherLibrary"_view);
+  Dialect same_type;
   const Documentation& documentation = Documentation::get_empty();
   Anchor source_anchor = Anchor::create(Span());
 
@@ -325,7 +327,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, progressive_source) {
       "public ready : U64;\n"
       "public pending : Missing::;\n"
       "public later : U64;\n"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
 
@@ -622,7 +626,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, fixture_rejections) {
     auto source = File::read(rejection.path);
     ASSERT(source);
 
-    auto workspace_toolchain = create_library_toolchain();
+    Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+    auto workspace_toolchain =
+        Validation::create_library_toolchain(workspace_toolchain_library);
 
     Workspace workspace(*workspace_toolchain);
     Errors errors;
@@ -647,7 +654,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, foreign_workspace) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -675,7 +685,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, private_parameter) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -718,7 +731,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, opaque_attributes) {
       "  @symbol(\"member\")\n"
       "  public member : func = [self] -> Bool { return true; }\n"
       "}"_view;
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
   Workspace workspace(*workspace_toolchain);
   Errors errors;
   auto monograph = import_library(workspace, errors, "Attributes"_view, source);
@@ -767,7 +782,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, source_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -910,7 +928,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, slice_acceptance) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -1090,7 +1111,10 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   auto source = File::read(path);
   ASSERT(source);
 
-  auto workspace_toolchain = create_library_toolchain();
+  Tetrodotoxin::Library::Dialect workspace_toolchain_library;
+
+  auto workspace_toolchain =
+      Validation::create_library_toolchain(workspace_toolchain_library);
 
   Workspace workspace(*workspace_toolchain);
   Errors errors;
@@ -1109,8 +1133,11 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   EXPECT_EQ((*complete)[4], U8(2));
   EXPECT_EQ((*complete)[6], U8(0));
   Allocator::Arena restored_arena;
-  auto restored = archive_dialect.restore(
-      restored_arena, *complete, Documentation::get_empty(), workspace);
+  // START AI GENERATED
+  auto decoded = archive_dialect.decode(restored_arena, *complete, workspace);
+  auto restored = decoded ? decoded->select<Language::Monograph>()
+                          : Option<Language::Monograph&>();
+  // END AI GENERATED
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());

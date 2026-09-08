@@ -3,19 +3,29 @@
 
 #pragma once
 
-#include "tetrodotoxin/environment/dialect.hpp"
+#include "perimortem/core/view/vector.hpp"
+
 #include "tetrodotoxin/language/dialect.hpp"
 
 namespace Tetrodotoxin::Build {
 
-// Build is the bootstrap language. Its inline Environment parser is private
-// support and does not require another registered root Dialect.
+// Build is the bootstrap language. Its host supplies arguments at construction
+// so tool options do not become semantic names in the source graph. The views
+// and their byte storage must remain alive for this Dialect's lifetime.
 class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
-  explicit Dialect(Perimortem::Core::View::Bytes name)
-      : Tetrodotoxin::Language::Dialect(name),
-        environment("Environment"_view) {}
+
+  explicit Dialect(
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> arguments)
+      : arguments(arguments) {}
+
+  TTX_NAME("Build"_view);
+
+  auto get_arguments() const
+      -> Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> {
+    return arguments;
+  }
 
   auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -25,7 +35,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 
  private:
-  Tetrodotoxin::Environment::Dialect environment;
+  Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> arguments;
 };
 
 }  // namespace Tetrodotoxin::Build

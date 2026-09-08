@@ -25,9 +25,9 @@ static Harness RenderDialect = {
 
 PERIMORTEM_UNIT_TEST(RenderDialect, retained_root) {
   static constexpr View::Bytes source = "//\ndialect : Pipeline;"_view;
+  Render::Dialect dialect;
   Environment::Toolchain toolchain;
-  auto dialect = toolchain.install<Render::Dialect>("Pipeline"_view);
-  ASSERT(dialect);
+  ASSERT(toolchain.install(dialect));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -37,8 +37,8 @@ PERIMORTEM_UNIT_TEST(RenderDialect, retained_root) {
   ASSERT(interpreted && interpreted->is<Render::Language::Monograph>());
   const auto& monograph =
       static_cast<const Render::Language::Monograph&>(*interpreted);
-  ASSERT(monograph.get_layer(*dialect));
-  EXPECT(&*monograph.get_layer(*dialect) == &monograph);
+  ASSERT(monograph.get_layer(dialect));
+  EXPECT(&*monograph.get_layer(dialect) == &monograph);
   EXPECT(&workspace.resolve_concept("Format"_view) == &monograph);
   EXPECT(errors.is_empty());
 }
@@ -48,8 +48,9 @@ PERIMORTEM_UNIT_TEST(RenderDialect, stage_contract) {
       "//\n"
       "dialect : Pipeline;\n"
       "public fragment : stage [] -> [];"_view;
+  Render::Dialect installed_pipeline;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
+  ASSERT(toolchain.install(installed_pipeline));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -72,8 +73,9 @@ PERIMORTEM_UNIT_TEST(RenderDialect, stage_name_shape) {
       "//\n"
       "dialect : Pipeline;\n"
       "public Fragment : stage [] -> [];"_view;
+  Render::Dialect installed_pipeline;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
+  ASSERT(toolchain.install(installed_pipeline));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -101,9 +103,11 @@ PERIMORTEM_UNIT_TEST(RenderDialect, structured_contract) {
       "  @set(0) @slot(1) @read\n"
       "  public texture : resource read Values::U64;\n"
       "}"_view;
+  Library::Dialect installed_library;
+  Render::Dialect installed_pipeline;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
-  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
+  ASSERT(toolchain.install(installed_library));
+  ASSERT(toolchain.install(installed_pipeline));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
@@ -137,9 +141,11 @@ PERIMORTEM_UNIT_TEST(RenderDialect, rejects_incomplete_resource_binding) {
       "dialect : Pipeline;\n"
       "@set(0)\n"
       "public texture : resource read Values::U64;"_view;
+  Library::Dialect installed_library;
+  Render::Dialect installed_pipeline;
   Environment::Toolchain toolchain;
-  ASSERT(toolchain.install<Library::Dialect>("Library"_view));
-  ASSERT(toolchain.install<Render::Dialect>("Pipeline"_view));
+  ASSERT(toolchain.install(installed_library));
+  ASSERT(toolchain.install(installed_pipeline));
   Environment::Workspace workspace(toolchain);
   Errors errors;
 
