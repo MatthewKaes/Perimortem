@@ -21,8 +21,7 @@ class Types {
 
   static auto prepare(
       Module::Program& program,
-      const Tetrodotoxin::Library::Language::Model::Addressable& addressable)
-      -> Bool;
+      const Ttx::Model::Addressable& addressable) -> Bool;
 
   static auto prepare(
       Module::Program& program,
@@ -30,13 +29,11 @@ class Types {
 
   static auto reserve(
       Module::Program& program,
-      const Tetrodotoxin::Library::Language::Model::Addressable& addressable)
-      -> Bool;
+      const Ttx::Model::Addressable& addressable) -> Bool;
 
   static auto complete(
       Module::Program& program,
-      const Tetrodotoxin::Library::Language::Model::Addressable& addressable)
-      -> Bool;
+      const Ttx::Model::Addressable& addressable) -> Bool;
 
   static auto reserve(
       Module::Program& program,

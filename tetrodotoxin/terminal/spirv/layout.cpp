@@ -32,7 +32,7 @@ static auto vector_capability(
 
 static auto select_type(const Ttx::Concept::Abstract& semantic)
     -> Core::Option<const Library::Language::Model::Type&> {
-  auto addressable = semantic.select<Library::Language::Model::Addressable>();
+  auto addressable = semantic.select<Ttx::Model::Addressable>();
   const Ttx::Concept::Abstract& answer =
       addressable ? addressable->get_type() : semantic;
   auto direct = answer.select<Library::Language::Model::Type>();

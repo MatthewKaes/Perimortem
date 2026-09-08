@@ -3,13 +3,18 @@
 
 #include "puffer/lsp/methods.hpp"
 
+#include <limits.h>
+#include <unistd.h>
+
 #include "perimortem/core/diagnostics/log.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/allocator/arena.hpp"
 #include "perimortem/memory/dynamic/bytes.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
 #include "perimortem/memory/managed/vector.hpp"
 
+#include "perimortem/system/path.hpp"
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/json/node.hpp"
 
@@ -26,6 +31,28 @@ using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
 using namespace Puffer;
+
+auto Lsp::run(View::Bytes pipe) -> S32 {
+  Allocator::Arena arena;
+  char executable[PATH_MAX];
+  const auto length =
+      readlink("/proc/self/exe", executable, sizeof(executable));
+  if (length <= 0 || length == sizeof(executable)) {
+    return 1;
+  }
+  Perimortem::System::Path binary(
+      {reinterpret_cast<const U8*>(executable), Count(length)});
+  Managed::Bytes root(arena, binary.get_directory());
+  root.concat("/../standard"_view);
+  auto repository = Tetrodotoxin::Package::Repository::Repository::create(
+      arena, root.get_view());
+  if (!repository) {
+    return 1;
+  }
+  Executor executor(*repository);
+  executor.execute(pipe);
+  return 0;
+}
 
 static auto publish_diagnostics(
     Lsp::Documents& documents,

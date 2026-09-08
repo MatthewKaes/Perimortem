@@ -10,6 +10,13 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "build",
+    srcs = glob(["build/**/*.cpp"]),
+    hdrs = glob(["build/**/*.hpp"]),
+    deps = [":environment", "//tetrodotoxin/language", "//ttx"],
+)
+
+cc_library(
     name = "package",
     srcs = glob([
         "package/**/*.cpp",

@@ -66,7 +66,7 @@ static auto complete_callable(
 
 static auto reserve_addressable(
     Llvm::Module::Program& program,
-    const Model::Addressable& addressable) -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::reserve(program, addressable));
   auto field = addressable.select<Field>();
   if (field && field->get_writability() == Writability::Full) {
@@ -85,7 +85,7 @@ static auto reserve_addressable(
 
 static auto complete_addressable(
     Llvm::Module::Program& program,
-    const Model::Addressable& addressable) -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   BAIL_IF(!Llvm::Lowering::Types::complete(program, addressable));
   auto field = addressable.select<Field>();
   if (field && field->get_writability() == Writability::Full) {
@@ -373,8 +373,7 @@ auto Llvm::Lowering::Graph::prepare(
 
 auto Llvm::Lowering::Graph::prepare(
     Llvm::Module::Program& program,
-    const Tetrodotoxin::Library::Language::Model::Addressable& addressable)
-    -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   return reserve_addressable(program, addressable) &&
          complete_addressable(program, addressable);
 }

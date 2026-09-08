@@ -5,6 +5,7 @@
 
 #include "tetrodotoxin/library/language/access/address.hpp"
 #include "tetrodotoxin/library/language/access/call.hpp"
+#include "tetrodotoxin/library/language/access/swizzle.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/expressions/conversion.hpp"
@@ -62,6 +63,18 @@ static auto constant_conversion(
 static auto select_scalar_pack(
     const Library::Language::Model::Pack& pack,
     Count index) -> Core::Option<const Library::Language::Model::Pack&> {
+  auto swizzle = pack.select_identity<Library::Language::Access::Swizzle>();
+  if (swizzle) {
+    const auto projections = swizzle->get_projections();
+    if (!projections.is_empty()) {
+      BAIL_IF(index >= projections.get_size());
+      return Library::Language::Model::Pack::from(
+          projections.get_data()[index].get());
+    }
+    const auto selections = swizzle->get_selections();
+    BAIL_IF(index >= selections.get_size());
+    return select_scalar_pack(swizzle->get_receiver(), selections[index]);
+  }
   if (pack.get_identity()) {
     return index == 0 && pack.get_layout().get_size() == 1
                ? Core::Option<const Library::Language::Model::Pack&>(pack)
@@ -161,6 +174,16 @@ auto Module::Body::prepare_pack(const Library::Language::Model::Pack& pack)
 
 auto Module::Body::prepare_expression(
     const Library::Language::Expression& expression) -> Bool {
+  // A Swizzle preserves its selected producers. Prepare those scalar values
+  // without inventing a vector Type for positional flow.
+  auto swizzle = expression.select<Library::Language::Access::Swizzle>();
+  if (swizzle) {
+    for (Count index = 0; index < swizzle->get_layout().get_size(); index++) {
+      auto selected = select_scalar_pack(*swizzle, index);
+      BAIL_IF(!selected || !prepare_pack(*selected));
+    }
+    return True;
+  }
   auto type = Types::select(expression.get_type());
   BAIL_IF(
       type && !interface.is_resource(expression.get_result()) &&
@@ -298,7 +321,7 @@ auto Module::Body::lower_pack(
   }
 
   auto expression = pack.select_identity<Library::Language::Expression>();
-  if (expression) {
+  if (expression && !expression->is<Library::Language::Access::Swizzle>()) {
     auto lowered = lower_expression(*expression, assembler);
     auto source_id =
         lowered ? types.get_id(lowered->type.get()) : Core::Option<U32>();

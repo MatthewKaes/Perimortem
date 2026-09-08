@@ -94,7 +94,7 @@
       "type": "lldb",
       "request": "launch",
       "terminal": "integrated",
-      "program": "${workspaceFolder}/.bin/bin/apps/ttx/echo/echo",
+      "program": "${workspaceFolder}/apps/ttx/echo/build/Application",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": [
@@ -119,7 +119,7 @@
       "type": "lldb",
       "request": "launch",
       "terminal": "integrated",
-      "program": "${workspaceFolder}/.bin/bin/apps/ttx/scene_lifetime/scene_lifetime",
+      "program": "${workspaceFolder}/apps/ttx/scene_lifetime/build/SceneLifetime",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": [

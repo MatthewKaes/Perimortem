@@ -2,6 +2,7 @@
 
 # Buildsystem
 .bin/*
+apps/ttx/*/build/
 .reference/*
 MODULE.bazel.lock
 

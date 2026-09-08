@@ -3,8 +3,11 @@
 
 #include "tetrodotoxin/runtime/application/session.hpp"
 
-#include "validation/process/child.hpp"
 #include "validation/unit_test.hpp"
+
+#include <cstdlib>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "perimortem/core/object.hpp"
 
@@ -72,25 +75,31 @@ PERIMORTEM_UNIT_TEST(ApplicationRunner, rejects_invalid_product) {
 }
 
 PERIMORTEM_UNIT_TEST(ApplicationRunner, reports_window_setup_failure) {
-  static constexpr Core::View::Bytes arguments[] = {
-    "-u"_view,
-    "WAYLAND_DISPLAY"_view,
-    "-u"_view,
-    "DISPLAY"_view,
-    "-u"_view,
-    "XDG_RUNTIME_DIR"_view,
-    ".bin/bin/apps/ttx/scene_lifetime/scene_lifetime"_view,
-  };
-  Validation::Process::Request request = {
-    .executable = "/usr/bin/env"_view,
-    .arguments = arguments,
-  };
-  Validation::Process::Observation observation =
-      Validation::Process::run(request);
-  EXPECT(observation.launched);
-  EXPECT_NOT(observation.timed_out);
-  EXPECT_EQ(observation.exit_status, 1);
-  EXPECT(observation.runner_error.is_empty());
+  // Isolate the display environment without depending on a compiled TTX app.
+  // Window setup fails before Scene construction or graphics initialization.
+  const pid_t child = fork();
+  ASSERT(child >= 0);
+  if (child == 0) {
+    unsetenv("WAYLAND_DISPLAY");
+    unsetenv("DISPLAY");
+    unsetenv("XDG_RUNTIME_DIR");
+    const U8 title[] = "Window failure";
+    const Runtime::Application::Scene scene = {};
+    const Runtime::Application::PlacementProvider placement = nullptr;
+    const Runtime::Application::ChildrenProvider children = nullptr;
+    const Runtime::Application::DrawableProvider drawable = nullptr;
+    const Vulkan::Description::Program program = {};
+    const Runtime::Application::Product product = {
+      title, 1,          1,         &scene,    1, 0,        nullptr,
+      0,     &placement, &children, &drawable, 1, &program, 1,
+    };
+    _exit(tetrodotoxin_application_scene(&product));
+  }
+  int status = 0;
+  const pid_t waited = waitpid(child, &status, 0);
+  ASSERT(waited == child);
+  ASSERT(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 1);
 }
 
 PERIMORTEM_UNIT_TEST(ApplicationSession, ordered_transitions) {

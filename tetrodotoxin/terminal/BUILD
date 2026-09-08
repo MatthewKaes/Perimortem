@@ -72,6 +72,7 @@ cc_library(
         "//tetrodotoxin/language",
         "//tetrodotoxin/scene/language",
         "//toolchain/llvm:sdk",
+        "//toolchain/llvm:lld",
         "//ttx:concept",
         "//ttx:lexical",
         "//ttx:model",

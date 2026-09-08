@@ -73,25 +73,12 @@ cc_library(
 cc_binary(
     name = "puffer",
     srcs = [
-        "command.cpp",
-        "command.hpp",
         "main.cpp",
-        "source.cpp",
-        "source.hpp",
     ],
     deps = [
-        ":dependencies",
         ":lsp",
-        ":publisher",
         "//perimortem:headless",
         "//tetrodotoxin:environment",
-        "//tetrodotoxin:library",
-        "//tetrodotoxin:package",
-        "//tetrodotoxin/app",
-        "//tetrodotoxin/render",
-        "//tetrodotoxin/scene",
-        "//tetrodotoxin/shader",
-        "//tetrodotoxin/terminal:abi",
-        "//ttx",
+        "//tetrodotoxin:build",
     ],
 )

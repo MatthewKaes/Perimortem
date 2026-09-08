@@ -216,7 +216,7 @@ static auto reserve_layout(
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
-    auto addressable = entry->select<Model::Addressable>();
+    auto addressable = entry->select<Ttx::Model::Addressable>();
     const Ttx::Concept::Abstract& answer =
         addressable ? addressable->get_type() : *entry;
     BAIL_IF(!reserve_value(program, answer));
@@ -230,7 +230,7 @@ static auto complete_layout(
   for (Count index = 0; index < layout.get_size(); index++) {
     auto entry = layout.get_abstract(index);
     BAIL_IF(!entry);
-    auto addressable = entry->select<Model::Addressable>();
+    auto addressable = entry->select<Ttx::Model::Addressable>();
     const Ttx::Concept::Abstract& answer =
         addressable ? addressable->get_type() : *entry;
     BAIL_IF(!complete_value(program, answer));
@@ -246,21 +246,23 @@ auto Llvm::Lowering::Types::prepare(
 
 auto Llvm::Lowering::Types::prepare(
     Llvm::Module::Program& program,
-    const Model::Addressable& addressable) -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   return reserve(program, addressable) && complete(program, addressable);
 }
 
 auto Llvm::Lowering::Types::reserve(
     Llvm::Module::Program& program,
-    const Model::Addressable& addressable) -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   return reserve_value(program, addressable.get_type());
 }
 
 auto Llvm::Lowering::Types::complete(
     Llvm::Module::Program& program,
-    const Model::Addressable& addressable) -> Bool {
+    const Ttx::Model::Addressable& addressable) -> Bool {
   BAIL_IF(!complete_value(program, addressable.get_type()));
-  auto anchor = addressable.get_declaration_anchor();
+  auto declaration = addressable.select<Model::Addressable>();
+  auto anchor = declaration ? declaration->get_declaration_anchor()
+                            : Core::Option<Ttx::Lexical::Anchor>();
   return !anchor || program.get_debug().field(addressable, *anchor);
 }
 

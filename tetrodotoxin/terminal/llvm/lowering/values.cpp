@@ -23,7 +23,7 @@ using Llvm::Emission::States;
 
 auto Llvm::Lowering::Values::lower(
     const Execution& execution,
-    const Expression& expression) -> Bool {
+    const Constant& expression) -> Bool {
   const States& body = execution.get_states();
 
   auto flag = expression.select<Constants::Flag>();

@@ -13,6 +13,14 @@ using namespace Tetrodotoxin::Terminal;
 
 auto Llvm::Lowering::Execution::lower(
     const Tetrodotoxin::Library::Language::Model::Pack& pack) const -> Bool {
+  // Constants supply their own Pack after separation from authored Expressions.
+  // Sending them through composition would silently turn a scalar into no
+  // values.
+  auto constant =
+      pack.select_identity<Tetrodotoxin::Library::Language::Constant>();
+  if (constant) {
+    return Values::lower(*this, *constant);
+  }
   auto expression =
       pack.select_identity<Tetrodotoxin::Library::Language::Expression>();
   if (expression) {
@@ -21,9 +29,6 @@ auto Llvm::Lowering::Execution::lower(
       return lower(*folded) && storage.alias(pack, *folded);
     }
 
-    if (Values::lower(*this, *expression)) {
-      return True;
-    }
     if (Operations::lower(*this, *expression)) {
       return True;
     }

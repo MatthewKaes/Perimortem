@@ -34,8 +34,9 @@ static auto lower_address(
     const Expression& expression,
     const Model::Pack& receiver) -> Bool {
   auto selected =
-      expression.get_result().resolve().select<Model::Addressable>();
-  auto instance = receiver.get_result().resolve().select<Model::Addressable>();
+      expression.get_result().resolve().select<Ttx::Model::Addressable>();
+  auto instance =
+      receiver.get_result().resolve().select<Ttx::Model::Addressable>();
   BAIL_IF(
       !selected ||
       !Llvm::Lowering::Graph::prepare(execution.get_program(), *selected));
@@ -195,7 +196,7 @@ auto Llvm::Lowering::Access::lower(
       return True;
     }
     auto addressable =
-        identifier->get_result().resolve().select<Model::Addressable>();
+        identifier->get_result().resolve().select<Ttx::Model::Addressable>();
     return addressable &&
            Graph::prepare(execution.get_program(), *addressable) &&
            execution.get_storage().select(*identifier, *addressable) &&
@@ -277,7 +278,7 @@ auto Llvm::Lowering::Access::lower_write_target(
   auto identifier = expression.select<Expressions::Identifier>();
   if (identifier) {
     auto addressable =
-        identifier->get_result().resolve().select<Model::Addressable>();
+        identifier->get_result().resolve().select<Ttx::Model::Addressable>();
     return addressable &&
            Graph::prepare(execution.get_program(), *addressable) &&
            execution.get_storage().select(*identifier, *addressable);

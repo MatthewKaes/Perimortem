@@ -4,6 +4,14 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Puffer SDK Build (Linux) [Debug]",
+      "type": "shell",
+      "command": "${workspaceFolder}/puffer/package.sh",
+      "args": ["--debug"],
+      "problemMatcher": ["$gcc"],
+      "options": {"cwd": "${workspaceFolder}"}
+    },
+    {
       "label": "Validation Unit Tests Build (Linux) [Debug]",
       "type": "shell",
       "command": "bazel",
@@ -71,7 +79,6 @@
         "build",
         "//validation:unit_tests",
         "--config=debug",
-        "--experimental_total_worker_memory_limit_mb=4096"
       ],
       "group": "build",
       "detail": "Builds the validation binary with full DWARF for its TTX runtime integration.",
@@ -81,16 +88,15 @@
     },
     {
       "label": "TTX Echo Build (Linux) [Debug]",
-      "type": "shell",
-      "command": "bazel",
+      "options": {"cwd": "${workspaceFolder}"},
+      "type": "process",
+      "command": "${workspaceFolder}/.bin/puffer-sdk/bin/puffer",
+      "dependsOn": ["Puffer SDK Build (Linux) [Debug]"],
       "problemMatcher": [
         "$gcc"
       ],
       "args": [
-        "build",
-        "//apps/ttx/echo:echo",
-        "--config=debug",
-        "--experimental_total_worker_memory_limit_mb=4096"
+        "${workspaceFolder}/apps/ttx/echo/build.ttx"
       ],
       "group": "build",
       "detail": "Builds the pure TTX Echo application with full source debug information.",
@@ -100,16 +106,15 @@
     },
     {
       "label": "TTX Scene Lifetime Build (Linux) [Debug]",
-      "type": "shell",
-      "command": "bazel",
+      "options": {"cwd": "${workspaceFolder}"},
+      "type": "process",
+      "command": "${workspaceFolder}/.bin/puffer-sdk/bin/puffer",
+      "dependsOn": ["Puffer SDK Build (Linux) [Debug]"],
       "problemMatcher": [
         "$gcc"
       ],
       "args": [
-        "build",
-        "//apps/ttx/scene_lifetime:scene_lifetime",
-        "--config=debug",
-        "--experimental_total_worker_memory_limit_mb=4096"
+        "${workspaceFolder}/apps/ttx/scene_lifetime/build.ttx"
       ],
       "group": "build",
       "detail": "Builds the TTX Scene Lifetime application with full source debug information.",

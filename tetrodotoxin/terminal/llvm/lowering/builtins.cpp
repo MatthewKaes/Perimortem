@@ -153,6 +153,7 @@ auto Llvm::Lowering::Builtins::lower(
               result, *result_type, *receiver_type, *receiver_source, inputs[0],
               *fallback));
     }
+
     return Bool(
         inputs.get_size() == 2 &&
         body.object_reserve(

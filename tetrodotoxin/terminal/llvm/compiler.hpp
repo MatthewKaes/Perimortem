@@ -19,6 +19,10 @@ class Compiler {
  public:
   constexpr Compiler() = default;
 
+  auto link(
+      Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> arguments)
+      const -> Bool;
+
   auto compile(
       Perimortem::Memory::Allocator::Arena& arena,
       const Request& request) const

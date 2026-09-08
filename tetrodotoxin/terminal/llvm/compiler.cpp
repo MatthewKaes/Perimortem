@@ -5,8 +5,13 @@
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "perimortem/memory/dynamic/vector.hpp"
+#include "perimortem/memory/managed/bytes.hpp"
+
+#include "lld/Common/Driver.h"
 #include "llvm-c/Core.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/raw_ostream.h"
 #include "tetrodotoxin/terminal/llvm/lowering/graph.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/graphics.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/projections.hpp"
@@ -55,4 +60,24 @@ auto Llvm::Compiler::compile(
   }
 
   return program.compile();
+}
+
+LLD_HAS_DRIVER(elf)
+
+// LLD owns target linking and reports through the same process as compilation.
+// Argument strings remain alive until the driver has completed all input reads.
+auto Llvm::Compiler::link(Core::View::Vector<Core::View::Bytes> arguments) const
+    -> Bool {
+  Memory::Allocator::Arena arena;
+  Memory::Dynamic::Vector<const char*> native;
+  for (const auto argument : arguments) {
+    Memory::Managed::Bytes text(arena, argument);
+    text.append(0);
+    native.insert(reinterpret_cast<const char*>(text.get_view().get_data()));
+  }
+  const lld::DriverDef drivers[] = {{lld::Gnu, &lld::elf::link}};
+  const auto result = lld::lldMain(
+      {native.get_data(), native.get_size()}, llvm::outs(), llvm::errs(),
+      drivers);
+  return result.retCode == 0;
 }

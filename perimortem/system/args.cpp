@@ -111,7 +111,7 @@ auto Args::parse(
     auto argument = parse_argument(argument_data[i]);
     if (argument.key != "help"_view && !variables.contains(argument.key)) {
       Diagnostics::Log::Message<256> error_message(
-          Diagnostics::Log::Level::Error, Diagnostics::Source());
+          Diagnostics::Log::Level::Error);
       error_message << "unrecognized arg"_view << ' ' << argument_data[i]
                     << '\n';
       return Values(arena);
@@ -140,6 +140,5 @@ auto Args::log_help(
     command = process_name();
   }
 
-  Diagnostics::Log::info(
-      format_help(arena, summary, variables, command), Diagnostics::Source());
+  Diagnostics::Log::info(format_help(arena, summary, variables, command));
 }

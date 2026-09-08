@@ -100,11 +100,18 @@ static auto control_return_values(
     }
   } else if (results.get_size() == 1) {
     auto entry = results.get_abstract(0);
-    auto reference = entry ? entry->select<Ttx::Model::Addressable>()
-                           : Core::Option<const Ttx::Model::Addressable&>();
-    auto type = reference ? control_select_type(reference->get_type())
-                : entry   ? control_select_type(*entry)
-                          : Core::Option<const Ttx::Model::Type&>();
+    auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
+                             : Core::Option<const Ttx::Model::Addressable&>();
+    auto type = addressable ? control_select_type(addressable->get_type())
+                : entry     ? control_select_type(*entry)
+                            : Core::Option<const Ttx::Model::Type&>();
+    // Named result slots carry values. Only the exact Self result identity
+    // denotes a borrowed address, as it does in native signature generation.
+    auto library_callable =
+        callable->select<Tetrodotoxin::Library::Language::Model::Callable>();
+    auto reference = library_callable
+                         ? library_callable->get_self_result()
+                         : Core::Option<const Ttx::Model::Addressable&>();
     if (!type) {
       return False;
     }
@@ -139,8 +146,12 @@ static auto control_return_values(
 
     Memory::Dynamic::Vector<LLVMValueRef> received(results.get_size());
     for (Count index = 0; index < results.get_size(); index++) {
-      auto type =
-          results.get_abstract(index)->resolve().select<Ttx::Model::Type>();
+      auto entry = results.get_abstract(index);
+      auto addressable = entry ? entry->select<Ttx::Model::Addressable>()
+                               : Core::Option<const Ttx::Model::Addressable&>();
+      auto type = addressable ? control_select_type(addressable->get_type())
+                  : entry     ? control_select_type(*entry)
+                              : Core::Option<const Ttx::Model::Type&>();
       if (!type) {
         return False;
       }
@@ -451,7 +462,7 @@ auto Llvm::Emission::ControlFlow::begin_sequence(
   if (!start || !end || (!range && !data)) {
     return False;
   }
-  // A resource-owning Fixed input must outlive every iteration. Transfer that
+  // A Fixed input holding resources must outlive every iteration. Transfer that
   // value to loop storage, then clear receiver and evaluation temporaries once
   // in the preheader instead of emitting their cleanup inside the body.
   if (!native_body.clear_temporary_cleanup()) {

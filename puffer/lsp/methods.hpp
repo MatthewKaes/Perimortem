@@ -14,6 +14,10 @@
 
 namespace Puffer::Lsp {
 
+// Temporary socket entry for the retained language server. Repository setup
+// stays with LSP while the source executable bootstraps only Build.
+auto run(Perimortem::Core::View::Bytes pipe) -> S32;
+
 // Each handler turns one protocol message into a small Documents query. Keeping
 // the table here makes the language server's visible surface easy to inspect
 // alongside those handlers.

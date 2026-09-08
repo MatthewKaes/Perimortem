@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/terminal/llvm/lowering/execution.hpp"
 
 namespace Tetrodotoxin::Terminal::Llvm::Lowering {
@@ -13,7 +14,7 @@ class Values {
  public:
   static auto lower(
       const Execution& execution,
-      const Tetrodotoxin::Library::Language::Expression& expression) -> Bool;
+      const Tetrodotoxin::Library::Language::Constant& value) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Llvm::Lowering

@@ -71,8 +71,58 @@ auto Puffer::Dependencies::acquire(
   return complete;
 }
 
+// Native production needs source bodies and constructor providers. Complete
+// graph archives remain useful for package inspection but do not supply those
+// executable definitions in this compiler revision.
+auto Puffer::Dependencies::acquire_source(
+    Environment::Toolchain& toolchain,
+    Core::View::Bytes identity,
+    System::Version version) -> Bool {
+  for (const auto& source : sources.get_view()) {
+    if (source.identity == identity) {
+      return source.version == version;
+    }
+  }
+  for (const auto& coordinate : active.get_view()) {
+    if (coordinate.identity == identity) {
+      return False;
+    }
+  }
+  Core::Option<Core::View::Bytes> root;
+  terminal_repository.select_source(identity, version)
+      .visit(
+          [&](Core::View::Bytes path) { root = path; },
+          [](Package::Repository::Repository::Error) {});
+  if (!root && package_repository) {
+    package_repository->select_source(identity, version)
+        .visit(
+            [&](Core::View::Bytes path) { root = path; },
+            [](Package::Repository::Repository::Error) {});
+  }
+  if (!root) {
+    return False;
+  }
+  active.insert(Coordinate(identity, version));
+  const Bool complete =
+      discover(toolchain, *root, identity, "package.ttx"_view);
+  active.remove(active.get_size() - 1);
+  // The requesting Import belongs to a temporary inspection Workspace. Retain
+  // its name before that Workspace releases the source transaction.
+  if (complete) {
+    sources.insert(Source(arena.proxy(identity), version, *root));
+  }
+  return complete;
+}
+
 auto Puffer::Dependencies::restore(Environment::Workspace& workspace) const
     -> Bool {
+  for (const auto& source : sources.get_view()) {
+    Ttx::Lexical::Errors errors;
+    if (!workspace.import_package(
+            errors, source.root, source.identity, "package.ttx"_view)) {
+      return False;
+    }
+  }
   for (const Package::Archive::Archive& archive : archives.get_view()) {
     BAIL_IF(!workspace.restore_package(archive, archive.get_identity()));
   }
@@ -95,13 +145,19 @@ auto Puffer::Dependencies::discover(
       return True;
     }
 
-    Count retained = archives.get_size();
+    Count retained = archives.get_size() + sources.get_size();
     for (const Ttx::Concept::Reference<Language::Import>& pending :
          inspection.get_pending_package_imports()) {
-      BAIL_IF(
-          !acquire(pending.get().get_locator(), pending.get().get_version()));
+      Bool acquired =
+          compile_sources
+              ? acquire_source(
+                    toolchain, pending.get().get_locator(),
+                    pending.get().get_version())
+              : acquire(
+                    pending.get().get_locator(), pending.get().get_version());
+      BAIL_IF(!acquired);
     }
-    if (archives.get_size() == retained) {
+    if (archives.get_size() + sources.get_size() == retained) {
       // Discovery is complete even when the final semantic barriers reject the
       // source. Its real Workspace still retains that strongest partial graph.
       return True;

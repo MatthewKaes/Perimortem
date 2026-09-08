@@ -28,8 +28,7 @@ class Graph {
 
   static auto prepare(
       Module::Program& program,
-      const Tetrodotoxin::Library::Language::Model::Addressable& addressable)
-      -> Bool;
+      const Ttx::Model::Addressable& addressable) -> Bool;
 };
 
 }  // namespace Tetrodotoxin::Terminal::Llvm::Lowering

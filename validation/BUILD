@@ -72,7 +72,6 @@ cc_binary(
         "data/ttx/app_profiles/resources/icon.bin",
         "data/ttx/package_resources/resources/empty.bin",
         "data/ttx/package_resources/resources/table.bin",
-        "//packages/ttx:perimortem_memory",
     ],
     includes = ["."],
     deps = [

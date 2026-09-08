@@ -5,6 +5,13 @@
 
 #include "validation/unit_test.hpp"
 
+#include <cstdlib>
+#include <unistd.h>
+
+#include "perimortem/core/null_terminated.hpp"
+
+#include "perimortem/system/file.hpp"
+
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Tetrodotoxin;
@@ -96,6 +103,58 @@ class ChildDialect : public TestDialect {
   RootDialect& root;
 };
 
+class SourceFile {
+ public:
+  explicit SourceFile(View::Bytes text) {
+    const int descriptor = mkstemp(path);
+    if (descriptor < 0) {
+      return;
+    }
+    close(descriptor);
+    ready = Perimortem::System::File::write(text, get_path());
+  }
+  ~SourceFile() { unlink(path); }
+  auto get_path() const -> View::Bytes { return NullTerminated::to_view(path); }
+  Bool ready = False;
+
+ private:
+  char path[64] = "/tmp/ttx-toolchain-XXXXXX";
+};
+
+class ProcessedSource : public Language::Monograph {
+ public:
+  ProcessedSource(
+      Allocator::Arena& arena,
+      Language::Dialect& dialect,
+      const Documentation& documentation,
+      Abstract& context,
+      View::Bytes body)
+      : Monograph(arena, dialect, documentation, context), body(body) {}
+  TTX_NAME("Processed"_view);
+  auto link(Cursor&) -> Bool override {
+    linked = True;
+    return True;
+  }
+  View::Bytes body;
+  Bool linked = False;
+};
+
+class ProcessingDialect : public Language::Dialect {
+ public:
+  explicit ProcessingDialect(View::Bytes name) : Dialect(name) {}
+  auto interpret(
+      Cursor& cursor,
+      const Documentation& documentation,
+      const Anchor&,
+      Abstract& context) -> Option<Language::Monograph&> override {
+    source = cursor.get_arena().construct<ProcessedSource>(
+        cursor.get_arena(), *this, documentation, context,
+        cursor.get_source_text().slice(cursor.current().get_offset()));
+    return *source;
+  }
+  Option<ProcessedSource&> source;
+};
+
 static Harness EnvironmentToolchain = {
   .name = "Tetrodotoxin::Environment::Toolchain"_view,
 };
@@ -148,4 +207,38 @@ PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_dependencies) {
 
   EXPECT_NOT(missing_result);
   EXPECT_NOT(foreign_result);
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, processes_source_body) {
+  Environment::Toolchain toolchain;
+  auto dialect = toolchain.install<ProcessingDialect>("Probe"_view);
+  ASSERT(dialect);
+  {
+    SourceFile file(
+        "// Source documentation\ndialect : Probe;\nprivate Input : alias = source(\"unused.ttx\");\n"_view);
+    ASSERT(file.ready);
+    auto processed = toolchain.process(file.get_path());
+    ASSERT(processed);
+    ASSERT(dialect->source);
+    EXPECT(&*processed == &*dialect->source);
+  }
+  // Removing the physical source does not invalidate the interpreted root.
+  // Its body also proves that the engine stopped parsing after the header.
+  EXPECT_TEXT(
+      dialect->source->body,
+      "private Input : alias = source(\"unused.ttx\");\n"_view);
+  EXPECT_NOT(dialect->source->linked);
+}
+
+PERIMORTEM_UNIT_TEST(EnvironmentToolchain, rejects_invalid_source) {
+  Environment::Toolchain toolchain;
+  ASSERT(toolchain.install<TestDialect>("Reject"_view));
+  SourceFile unknown("// Source\ndialect : Unknown;\n"_view);
+  SourceFile malformed("// Source\ndialect Reject;\n"_view);
+  SourceFile rejected("// Source\ndialect : Reject;\n"_view);
+  ASSERT(unknown.ready && malformed.ready && rejected.ready);
+  EXPECT_NOT(toolchain.process(unknown.get_path()));
+  EXPECT_NOT(toolchain.process(malformed.get_path()));
+  EXPECT_NOT(toolchain.process(rejected.get_path()));
+  EXPECT_NOT(toolchain.process("/dev/null/missing.ttx"_view));
 }

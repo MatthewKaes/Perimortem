@@ -64,7 +64,7 @@ auto Module::Types::find_resource(const Library::Language::Model::Type& type)
 
 auto Module::Types::select(const Abstract& semantic)
     -> Core::Option<const Library::Language::Model::Type&> {
-  auto addressable = semantic.select<Library::Language::Model::Addressable>();
+  auto addressable = semantic.select<Ttx::Model::Addressable>();
   const Abstract& answer = addressable ? addressable->get_type() : semantic;
   auto direct = answer.select<Library::Language::Model::Type>();
   return direct ? direct

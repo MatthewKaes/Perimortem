@@ -327,12 +327,11 @@ auto Environment::Workspace::import_package(
     return {};
   }
 
-  Bool parsed = parse_validity[0];
-
   // Common Import Types own the new source graph. Each local locator is
   // resolved relative to the importing source, while package imports terminate
   // at one already restored exact Package product. Each Import retains that
   // acquisition while its ordinary Type expression selects the visible target.
+  Bool parsed = parse_validity[0];
   for (Count candidate_index = 0; candidate_index < candidates.get_size();
        candidate_index++) {
     Language::Monograph& importer = *candidates[candidate_index];
@@ -487,7 +486,7 @@ auto Environment::Workspace::import_package(
   root.get_resources().seal();
 
   // External source Types determine completion order. Parsing established every
-  // identity already; this dependency-first order now lets each imported
+  // identity already. This dependency order lets each imported
   // source settle its generated and authored Types before an importer validates
   // those layouts. Package imports terminate at graphs restored earlier.
   Managed::Vector<U8> source_states(acquisition);
@@ -1074,6 +1073,14 @@ auto Environment::Workspace::find_authored_location(
       return AuthoredLocation(
           source.package_root, source.diagnostic_path, source.source_text,
           *anchor);
+    }
+    // A source root has no declaration Token of its own. Native compilation
+    // still needs its physical input and bytes for diagnostics and debugging.
+    if (&source.monograph == &semantic ||
+        &source.monograph.get_root() == &semantic) {
+      return AuthoredLocation(
+          source.package_root, source.diagnostic_path, source.source_text,
+          Anchor::create(Span()));
     }
   }
 
