@@ -45,6 +45,16 @@ class Enumeration : public Model::Type {
  public:
   TTX_CONTRACT(Enumeration, Model::Type);
 
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    if (requested ==
+        Ttx::Concept::get_type_identity<Tetrodotoxin::Language::Definition>()) {
+      return Tetrodotoxin::Language::Definition::provide(*this);
+    }
+    return Model::Type::bind_interface(requested);
+  }
+
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
@@ -114,6 +124,9 @@ class Enumeration : public Model::Type {
   auto get_cases() const -> Perimortem::Core::View::Vector<
       Ttx::Concept::Reference<const Ttx::Model::Alias>>;
 
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
+
   constexpr auto get_case_count() const -> Count {
     return source_cases.get_size();
   }
@@ -130,6 +143,27 @@ class Enumeration : public Model::Type {
   auto find_case_name(U64 value) const -> Perimortem::Core::View::Bytes;
 
  private:
+  // Static lookup has its own subject while the Enumeration keeps its cases
+  // and completion state. The scope borrows those facts directly, so exposing
+  // it requires no second case inventory or publication lifecycle.
+  class Authority : public Ttx::Concept::Abstract {
+   public:
+    constexpr explicit Authority(const Enumeration& owner) : owner(owner) {}
+
+    TTX_CONTRACT(Authority, Ttx::Concept::Abstract);
+    TTX_NAME("static"_view);
+    TTX_EMPTY_DOCUMENTATION();
+
+    auto resolve_concept(Perimortem::Core::View::Bytes name) const
+        -> const Ttx::Concept::Abstract& override;
+    auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+        -> void override;
+
+   private:
+    const Enumeration& owner;
+  };
+
+  Authority static_scope;
   enum class Stage : ::U8 {
     Authored,
     StorageLinked,

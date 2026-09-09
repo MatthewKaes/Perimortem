@@ -210,8 +210,8 @@ class Workspace : public Ttx::Concept::Abstract {
   auto resolve() const -> const Ttx::Concept::Abstract& override;
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
  private:
   struct ImportedPackage {

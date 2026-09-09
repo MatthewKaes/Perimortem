@@ -5,8 +5,6 @@
 
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -97,16 +95,9 @@ auto Package::Language::Monograph::resolve_concept(View::Bytes route) const
   return library.get_source().resolve_public_context(route);
 }
 
-auto Package::Language::Monograph::get_concepts(Context& context) const
-    -> const Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 1>
-      concepts = {{library.get_source()}};
-  const Perimortem::Core::Static::Vector<View::Bytes, 1> names = {{
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Package::Language::Monograph::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  visitor("static"_view, library.get_source());
 }
 
 auto Package::Language::Monograph::retain_import(

@@ -8,6 +8,7 @@
 #include "perimortem/system/version.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
+#include "ttx/concept/bound.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -26,6 +27,46 @@ class Import : public Ttx::Model::Alias {
     Source,
     Package,
   };
+
+  // An Import answers where an edge leaves the current source. Its access
+  // sequence is relative to the imported root, so a package assembler can
+  // retain that dependency without discovering the dependency's declarations.
+  // Each access selects a public Type name using this Import's lookup policy.
+  struct Operations {
+    auto (*get_kind)(const void*) -> Kind;
+    auto (*get_locator)(const void*) -> Perimortem::Core::View::Bytes;
+    auto (*get_version)(const void*) -> Perimortem::System::Version;
+    auto (*get_access_count)(const void*) -> Count;
+    auto (*get_access)(const void*, Count)
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
+  };
+
+  class Handle : public Ttx::Concept::Bound<Operations> {
+   public:
+    using Bound::Bound;
+
+    auto get_kind() const -> Kind { return operations.get_kind(source); }
+
+    auto get_locator() const -> Perimortem::Core::View::Bytes {
+      return operations.get_locator(source);
+    }
+
+    auto get_version() const -> Perimortem::System::Version {
+      return operations.get_version(source);
+    }
+
+    auto get_access_count() const -> Count {
+      return operations.get_access_count(source);
+    }
+
+    auto get_access(Count index) const
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+      return operations.get_access(source, index);
+    }
+  };
+
+  auto bind_interface(U64 requested) const -> Perimortem::Utility::
+      Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override;
 
   class Description {
    public:

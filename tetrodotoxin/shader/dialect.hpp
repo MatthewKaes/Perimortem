@@ -16,16 +16,10 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
-  Dialect(
-      Perimortem::Core::View::Bytes name,
-      Library::Dialect& library,
-      Render::Dialect& render)
-      : Tetrodotoxin::Language::Dialect(name),
-        library(library),
-        render(render) {}
-
   Dialect(Library::Dialect& library, Render::Dialect& render)
-      : Dialect("Shader"_view, library, render) {}
+      : library(library), render(render) {}
+
+  TTX_NAME("Shader"_view);
 
   auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -37,12 +31,11 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
   auto encode(const Ttx::Concept::Abstract& monograph) const
       -> Perimortem::Core::Option<Perimortem::Memory::Dynamic::Bytes> override;
 
-  auto restore(
+  auto decode(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes payload,
-      const Ttx::Concept::Documentation& documentation,
       Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
+      -> Perimortem::Core::Option<Ttx::Concept::Abstract&> override;
 
   constexpr auto get_library() const -> const Library::Dialect& {
     return library;

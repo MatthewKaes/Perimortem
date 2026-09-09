@@ -27,15 +27,8 @@ class Program : public Ttx::Concept::Abstract {
       Ttx::Lexical::Anchor anchor,
       Ttx::Lexical::Anchor selection_anchor) -> Program&;
 
-  static auto create_synthetic(
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Documentation& documentation,
-      Perimortem::Core::View::Bytes route,
-      Perimortem::Core::View::Bytes callable_name) -> Program&;
-
   auto link(Ttx::Lexical::Cursor& cursor, Ttx::Concept::Abstract& context)
       -> Bool;
-  auto link_restored(Ttx::Concept::Abstract& context) -> Bool;
 
   TTX_NAME("Program"_view);
   TTX_DOCUMENTATION(documentation);

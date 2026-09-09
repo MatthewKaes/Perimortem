@@ -16,7 +16,7 @@ using namespace Tetrodotoxin;
 Library::Language::Foreign::Foreign(Allocator::Arena& domain, Abstract& parent)
     : domain(domain),
       parent(parent),
-      static_authority(domain.construct<Types::Static>(domain)),
+      static_authority(domain.construct<Access::Static>(domain)),
       documentation(&Documentation::get_empty()),
       states(domain),
       functions(domain),

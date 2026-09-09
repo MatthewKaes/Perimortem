@@ -2,18 +2,58 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/model/type.hpp"
+#include "tetrodotoxin/library/language/initialization.hpp"
+#include "tetrodotoxin/library/language/value.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
+
+auto Language::Model::Type::bind_interface(U64 requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested != get_type_identity<Language::Initialization>()) {
+    return Ttx::Model::Type::bind_interface(requested);
+  }
+  if (resolve().is<Unknown>()) {
+    return Binding::Failure::Pending;
+  }
+
+  static const Language::Initialization::Operations operations = {
+    [](const void* source,
+       Memory::Allocator::Arena& arena) -> Language::Initialization::Answer {
+      const auto& type = *static_cast<const Type*>(source);
+      auto produced = type.create_default(arena);
+      if (!produced) {
+        if (type.get_layout().is_empty()) {
+          return Core::Option<Abstract::Handle>();
+        }
+        return Binding::Failure::Unsupported;
+      }
+      auto identity = produced->get_identity();
+      if (!identity) {
+        return Binding::Failure::Unsupported;
+      }
+
+      // A source expression still needs a terminal implementation before it
+      // can serve as a stored initializer. Only an actual materialized Value
+      // is admitted by this native provider until that publication exists.
+      return identity->bind<Language::Value>().visit(
+          [&](const Language::Value::Handle&)
+              -> Language::Initialization::Answer {
+            return Core::Option<Abstract::Handle>(identity->get_interface());
+          },
+          [](Binding::Failure failure) -> Language::Initialization::Answer {
+            return failure;
+          });
+    },
+  };
+  return Binding::provide<Language::Initialization>(this, operations);
+}
 
 Language::Model::Type::Type(Memory::Allocator::Arena& domain) {
   initialize_authorities(domain);
@@ -25,31 +65,31 @@ auto Language::Model::Type::initialize_authorities(
     return;
   }
 
-  static_authority = Core::Option<Reference<Language::Types::Static>>(
-      Reference<Language::Types::Static>(
-          domain.construct<Language::Types::Static>(domain)));
-  instance_authority = Core::Option<Reference<Language::Types::Instance>>(
-      Reference<Language::Types::Instance>(
-          domain.construct<Language::Types::Instance>(domain)));
+  static_authority = Core::Option<Reference<Language::Access::Static>>(
+      Reference<Language::Access::Static>(
+          domain.construct<Language::Access::Static>(domain)));
+  instance_authority = Core::Option<Reference<Language::Access::Instance>>(
+      Reference<Language::Access::Instance>(
+          domain.construct<Language::Access::Instance>(domain)));
 }
 
 auto Language::Model::Type::edit_static_authority()
-    -> Language::Types::Static& {
+    -> Language::Access::Static& {
   return static_authority->get();
 }
 
 auto Language::Model::Type::edit_instance_authority()
-    -> Language::Types::Instance& {
+    -> Language::Access::Instance& {
   return instance_authority->get();
 }
 
 auto Language::Model::Type::get_static_authority() const
-    -> const Language::Types::Static& {
+    -> const Language::Access::Static& {
   return static_authority->get();
 }
 
 auto Language::Model::Type::get_instance_authority() const
-    -> const Language::Types::Instance& {
+    -> const Language::Access::Instance& {
   return instance_authority->get();
 }
 
@@ -68,23 +108,13 @@ auto Language::Model::Type::resolve_concept(Core::View::Bytes route) const
   return Ttx::Model::Type::resolve_concept(route);
 }
 
-auto Language::Model::Type::get_concepts(Ttx::Concept::Context& context) const
-    -> const Ttx::Concept::Pack& {
+auto Language::Model::Type::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
   if (!static_authority) {
-    return Ttx::Model::Type::get_concepts(context);
+    return;
   }
-
-  const Core::Static::Vector<Reference<const Abstract>, 2> concepts = {{
-    static_authority->get(),
-    instance_authority->get(),
-  }};
-  const Core::Static::Vector<Core::View::Bytes, 2> names = {{
-    "static"_view,
-    "instance"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+  visitor("static"_view, static_authority->get());
+  visitor("instance"_view, instance_authority->get());
 }
 
 auto Language::Model::Type::get_callable_bindings(

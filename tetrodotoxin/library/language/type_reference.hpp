@@ -14,16 +14,29 @@
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
+#include "tetrodotoxin/language/import.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// TypeReference keeps the authored spelling of one Type route until its graph
-// context is ready. Its Anchor preserves the exact source evidence, while the
-// source transaction keeps the spelling alive. Linking can then walk each
-// segment through ordinary context queries and ask a Generic to materialize
-// arguments only when the route reaches one.
+// TypeReference keeps the authored access sequence and the edge it establishes
+// when its context becomes ready. Native linking uses the selected Type, while
+// boundary queries follow the retained reference and can stop at its Import.
+// Resolving a Type therefore does not discard how another source supplies it.
+//
+// The reference remains a value in its owner's syntax storage. Its bound view
+// borrows that value, so the owner finishes moving or growing its storage
+// before exposing the view and keeps the observation stable while it is
+// consumed.
 class TypeReference {
  public:
+  // Native linking can use the resolved Type while the retained reference
+  // still answers policy questions along its authored access sequence. The
+  // first Import encountered owns that dependency. Later accesses remain
+  // relative to it, rather than becoming declarations copied from its source.
+  auto get_interface() const -> Ttx::Concept::Abstract::Handle;
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure>;
   using Argument = Perimortem::Core::Static::
       Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 
@@ -162,6 +175,10 @@ class TypeReference {
         terminal(terminal),
         arguments(arguments) {}
 
+  mutable Perimortem::Core::Option<Tetrodotoxin::Language::Import::Handle>
+      dependency;
+  mutable Count dependency_suffix = 0;
+  mutable const Ttx::Concept::Abstract* target = nullptr;
   Perimortem::Core::View::Bytes route;
   Ttx::Lexical::Anchor anchor;
   Ttx::Lexical::Token terminal;

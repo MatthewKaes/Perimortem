@@ -12,9 +12,12 @@
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Unwrap observes one Option and always produces its exact element Type. A
-// present value supplies the retained payload while absence creates a fresh
-// semantic default owned by that element Type.
+// Unwrap is a special control flow access (post fix !) that will default a
+// value in the middle of an access expression if an Option failed to return
+// one allowing it to be chained.
+//
+// It can be used for scenarios where a default value is still acceptable and
+// doesn't act as an outright failure.
 class Unwrap : public Expression {
  public:
   TTX_CONTRACT(Unwrap, Expression);

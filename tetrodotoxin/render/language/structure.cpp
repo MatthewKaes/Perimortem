@@ -72,8 +72,9 @@ auto Language::Structure::resolve_concept(View::Bytes name) const
              : local;
 }
 
-auto Language::Structure::get_concepts(Context& context) const -> const Pack& {
-  return declarations.get_concepts(context);
+auto Language::Structure::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  declarations.visit_concepts(visitor);
 }
 
 auto Language::Structure::resolve_local_context(View::Bytes name) const

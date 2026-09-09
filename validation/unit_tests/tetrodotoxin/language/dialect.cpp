@@ -85,9 +85,7 @@ PERIMORTEM_UNIT_TEST(LanguageDialect, explicit_defaults) {
   const Bool linked = monograph.link(cursor);
   const Bool finalized = monograph.finalize(cursor);
   auto unsupported = dialect.encode(monograph);
-  // START AI GENERATED
   auto missing = dialect.decode(arena, "unsupported"_view, context);
-  // END AI GENERATED
   auto empty = empty_dialect.encode(empty_monograph);
   Bool successful_empty = empty.visit(
       []() { return False; },

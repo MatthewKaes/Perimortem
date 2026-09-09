@@ -12,9 +12,9 @@
 #include "perimortem/utility/result.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/language/access/instance.hpp"
+#include "tetrodotoxin/library/language/access/static.hpp"
 #include "tetrodotoxin/library/language/model/pack.hpp"
-#include "tetrodotoxin/library/language/types/instance.hpp"
-#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -34,11 +34,14 @@ class Type : public Ttx::Model::Type {
 
   TTX_CONTRACT(Type, Ttx::Model::Type);
 
+  auto bind_interface(U64 requested) const -> Perimortem::Utility::
+      Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override;
+
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   // Every completed nonempty Library Type owns one total semantic default.
   // The Arena is only the destination for the resulting Pack. Representation
@@ -203,10 +206,10 @@ class Type : public Ttx::Model::Type {
 
   explicit Type(Perimortem::Memory::Allocator::Arena& domain);
 
-  auto edit_static_authority() -> Types::Static&;
-  auto edit_instance_authority() -> Types::Instance&;
-  auto get_static_authority() const -> const Types::Static&;
-  auto get_instance_authority() const -> const Types::Instance&;
+  auto edit_static_authority() -> Access::Static&;
+  auto edit_instance_authority() -> Access::Instance&;
+  auto get_static_authority() const -> const Access::Static&;
+  auto get_instance_authority() const -> const Access::Instance&;
 
   // Concrete Type construction publishes every authored or generated Callable
   // into this one surface. The Callable parameter Layout remains the only
@@ -228,9 +231,9 @@ class Type : public Ttx::Model::Type {
   auto initialize_authorities(Perimortem::Memory::Allocator::Arena& domain)
       -> void;
 
-  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Static>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<Access::Static>>
       static_authority;
-  Perimortem::Core::Option<Ttx::Concept::Reference<Types::Instance>>
+  Perimortem::Core::Option<Ttx::Concept::Reference<Access::Instance>>
       instance_authority;
   Perimortem::Core::Option<Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>>

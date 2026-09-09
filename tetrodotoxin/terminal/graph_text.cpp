@@ -3,6 +3,7 @@
 
 #include "tetrodotoxin/terminal/graph_text.hpp"
 
+#include "perimortem/core/algorithm/sort.hpp"
 #include "perimortem/core/null_terminated.hpp"
 
 #include "perimortem/memory/dynamic/bytes.hpp"
@@ -16,7 +17,6 @@
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/alias.hpp"
 #include "ttx/model/callable.hpp"
-#include "ttx/model/context.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem;
@@ -26,6 +26,9 @@ class GraphConceptEdge {
  public:
   constexpr GraphConceptEdge(Core::View::Bytes name, const Abstract& target)
       : name(name), target(target) {}
+
+  // Provide an operator > for sorting edges.
+  auto operator>(const GraphConceptEdge& other) const -> Bool;
 
   Core::View::Bytes name;
   Reference<const Abstract> target;
@@ -53,6 +56,16 @@ static auto compare_bytes(Core::View::Bytes left, Core::View::Bytes right)
   return left.get_size() < right.get_size() ? -1 : 1;
 }
 
+auto GraphConceptEdge::operator>(const GraphConceptEdge& other) const -> Bool {
+  const S32 order = compare_bytes(name, other.name);
+  if (order != 0) {
+    return order > 0;
+  }
+
+  return compare_bytes(target.get().get_name(), other.target.get().get_name()) >
+         0;
+}
+
 static auto find_node(
     Core::View::Vector<GraphNode> nodes,
     const Abstract& abstract) -> Core::Option<Count> {
@@ -67,34 +80,15 @@ static auto find_node(
 static auto retain_node(
     Memory::Dynamic::Vector<GraphNode>& nodes,
     const Abstract& abstract) -> Count {
-  auto existing = find_node(nodes.get_view(), abstract);
-  if (existing) {
-    return *existing;
+  auto index = nodes.get_view().find(
+      [&](const GraphNode& node) { return &node.abstract.get() == &abstract; });
+  if (index != -1) {
+    return index;
   }
+
   Count id = nodes.get_size();
   nodes.emplace(GraphNode(abstract));
   return id;
-}
-
-static auto sort_concepts(Memory::Dynamic::Vector<GraphConceptEdge>& edges)
-    -> void {
-  for (Count index = 1; index < edges.get_size(); index++) {
-    Count selected = index;
-    while (selected != 0) {
-      const GraphConceptEdge& left = edges[selected - 1];
-      const GraphConceptEdge& right = edges[selected];
-      S32 order = compare_bytes(left.name, right.name);
-      if (order == 0) {
-        order = compare_bytes(
-            left.target.get().get_name(), right.target.get().get_name());
-      }
-      if (order <= 0) {
-        break;
-      }
-      Core::Data::swap(edges[selected - 1], edges[selected]);
-      selected--;
-    }
-  }
 }
 
 static auto retain_layout(
@@ -111,7 +105,6 @@ static auto retain_layout(
 static auto explore(
     Memory::Allocator::Arena& arena,
     Memory::Dynamic::Vector<GraphNode>& nodes) -> void {
-  Ttx::Model::Context context(arena);
   for (Count index = 0; index < nodes.get_size(); index++) {
     const Abstract& abstract = nodes[index].abstract.get();
     const Abstract& resolved = abstract.resolve();
@@ -121,20 +114,17 @@ static auto explore(
                    ? static_cast<const Abstract&>(Unknown::get_unknown())
                    : abstract.get_type());
 
+    // Graph text sorts its edges after discovery. It retains only the names
+    // needed for that output, since a provider can lend temporary names while
+    // visiting its representation.
     Memory::Dynamic::Vector<GraphConceptEdge> discovered;
-    const Pack& concepts = abstract.get_concepts(context);
-    const Layout& layout = concepts.get_layout();
-    for (Count entry = 0; entry < layout.get_size(); entry++) {
-      auto target = layout.get_abstract(entry);
-      if (!target) {
-        continue;
-      }
-      Core::View::Bytes name = layout.get_name(entry).visit(
-          [&]() { return target->get_name(); },
-          [](Core::View::Bytes selected) { return selected; });
-      discovered.emplace(GraphConceptEdge(name, *target));
-    }
-    sort_concepts(discovered);
+    auto receive = [&](Core::View::Bytes name, const Abstract& target) {
+      discovered.emplace(GraphConceptEdge(arena.proxy(name), target));
+    };
+    abstract.visit_concepts(Abstract::Visitor(receive));
+
+    // Sort the concept edges by name order
+    Core::Algorithm::sort(discovered.get_access());
     for (const GraphConceptEdge& edge : discovered.get_view()) {
       retain_node(nodes, edge.target.get());
     }
@@ -143,6 +133,8 @@ static auto explore(
     if (type) {
       retain_layout(nodes, type->get_layout());
     }
+
+    // If the Abstract is a Callable then render out its layout.
     auto callable = abstract.select<Ttx::Model::Callable>();
     if (callable) {
       retain_layout(nodes, callable->get_parameters());

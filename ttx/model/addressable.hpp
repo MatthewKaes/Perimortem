@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ttx/concept/bound.hpp"
+
 #include "ttx/model/type.hpp"
 
 namespace Ttx::Model {
@@ -16,6 +18,38 @@ namespace Ttx::Model {
 class Addressable : public Concept::Abstract {
  public:
   TTX_CONTRACT(Addressable, Abstract);
+
+  struct Operations {
+    auto (*get_type)(const void*) -> Concept::Abstract::Handle;
+  };
+
+  class Handle : public Concept::Bound<Operations> {
+   public:
+    using Bound::Bound;
+
+    // This edge retains the policies through which the Type is reached.
+    // A consumer needing a native Type can resolve it after asking any
+    // boundary questions that would be lost through resolution.
+    auto get_type() const -> Concept::Abstract::Handle {
+      return operations.get_type(source);
+    }
+  };
+
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Concept::Binding,
+                                     Concept::Binding::Failure> override {
+    if (requested != Concept::get_type_identity<Addressable>()) {
+      return Abstract::bind_interface(requested);
+    }
+    static const Operations operations = {
+      [](const void* source) -> Concept::Abstract::Handle {
+        return static_cast<const Addressable*>(source)
+            ->get_type()
+            .get_interface();
+      },
+    };
+    return Concept::Binding::provide<Addressable>(this, operations);
+  }
 
   virtual constexpr auto get_type() const
       -> const Ttx::Concept::Abstract& override = 0;

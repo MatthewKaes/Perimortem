@@ -46,13 +46,9 @@ auto Scene::Dialect::encode(const Abstract& monograph) const
   return Scene::Archive::Writer::encode(*scene);
 }
 
-auto Scene::Dialect::restore(
+auto Scene::Dialect::decode(
     Allocator::Arena& arena,
     View::Bytes payload,
-    const Documentation&,
-    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored =
-      Scene::Archive::Reader::restore(arena, payload, *this, library, context);
-  return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
-                  : Option<Tetrodotoxin::Language::Monograph&>();
+    Abstract& context) -> Option<Abstract&> {
+  return Scene::Archive::Reader::restore(arena, payload, *this, library, context);
 }

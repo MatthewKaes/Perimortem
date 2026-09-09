@@ -8,6 +8,7 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/value.hpp"
 #include "tetrodotoxin/library/language/model/types/signed.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
@@ -19,6 +20,16 @@ class Signed : public Tetrodotoxin::Library::Language::Constant {
  public:
   TTX_CONTRACT(Signed, Tetrodotoxin::Library::Language::Constant);
   using Value = S64;
+
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    using Contract = Tetrodotoxin::Library::Language::Value;
+    if (requested == Ttx::Concept::get_type_identity<Contract>()) {
+      return Contract::scalar(*this);
+    }
+    return Constant::bind_interface(requested);
+  }
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,

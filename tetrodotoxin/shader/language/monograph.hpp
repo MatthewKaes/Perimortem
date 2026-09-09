@@ -46,6 +46,9 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
+
   auto resolve_lexical_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
@@ -85,6 +88,27 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   constexpr auto is_finalized() const -> Bool { return finalized; }
 
  private:
+  // Shader overlays Material and bridge names on its Library child's public
+  // scope. A separate lookup subject preserves that precedence without a
+  // static route leading back to the Monograph. It borrows the existing
+  // collections instead of maintaining another registry of their members.
+  class Authority : public Ttx::Concept::Abstract {
+   public:
+    constexpr explicit Authority(const Monograph& owner) : owner(owner) {}
+
+    TTX_CONTRACT(Authority, Ttx::Concept::Abstract);
+    TTX_NAME("static"_view);
+    TTX_EMPTY_DOCUMENTATION();
+
+    auto resolve_concept(Perimortem::Core::View::Bytes name) const
+        -> const Ttx::Concept::Abstract& override;
+    auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+        -> void override;
+
+   private:
+    const Monograph& owner;
+  };
+
   Monograph(
       Perimortem::Memory::Allocator::Arena& domain,
       const Ttx::Concept::Abstract& language,
@@ -96,10 +120,12 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
             language,
             documentation,
             context),
+        static_scope(*this),
         library(library),
         programs(domain),
         bridges(domain) {}
 
+  Authority static_scope;
   Tetrodotoxin::Library::Language::Monograph& library;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<Program>>
       programs;

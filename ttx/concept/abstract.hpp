@@ -8,111 +8,151 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "ttx/concept/binding.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/type_identity.hpp"
+#include "ttx/concept/visitor.hpp"
 
 namespace Ttx::Concept {
 
-// Abstract gives every shared semantic object one stable identity and a small
-// set of questions that any tool can ask. Narrower contracts add Type,
-// SemanticPack, Addressable, Callable, and Alias behavior through ordinary
-// inheritance, which lets the concrete language remain the owner of each
-// object.
+// Abstract is the native authoring surface for a shared semantic identity.
+// Native selection proves a C++ base subobject, while binding supplies the
+// operations an encountered policy offers. Keeping those questions separate
+// lets existing C++ owners retain their direct representation and lets another
+// provider answer the same queries without inheriting their classes.
 //
-// QueryContext lookup follows the language route one name at a time. The
-// selected object answers from the context it actually owns, so Packages and
-// Dialects can compose without a global member registry.
+// Lookup follows the language route one name at a time. The selected object
+// answers from the context it owns, so Packages and Dialects can compose
+// without a global member registry.
 //
 // Construction enriches these same objects as more context becomes available.
 // An identity that has already answered successfully stays stable, giving
 // editors, compilers, and runtimes one graph to share throughout completion.
 class Abstract {
  public:
-  // SemanticLayout is the identity-free shape of semantic flow. It borrows the
-  // exact Abstracts that supply each slot, so ordering and fitting never create
-  // a second semantic graph.
-  class SemanticLayout {
+  // Graph edges can cross language and ABI lines meaning they may not leverage
+  // the C++ Abstract base directly. This view lets an owner expose such an edge
+  // directly from its own storage using thunks.
+  //
+  // Life time is borrowed and the identity belongs to the stable state promised
+  // for the life time of the transaction. Resolve and operations are open to
+  // select another view without destroying the policy carried by this one as
+  // long as the parent keeps it alive.
+  //
+  // The main reason we use the thunk pattern is it gives us two distinct
+  // advantages:
+  //
+  // * Use the host's language system to perform static optimizations, as long
+  //   as they preserve policy.
+  // * Binding only selects the implementation and nothing is materialized until
+  //   any of its operations are invoked.
+  //
+  // This allows the Abstracts like a CUDA image to offer pixel level access
+  // operations without requiring transfering the pixels to the CPU simply to
+  // establish binding.
+  class Handle {
    public:
-    enum class Errors : U8 {
-      IndexOutOfBounds,
-      SizeMismatch,
-      IncompatibleFit,
+    struct Operations {
+      auto (*bind)(const void*, U64)
+          -> Perimortem::Utility::Result<Binding, Binding::Failure>;
+      auto (*get_name)(const void*) -> Perimortem::Core::View::Bytes;
+      auto (*get_documentation)(const void*) -> const Documentation&;
+      auto (*resolve)(const void*) -> Handle;
     };
 
-    constexpr virtual ~SemanticLayout() = default;
+    constexpr Handle(const void* source, const Operations& operations)
+        : source(source), operations(&operations) {}
 
-    virtual constexpr auto get_size() const -> Count = 0;
-    virtual constexpr auto get_abstract(Count index) const
-        -> Perimortem::Core::Option<const Abstract&> = 0;
-    virtual constexpr auto get_name(Count index) const
-        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
-      return {};
-    }
-    virtual constexpr auto fits_entry(
-        const SemanticLayout& target,
-        Count source_index,
-        Count target_index) const -> Bool = 0;
-    constexpr auto fits(const SemanticLayout& target) const -> Bool {
-      return get_size() == target.get_size() && fits_at(target, 0);
-    }
-    virtual constexpr auto fits_at(
-        const SemanticLayout& target,
-        Count target_offset) const -> Bool = 0;
-    constexpr auto get_fitted(const SemanticLayout& target, Count target_index)
-        const -> Perimortem::Utility::Result<const Abstract&, Errors> {
-      if (target_index >= get_size()) {
-        return Errors::IndexOutOfBounds;
+    Handle(const Abstract& source) : Handle(source.get_interface()) {}
+
+    template <typename Contract>
+    auto bind() const -> Perimortem::Utility::
+        Result<typename Contract::Handle, Binding::Failure> {
+      // First see if we can resolve the question staticly with C++'s native
+      // type system.
+      if constexpr (__is_same(Contract, Abstract)) {
+        return *this;
       }
 
-      if (get_size() != target.get_size()) {
-        return Errors::SizeMismatch;
-      }
-
-      return get_fitted_at(target, 0, target_index);
+      // If not then we use a dynamic dispatch from the bind to try and extract
+      // a workable contract.
+      using Answer = Perimortem::Utility::Result<
+          typename Contract::Handle, Binding::Failure>;
+      return operations->bind(source, get_type_identity<Contract>())
+          .visit(
+              [](const Binding& binding) -> Answer {
+                return binding.template get<Contract>();
+              },
+              [](Binding::Failure failure) -> Answer { return failure; });
     }
-    virtual constexpr auto get_fitted_at(
-        const SemanticLayout& target,
-        Count target_offset,
-        Count target_index) const
-        -> Perimortem::Utility::Result<const Abstract&, Errors> = 0;
 
-    constexpr auto is_empty() const -> Bool { return get_size() == 0; }
-
-   protected:
-    constexpr auto has_target_segment(
-        const SemanticLayout& target,
-        Count target_offset) const -> Bool {
-      return target_offset <= target.get_size() &&
-             get_size() <= target.get_size() - target_offset;
+    auto get_name() const -> Perimortem::Core::View::Bytes {
+      return operations->get_name(source);
     }
+
+    auto get_documentation() const -> const Documentation& {
+      return operations->get_documentation(source);
+    }
+
+    auto resolve() const -> Handle { return operations->resolve(source); }
+
+    // This token identifies an encountered policy during one observation.
+    // Package assigns its own durable identities after gathering the edges.
+    auto get_identity() const -> const void* { return source; }
+
+   private:
+    const void* source;
+    const Operations* operations;
   };
 
-  // SemanticPack carries one produced semantic flow without becoming another
-  // graph identity. Its SemanticLayout names the real Abstracts supplied by the
-  // producer.
-  class SemanticPack {
-   public:
-    constexpr virtual ~SemanticPack() = default;
-    virtual constexpr auto get_layout() const -> const SemanticLayout& = 0;
-  };
+  using Operations = Handle::Operations;
 
-  // QueryContext owns one caller's observation results. Packing copies snapshot
-  // shape and names while every Abstract edge continues to borrow its owner.
-  class QueryContext {
-   public:
-    constexpr virtual ~QueryContext() = default;
-    virtual auto pack(const SemanticLayout& layout) -> const SemanticPack& = 0;
-  };
+  // Provides a Handle to the Abstract allowing it be provided for binding
+  // across compilation units.
+  auto get_interface() const -> Handle {
+    static const Operations operations = {
+      [](const void* source, U64 requested)
+          -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+        return static_cast<const Abstract*>(source)->bind_interface(requested);
+      },
+      [](const void* source) -> Perimortem::Core::View::Bytes {
+        return static_cast<const Abstract*>(source)->get_name();
+      },
+      [](const void* source) -> const Documentation& {
+        return static_cast<const Abstract*>(source)->get_documentation();
+      },
+      [](const void* source) -> Handle {
+        return static_cast<const Abstract*>(source)->resolve().get_interface();
+      },
+    };
+    return Handle(this, operations);
+  }
 
   using ClassCatagory = Abstract;
 
   constexpr virtual ~Abstract() = default;
 
+  // Binding attempts to resolve the Abstract's interface representation through
+  // a contract.
+  //
+  // Native selection remains a separate question about a C++ base subobject and
+  // cannot stand in for this operation.
+  template <typename Contract>
+  auto bind() const -> Perimortem::Utility::
+      Result<typename Contract::Handle, Binding::Failure> {
+    return get_interface().template bind<Contract>();
+  }
+
+  virtual auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Binding, Binding::Failure>;
+
   // Proves a semantic contract without C++ RTTI or a central class registry.
   // Derived contracts recognize their live type identity and then delegate to
-  // their base contract. These identities describe interfaces only. Object
-  // identity and durable names continue to come from the Abstract graph. A
-  // native implementation may return true only for public C++ base contracts,
+  // their base contract.
+  //
+  // These identities describe interfaces only and are similar to COM's GUIDs.
+  // Object identity and durable names continue to come from the Abstract graph.
+  // A native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
   virtual constexpr auto implements(::U64 requested) const -> Bool {
@@ -201,12 +241,24 @@ class Abstract {
   // Resolves one binary concept owned by this Abstract. Concrete languages
   // compose their own concepts one question at a time; TTX does not flatten
   // member access, receiver policy, or invocation into routing modes.
+  // Named concepts on an ordinary Abstract lead to other identities. Unknown
+  // and None are the exceptions: every concept question repeats that sentinel.
+  // This differs from resolve(), which can establish the receiver itself as
+  // the canonical identity without adding a named edge.
   virtual auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Abstract&;
 
-  // Produces one fresh factual snapshot of the concepts this Abstract can
-  // currently answer. Concept order has no semantic meaning.
-  virtual auto get_concepts(QueryContext& context) const -> const SemanticPack&;
+  using Visitor = Concept::Visitor<const Abstract&>;
+
+  // The owner advertises the named answers visible at this boundary. It can
+  // walk its own representation directly instead of building a Pack for the
+  // caller to unpack. Names belong to this scope and can differ from the
+  // selected Abstract's own name. Enumeration order carries no meaning.
+  //
+  // Calls are synchronous. The receiver must not invalidate the provider's
+  // traversed state. A name need only survive its callback, so a consumer that
+  // retains it makes its own copy. Abstracts keep their normal graph lifetime.
+  virtual auto visit_concepts(Visitor visitor) const -> void;
 
   // Explicit erased values ask the candidate owner whether it satisfies one
   // exact semantic requirement. The answer records only the higher order
@@ -225,10 +277,6 @@ class Abstract {
   virtual constexpr auto get_documentation() const
       -> const Concept::Documentation& = 0;
 };
-
-using Layout = Abstract::SemanticLayout;
-using Pack = Abstract::SemanticPack;
-using Context = Abstract::QueryContext;
 
 }  // namespace Ttx::Concept
 

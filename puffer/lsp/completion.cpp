@@ -12,7 +12,6 @@
 #include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/callable.hpp"
-#include "ttx/model/context.hpp"
 #include "ttx/model/type.hpp"
 
 using namespace Perimortem;
@@ -111,15 +110,12 @@ static auto complete(
     return;
   }
 
-  Model::Context context(arena);
-  const Concept::Layout& concepts =
-      authority.get_concepts(context).get_layout();
-  for (Count index = 0; index < concepts.get_size(); index++) {
-    auto candidate = concepts.get_abstract(index);
-    if (candidate && accepts(*candidate, operation)) {
-      items.insert(completion_item(arena, *candidate));
+  auto receive = [&](Core::View::Bytes, const Concept::Abstract& candidate) {
+    if (accepts(candidate, operation)) {
+      items.insert(completion_item(arena, candidate));
     }
-  }
+  };
+  authority.visit_concepts(Concept::Abstract::Visitor(receive));
 }
 
 auto Puffer::Lsp::completion(Documents& documents, const Rpc::Message& message)

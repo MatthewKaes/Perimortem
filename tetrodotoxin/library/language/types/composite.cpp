@@ -3,7 +3,6 @@
 
 #include "tetrodotoxin/library/language/types/composite.hpp"
 
-#include "perimortem/core/static/vector.hpp"
 #include "perimortem/core/diagnostics/log.hpp"
 
 #include "tetrodotoxin/library/language/alias.hpp"
@@ -15,7 +14,6 @@
 #include "tetrodotoxin/library/language/types/object.hpp"
 #include "tetrodotoxin/library/language/types/structure.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
 #include "ttx/model/layouts/termination.hpp"
 
 using namespace Perimortem::Core;
@@ -666,19 +664,10 @@ auto Types::Composite::resolve_concept(View::Bytes route) const
              : get_host().resolve_concept(route);
 }
 
-auto Types::Composite::get_concepts(Context& context) const -> const Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 2>
-      concepts = {{
-        static_authority,
-        instance_authority,
-      }};
-  const Perimortem::Core::Static::Vector<View::Bytes, 2> names = {{
-    "static"_view,
-    "instance"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Types::Composite::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  visitor("static"_view, static_authority);
+  visitor("instance"_view, instance_authority);
 }
 
 auto Types::Composite::resolve_public_context(View::Bytes route) const

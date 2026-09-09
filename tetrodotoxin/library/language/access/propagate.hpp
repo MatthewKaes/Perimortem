@@ -11,9 +11,14 @@
 
 namespace Tetrodotoxin::Library::Language::Access {
 
-// Propagate delegates its continuation and escape edges to the exact receiver
-// Type. Option and inactive Flags escape with empty flow, while Result supplies
-// one typed error Pack that the enclosing Function must receive explicitly.
+// Propagate is a special control flow access (post fix ?) that will `BAIL_IF`
+// in the middle of an access expression allowing it to be chained.
+//
+// It can be used for scenarios where it would be verbose to break up an
+// expression chain to check `if !option : return`, but it desugars to the same
+// resulting control flow. It does carry the explicit semantics through the
+// expression chain, but we don't currently perform any meaningful optimizations
+// by utilizing this fact.
 class Propagate : public Expression {
  public:
   TTX_CONTRACT(Propagate, Expression);

@@ -147,9 +147,9 @@ auto Library::Language::Monograph::resolve_concept(View::Bytes route) const
              : local;
 }
 
-auto Library::Language::Monograph::get_concepts(Context& context) const
-    -> const Pack& {
-  return source.get_concepts(context);
+auto Library::Language::Monograph::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  source.visit_concepts(visitor);
 }
 
 auto Library::Language::Monograph::resolve_local_context(

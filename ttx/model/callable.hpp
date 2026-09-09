@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ttx/concept/bound.hpp"
+
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/layout.hpp"
 
@@ -16,6 +18,28 @@ namespace Ttx::Model {
 class Callable : public Concept::Abstract {
  public:
   TTX_CONTRACT(Callable, Abstract);
+
+  struct Operations {
+    auto (*get_parameters)(const void*) -> Concept::Layout::Handle;
+    auto (*get_results)(const void*) -> Concept::Layout::Handle;
+  };
+
+  class Handle : public Concept::Bound<Operations> {
+   public:
+    using Bound::Bound;
+
+    auto get_parameters() const -> Concept::Layout::Handle {
+      return operations.get_parameters(source);
+    }
+
+    auto get_results() const -> Concept::Layout::Handle {
+      return operations.get_results(source);
+    }
+  };
+
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Concept::Binding,
+                                     Concept::Binding::Failure> override;
 
   virtual constexpr auto get_parameters() const -> const Concept::Layout& = 0;
   virtual constexpr auto get_results() const -> const Concept::Layout& = 0;

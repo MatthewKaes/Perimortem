@@ -16,7 +16,7 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
-  explicit Dialect(
+  Dialect(
       Perimortem::Core::View::Vector<Perimortem::Core::View::Bytes> arguments)
       : arguments(arguments) {}
 

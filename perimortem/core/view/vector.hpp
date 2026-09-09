@@ -42,13 +42,20 @@ class Vector {
   template <typename predicate_type>
   constexpr auto contains(predicate_type predicate) const
       -> decltype(Bool(predicate(*static_cast<const data_type*>(nullptr)))) {
+    return find(predicate) != -1;
+  }
+
+  // Tests each value in order and returns the index of the first item that
+  // resolve the predicate or -1 if no item does.
+  template <typename predicate_type>
+  constexpr auto find(predicate_type predicate) const -> Count {
     for (Count i = 0; i < size; i++) {
       if (predicate(source_block[i])) {
-        return true;
+        return i;
       }
     }
 
-    return false;
+    return -1;
   }
 
   constexpr auto operator==(const Vector& rhs) const -> Bool {

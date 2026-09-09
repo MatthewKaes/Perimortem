@@ -70,14 +70,16 @@ class Expression : public Ttx::Concept::Abstract, public Model::Pack {
 
   TTX_CONTRACT(Expression, Ttx::Concept::Abstract);
 
-  // Authored meaning and immutable evaluation are separate concepts. Access
-  // operators still own receiver traversal and never use this as an implicit
-  // member lookup path.
+  // The folded route reports available immutable evaluation. Access operators
+  // own receiver traversal and never use this as an implicit member lookup
+  // path.
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  // Expressions advertise the cached folded answer. The expression itself is
+  // already the receiver and contributes no separate concept edge.
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   // The result is the exact semantic object produced by this node. Ordinary
   // value Expressions produce themselves. Access nodes override this only

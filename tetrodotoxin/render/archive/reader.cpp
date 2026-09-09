@@ -51,7 +51,7 @@ auto Render::Archive::Reader::restore(
     Allocator::Arena& arena,
     View::Bytes payload,
     const Abstract& language,
-    Abstract& context) -> Option<Render::Language::Monograph&> {
+    Abstract& context) -> Option<Ttx::Concept::Abstract&> {
   // The outer record bounds every declaration before any graph identity is
   // created. A malformed sibling is therefore confined to its own payload and
   // cannot consume the valid bytes that follow it.

@@ -47,13 +47,9 @@ cc_library(
 )
 
 cc_library(
-    name = "archive",
-    srcs = glob([
-        "archive/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "archive/**/*.hpp",
-    ]),
+    name = "simulacra",
+    srcs = ["simulacra.cpp"],
+    hdrs = ["simulacra.hpp"],
     deps = [
         ":language",
         "//perimortem:headless",
@@ -69,9 +65,9 @@ cc_library(
     srcs = ["dialect.cpp"],
     hdrs = ["dialect.hpp"],
     deps = [
-        ":archive",
         ":interpreter",
         ":language",
+        ":simulacra",
         "//perimortem:headless",
         "//tetrodotoxin/language",
         "//ttx:concept",

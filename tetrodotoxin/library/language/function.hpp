@@ -29,6 +29,16 @@ class Function : public Model::Callable {
  public:
   TTX_CONTRACT(Function, Model::Callable);
 
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    if (requested ==
+        Ttx::Concept::get_type_identity<Tetrodotoxin::Language::Definition>()) {
+      return Tetrodotoxin::Language::Definition::provide(*this);
+    }
+    return Model::Callable::bind_interface(requested);
+  }
+
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,

@@ -5,8 +5,6 @@
 
 #include "perimortem/core/option.hpp"
 
-#include "perimortem/memory/allocator/arena.hpp"
-
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -25,16 +23,9 @@ class Route {
     return Route(spelling, anchor);
   }
 
-  static auto create_restored(
-      Perimortem::Memory::Allocator::Arena& arena,
-      Perimortem::Core::View::Bytes spelling) -> Route;
-
   auto resolve(
       Ttx::Lexical::Cursor& cursor,
       const Ttx::Concept::Abstract& context) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
-
-  auto resolve_restored(const Ttx::Concept::Abstract& context) const
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&>;
 
   constexpr auto get_spelling() const -> Perimortem::Core::View::Bytes {

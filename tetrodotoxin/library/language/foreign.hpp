@@ -11,11 +11,11 @@
 #include "perimortem/memory/managed/vector.hpp"
 
 #include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/library/language/access/static.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/signature.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
-#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/concept/unknown.hpp"
@@ -44,6 +44,30 @@ class Foreign final : public Ttx::Concept::Abstract {
   class State final : public Model::Addressable {
    public:
     TTX_CONTRACT(State, Model::Addressable);
+
+    auto bind_interface(U64 requested) const -> Perimortem::Utility::
+        Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override {
+      if (requested == Ttx::Concept::get_type_identity<
+                           Tetrodotoxin::Language::Definition>()) {
+        return Tetrodotoxin::Language::Definition::provide(*this);
+      }
+      if (requested ==
+          Ttx::Concept::get_type_identity<Ttx::Model::Addressable>()) {
+        static const Ttx::Model::Addressable::Operations operations = {
+          [](const void* source) -> Ttx::Concept::Abstract::Handle {
+            return static_cast<const State*>(source)
+                ->type_reference.get_interface();
+          },
+        };
+        return Ttx::Concept::Binding::provide<Ttx::Model::Addressable>(
+            this, operations);
+      }
+      return Model::Addressable::bind_interface(requested);
+    }
+
+    auto get_symbol() const -> Perimortem::Core::View::Bytes {
+      return definition.get_name();
+    }
 
     static auto create_authored(
         Perimortem::Memory::Allocator::Arena& domain,
@@ -119,6 +143,15 @@ class Foreign final : public Ttx::Concept::Abstract {
   class Function final : public Model::Callable {
    public:
     TTX_CONTRACT(Function, Model::Callable);
+
+    auto bind_interface(U64 requested) const -> Perimortem::Utility::
+        Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override {
+      if (requested == Ttx::Concept::get_type_identity<
+                           Tetrodotoxin::Language::Definition>()) {
+        return Tetrodotoxin::Language::Definition::provide(*this);
+      }
+      return Model::Callable::bind_interface(requested);
+    }
 
     static auto create_authored(
         Perimortem::Memory::Allocator::Arena& domain,
@@ -257,7 +290,7 @@ class Foreign final : public Ttx::Concept::Abstract {
 
   Perimortem::Memory::Allocator::Arena& domain;
   Ttx::Concept::Abstract& parent;
-  Types::Static& static_authority;
+  Access::Static& static_authority;
   const Ttx::Concept::Documentation* documentation;
   Perimortem::Core::Option<Perimortem::Core::View::Bytes> abi;
   Perimortem::Memory::Managed::Vector<Ttx::Concept::Reference<State>> states;

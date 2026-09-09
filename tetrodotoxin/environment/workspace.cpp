@@ -13,7 +13,6 @@
 #include "tetrodotoxin/language/parser/comment.hpp"
 #include "tetrodotoxin/language/parser/dialect.hpp"
 #include "tetrodotoxin/language/parser/import.hpp"
-#include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
@@ -24,8 +23,6 @@
 #include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
 #include "ttx/lexical/tokenizer.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -756,26 +753,17 @@ auto Environment::Workspace::restore_package(
     }
 
     if (member.get_semantic_name() == "PackageSurface"_view) {
-      if (&*dialect !=
-              &static_cast<Package::Dialect&>(*package_dialect).get_library() ||
-          !Library::Archive::Reader::restore_source(
-              *root_transaction, member.get_payload(),
-              root.edit_library().get_source())) {
-        Diagnostics::Log::error(
-            "Package restoration rejected its Library export surface."_view);
-        return {};
-      }
-      continue;
+      Diagnostics::Log::error(
+          "Package Library projection decoding is not implemented."_view);
+      return {};
     }
 
     Dynamic::Record<Allocator::Arena> transaction;
-    // START AI GENERATED
     auto decoded = dialect->decode(*transaction, member.get_payload(), root);
     // This legacy completion path uses native Monograph operations. A decoder
     // may return a different simulacrum, so check that capability before use.
     auto restored = decoded ? decoded->select<Language::Monograph>()
                             : Option<Language::Monograph&>();
-    // END AI GENERATED
     View::Bytes member_name =
         root_transaction->proxy(member.get_semantic_name());
     if (!restored || restored->is<Package::Language::Monograph>()) {
@@ -1269,24 +1257,15 @@ auto Environment::Workspace::resolve_concept(View::Bytes route) const
       []() -> const Abstract& { return Unknown::get_unknown(); });
 }
 
-auto Environment::Workspace::get_concepts(Context& context) const
-    -> const Pack& {
-  Count size = retained_monographs.get_size() + package_members.get_size();
-  Dynamic::Vector<Reference<const Abstract>> monographs(size);
-  Dynamic::Vector<View::Bytes> names(size);
+auto Environment::Workspace::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
   for (Count index = 0; index < retained_monographs.get_size(); index++) {
     const auto* entry = retained_monographs.get_entry(index);
     if (entry != nullptr) {
-      names.insert(entry->key);
-      monographs.insert(entry->value.get());
+      visitor(entry->key, entry->value.get());
     }
   }
   for (const PackageMember& member : package_members.get_view()) {
-    names.insert(member.name);
-    monographs.insert(*member.monograph);
+    visitor(member.name, *member.monograph);
   }
-
-  Ttx::Model::Layouts::Fluid values(monographs.get_view());
-  Ttx::Model::Layouts::Named named(values, names.get_view());
-  return context.pack(named);
 }

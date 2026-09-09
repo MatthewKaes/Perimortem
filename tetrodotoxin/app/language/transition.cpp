@@ -27,18 +27,6 @@ auto App::Language::Transition::create_authored(
   });
 }
 
-auto App::Language::Transition::create_restored(
-    Allocator::Arena& arena,
-    const Documentation& documentation,
-    Route source,
-    View::Bytes signal_name,
-    Action action,
-    Option<Route> destination) -> Transition& {
-  return create_authored(
-      arena, documentation, source, arena.proxy(signal_name),
-      Anchor::create(Span()), action, destination, Anchor::create(Span()));
-}
-
 static auto select_scene(const Option<const Abstract&>& selected)
     -> Option<const Scene::Language::Monograph&> {
   return selected ? selected->select<Scene::Language::Monograph>()
@@ -82,28 +70,6 @@ auto App::Language::Transition::link(Cursor& cursor, const Abstract& context)
         Reference<const Scene::Language::Monograph>(*selected_destination);
   }
   cursor.get_associations().create(signal_anchor, *selected_signal);
-  return True;
-}
-
-auto App::Language::Transition::link_restored(const Abstract& context) -> Bool {
-  auto selected_source = select_scene(source.resolve_restored(context));
-  BAIL_IF(!selected_source);
-  auto selected_signal = selected_source->find_signal(signal_name);
-  BAIL_IF(!selected_signal);
-
-  Option<const Scene::Language::Monograph&> selected_destination;
-  if (destination) {
-    selected_destination = select_scene(destination->resolve_restored(context));
-  }
-  BAIL_IF(
-      (action == Action::Replace || action == Action::Push) !=
-      bool(selected_destination));
-  source_scene = Reference<const Scene::Language::Monograph>(*selected_source);
-  signal = Reference<const Scene::Language::Signal>(*selected_signal);
-  if (selected_destination) {
-    destination_scene =
-        Reference<const Scene::Language::Monograph>(*selected_destination);
-  }
   return True;
 }
 

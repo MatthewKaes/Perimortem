@@ -48,6 +48,30 @@ class Field : public Model::Addressable {
  public:
   TTX_CONTRACT(Field, Model::Addressable);
 
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    if (requested ==
+        Ttx::Concept::get_type_identity<Tetrodotoxin::Language::Definition>()) {
+      return Tetrodotoxin::Language::Definition::provide(*this);
+    }
+    if (requested ==
+        Ttx::Concept::get_type_identity<Ttx::Model::Addressable>()) {
+      static const Ttx::Model::Addressable::Operations operations = {
+        [](const void* source) -> Ttx::Concept::Abstract::Handle {
+          const auto& field = *static_cast<const Field*>(source);
+          if (field.type_reference) {
+            return field.type_reference->get_interface();
+          }
+          return field.get_type().get_interface();
+        },
+      };
+      return Ttx::Concept::Binding::provide<Ttx::Model::Addressable>(
+          this, operations);
+    }
+    return Model::Addressable::bind_interface(requested);
+  }
+
   // Source interpretation supplies the declaration facts it could establish
   // from the authored form. Keeping construction independent from Cursor lets
   // the same Field model participate in another Dialect without borrowing its

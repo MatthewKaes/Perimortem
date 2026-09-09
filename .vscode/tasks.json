@@ -7,9 +7,18 @@
       "label": "Puffer SDK Build (Linux) [Debug]",
       "type": "shell",
       "command": "${workspaceFolder}/puffer/package.sh",
-      "args": ["--debug"],
-      "problemMatcher": ["$gcc"],
-      "options": {"cwd": "${workspaceFolder}"}
+      "args": [
+        "--debug"
+      ],
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "presentation": {
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     },
     {
       "label": "Validation Unit Tests Build (Linux) [Debug]",
@@ -88,10 +97,14 @@
     },
     {
       "label": "TTX Echo Build (Linux) [Debug]",
-      "options": {"cwd": "${workspaceFolder}"},
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "type": "process",
       "command": "${workspaceFolder}/.bin/puffer-sdk/bin/puffer",
-      "dependsOn": ["Puffer SDK Build (Linux) [Debug]"],
+      "dependsOn": [
+        "Puffer SDK Build (Linux) [Debug]"
+      ],
       "problemMatcher": [
         "$gcc"
       ],
@@ -106,10 +119,14 @@
     },
     {
       "label": "TTX Scene Lifetime Build (Linux) [Debug]",
-      "options": {"cwd": "${workspaceFolder}"},
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "type": "process",
       "command": "${workspaceFolder}/.bin/puffer-sdk/bin/puffer",
-      "dependsOn": ["Puffer SDK Build (Linux) [Debug]"],
+      "dependsOn": [
+        "Puffer SDK Build (Linux) [Debug]"
+      ],
       "problemMatcher": [
         "$gcc"
       ],

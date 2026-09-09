@@ -31,6 +31,78 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin::Library;
 
+auto Language::TypeReference::get_interface() const -> Abstract::Handle {
+  static const Abstract::Operations operations = {
+    [](const void* source, U64 requested)
+        -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+      return static_cast<const TypeReference*>(source)->bind_interface(
+          requested);
+    },
+    [](const void* source) -> Core::View::Bytes {
+      return static_cast<const TypeReference*>(source)->get_route();
+    },
+    [](const void*) -> const Documentation& {
+      return Documentation::get_empty();
+    },
+    [](const void* source) -> Abstract::Handle {
+      const auto& reference = *static_cast<const TypeReference*>(source);
+      return reference.target ? reference.target->resolve().get_interface()
+                              : Unknown::get_unknown().get_interface();
+    },
+  };
+  return Abstract::Handle(this, operations);
+}
+
+auto Language::TypeReference::bind_interface(U64 requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  using Import = Tetrodotoxin::Language::Import;
+  if (requested != get_type_identity<Import>() || !dependency) {
+    if (!target) {
+      return Binding::Failure::Pending;
+    }
+    return target->bind_interface(requested);
+  }
+
+  // An imported generator needs its argument recipe as well as a name path.
+  // Until that projection is defined, declining it is the only answer that
+  // does not misidentify the generated Type as the generator itself.
+  if (arguments) {
+    return Binding::Failure::Rejected;
+  }
+
+  static const Import::Operations operations = {
+    [](const void* source) -> Import::Kind {
+      return static_cast<const TypeReference*>(source)->dependency->get_kind();
+    },
+    [](const void* source) -> Core::View::Bytes {
+      return static_cast<const TypeReference*>(source)
+          ->dependency->get_locator();
+    },
+    [](const void* source) -> System::Version {
+      return static_cast<const TypeReference*>(source)
+          ->dependency->get_version();
+    },
+    [](const void* source) -> Count {
+      const auto& reference = *static_cast<const TypeReference*>(source);
+      return reference.dependency->get_access_count() + reference.get_size() -
+             reference.dependency_suffix;
+    },
+    [](const void* source, Count index) -> Core::Option<Core::View::Bytes> {
+      const auto& reference = *static_cast<const TypeReference*>(source);
+      const Count imported = reference.dependency->get_access_count();
+      if (index < imported) {
+        return reference.dependency->get_access(index);
+      }
+      const Count suffix = index - imported;
+      if (suffix >= reference.get_size() - reference.dependency_suffix) {
+        return {};
+      }
+      return reference.get_name(reference.dependency_suffix + suffix);
+    },
+  };
+  return Binding::provide<Import>(this, operations);
+}
+
 static auto is_missing(const Abstract& abstract) -> Bool {
   return abstract.is<Unknown>() || abstract.is<None>();
 }
@@ -157,6 +229,24 @@ auto Language::TypeReference::resolve_with_root(
     const Abstract& context,
     Root root,
     Core::Option<Cursor&> cursor) const -> Resolution {
+  Core::Option<Tetrodotoxin::Language::Import::Handle> encountered;
+  Core::Option<Binding::Failure> boundary_failure;
+  Count suffix = 0;
+  auto retain_boundary = [&](const Abstract& candidate, Count next) {
+    if (encountered) {
+      return;
+    }
+    candidate.bind<Tetrodotoxin::Language::Import>().visit(
+        [&](const Tetrodotoxin::Language::Import::Handle& import) {
+          encountered = import;
+          suffix = next;
+        },
+        [&](Binding::Failure failure) {
+          if (failure != Binding::Failure::Unsupported) {
+            boundary_failure = failure;
+          }
+        });
+  };
   // The declaration context gives the root name its lexical authority. Each
   // explicit suffix then asks the identity selected by the preceding segment.
   const Abstract* selected = &context.resolve_concept(get_root());
@@ -181,6 +271,10 @@ auto Language::TypeReference::resolve_with_root(
   }
 
   for (Count i = 1; i < get_size(); i++) {
+    retain_boundary(*selected, i);
+    if (boundary_failure) {
+      return Failure(Failure::Type::Unavailable, anchor, i - 1);
+    }
     // Alias resolution reveals the identity that can answer the next ordinary
     // context query. Keeping that step visible also preserves Alias opacity for
     // every other consumer.
@@ -200,6 +294,10 @@ auto Language::TypeReference::resolve_with_root(
     }
   }
 
+  retain_boundary(*selected, get_size());
+  if (boundary_failure) {
+    return Failure(Failure::Type::Unavailable, anchor, get_size() - 1);
+  }
   if (!arguments) {
     const Abstract& direct = resolve_alias(*selected);
     const Abstract& resolved = direct;
@@ -212,6 +310,12 @@ auto Language::TypeReference::resolve_with_root(
       cursor->get_associations().create(
           Anchor::create(token, Span(token)), *selected);
     }
+    if (target && target != &resolved) {
+      return Failure(Failure::Type::Unavailable, anchor);
+    }
+    target = &resolved;
+    dependency = encountered;
+    dependency_suffix = suffix;
     return resolved;
   }
 
@@ -274,6 +378,12 @@ auto Language::TypeReference::resolve_with_root(
         if (cursor) {
           cursor->get_associations().create(anchor, type);
         }
+        if (target && target != &type) {
+          return Failure(Failure::Type::Unavailable, anchor);
+        }
+        target = &type;
+        dependency = encountered;
+        dependency_suffix = suffix;
         return type;
       },
       [&](const Generic::Failure& failure) -> Resolution {

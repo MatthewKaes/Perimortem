@@ -159,6 +159,8 @@ class Layout final : public Ttx::Concept::Layout {
 
   auto get_size() const -> Count override;
 
+  auto get_interface() const -> Ttx::Concept::Layout::Handle override;
+
   auto get_abstract(Count index) const
       -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
 

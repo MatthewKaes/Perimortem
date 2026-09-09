@@ -19,7 +19,9 @@ class Addressable : public Ttx::Model::Addressable {
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& arena,
       Perimortem::Core::View::Bytes name,
-      const Ttx::Model::Type& type) -> Perimortem::Core::Option<Addressable&>;
+      const Ttx::Model::Type& type,
+      Perimortem::Core::Option<Concept::Abstract::Handle> source = {})
+      -> Perimortem::Core::Option<Addressable&>;
 
   static auto create_synthetic(
       Perimortem::Memory::Allocator::Arena& arena,
@@ -34,6 +36,21 @@ class Addressable : public Ttx::Model::Addressable {
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Concept::Binding,
+                                     Concept::Binding::Failure> override {
+    using Contract = Ttx::Model::Addressable;
+    if (requested != Concept::get_type_identity<Contract>()) {
+      return Contract::bind_interface(requested);
+    }
+    static const Contract::Operations operations = {
+      [](const void* provider) -> Concept::Abstract::Handle {
+        return static_cast<const Addressable*>(provider)->source;
+      },
+    };
+    return Concept::Binding::provide<Contract>(this, operations);
+  }
+
   constexpr auto get_type() const -> const Ttx::Model::Type& override {
     return type;
   }
@@ -41,11 +58,15 @@ class Addressable : public Ttx::Model::Addressable {
  private:
   constexpr Addressable(
       Perimortem::Core::View::Bytes name,
-      const Ttx::Model::Type& type)
-      : name(name), type(type) {}
+                        const Ttx::Model::Type& type,
+                        Concept::Abstract::Handle source)
+      : name(name), type(type), source(source) {}
 
   Perimortem::Core::View::Bytes name;
   const Ttx::Model::Type& type;
+  // Native fitting keeps the completed Type. Boundary queries retain the
+  // source edge used to obtain it, which may carry an Import policy.
+  Concept::Abstract::Handle source;
 };
 
 }  // namespace Ttx::Model::Layouts

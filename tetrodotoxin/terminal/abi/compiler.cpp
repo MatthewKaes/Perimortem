@@ -22,7 +22,6 @@
 #include "tetrodotoxin/terminal/abi/symbol.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/context.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library::Language;
@@ -276,7 +275,6 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile_graph(
   };
 
   retain(root, {}, 0);
-  Ttx::Model::Context context(arena);
   Count next = 0;
   while (next < pending.get_size()) {
     Count index = pending.get_view().get_data()[next++];
@@ -292,24 +290,13 @@ auto Tetrodotoxin::Terminal::Abi::Compiler::compile_graph(
       retain(resolved, route, depth);
     }
 
-    const Ttx::Concept::Layout& concepts =
-        semantic.get_concepts(context).get_layout();
-    for (Count concept_index = 0; concept_index < concepts.get_size();
-         concept_index++) {
-      auto selected = concepts.get_abstract(concept_index);
-      if (!selected) {
-        continue;
-      }
-      Core::View::Bytes name =
-          concepts.get_name(concept_index)
-              .visit(
-                  [&]() { return selected->get_name(); },
-                  [](Core::View::Bytes retained) { return retained; });
+    auto receive = [&](Core::View::Bytes name,
+                       const Ttx::Concept::Abstract& selected) {
       Bool authority = name == "static"_view || name == "instance"_view;
-      retain(
-          *selected, append_route(arena, route, name),
-          depth + (authority ? 0 : 1));
-    }
+      retain(selected, append_route(arena, route, name),
+             depth + (authority ? 0 : 1));
+    };
+    semantic.visit_concepts(Ttx::Concept::Abstract::Visitor(receive));
   }
 
   Memory::Managed::Vector<

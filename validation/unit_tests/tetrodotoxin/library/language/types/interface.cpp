@@ -184,12 +184,10 @@ PERIMORTEM_UNIT_TEST(InterfaceTypes, archive_round_trip) {
   ASSERT(encoded);
 
   Allocator::Arena restored_domain;
-  // START AI GENERATED
   auto decoded = dialect.decode(restored_domain, *encoded, workspace);
   auto restored =
       decoded ? decoded->select<Tetrodotoxin::Library::Language::Monograph>()
               : Option<Tetrodotoxin::Library::Language::Monograph&>();
-  // END AI GENERATED
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());

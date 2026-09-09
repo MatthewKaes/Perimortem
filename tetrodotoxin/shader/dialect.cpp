@@ -33,13 +33,9 @@ auto Shader::Dialect::encode(const Abstract& monograph) const
   return Shader::Archive::Writer::encode(*shader);
 }
 
-auto Shader::Dialect::restore(
+auto Shader::Dialect::decode(
     Perimortem::Memory::Allocator::Arena& arena,
     View::Bytes payload,
-    const Documentation&,
-    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored =
-      Shader::Archive::Reader::restore(arena, payload, *this, library, context);
-  return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
-                  : Option<Tetrodotoxin::Language::Monograph&>();
+    Abstract& context) -> Option<Abstract&> {
+  return Shader::Archive::Reader::restore(arena, payload, *this, library, context);
 }

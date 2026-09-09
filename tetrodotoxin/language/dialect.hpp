@@ -36,9 +36,7 @@ class Dialect : public Ttx::Concept::Abstract {
  public:
   TTX_CONTRACT(Dialect, Ttx::Concept::Abstract);
 
-  // START AI GENERATED
   virtual ~Dialect() = default;
-  // END AI GENERATED
 
   // The interface for driving the actual Dialect after it's been selected. It's
   // the main hook that allows plugin's to drive side effect behavior by using a

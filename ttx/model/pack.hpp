@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ttx/concept/layout.hpp"
+#include "ttx/concept/pack.hpp"
 
 namespace Ttx::Model {
 

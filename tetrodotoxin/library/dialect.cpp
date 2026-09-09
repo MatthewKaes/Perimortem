@@ -3,16 +3,31 @@
 
 #include "tetrodotoxin/library/dialect.hpp"
 
-#include "tetrodotoxin/library/archive/reader.hpp"
-#include "tetrodotoxin/library/archive/writer.hpp"
 #include "tetrodotoxin/library/interpreter/source/library.hpp"
 #include "tetrodotoxin/library/language/monograph.hpp"
+#include "tetrodotoxin/library/simulacra.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
+
+auto Library::Dialect::bind_interface(U64 requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested != get_type_identity<Simulacra>()) {
+    return Tetrodotoxin::Language::Dialect::bind_interface(requested);
+  }
+
+  static const Simulacra::Operations operations = {
+    [](const void*, Abstract::Handle source)
+        -> Perimortem::Utility::Result<Simulacra, Simulacra::Failure> {
+      return Simulacra::project(source);
+    },
+  };
+
+  return Binding::provide<Simulacra>(this, operations);
+}
 
 auto Library::Dialect::interpret(
     Cursor& cursor,
@@ -27,18 +42,14 @@ auto Library::Dialect::interpret(
 
 auto Library::Dialect::encode(const Abstract& monograph) const
     -> Option<Dynamic::Bytes> {
-  auto library = monograph.select<Language::Monograph>();
-  BAIL_IF(!library);
-
-  return Archive::Writer::write(*library);
+  // Library projections have no byte container until Package supplies one.
+  return {};
 }
 
-auto Library::Dialect::restore(
+auto Library::Dialect::decode(
     Allocator::Arena& arena,
     View::Bytes payload,
-    const Documentation&,
-    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored = Archive::Reader::read(arena, payload, *this, context);
-  return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
-                  : Option<Tetrodotoxin::Language::Monograph&>();
+    Abstract& context) -> Option<Ttx::Concept::Abstract&> {
+  // The source reconstruction format is not the stored Library contract.
+  return {};
 }

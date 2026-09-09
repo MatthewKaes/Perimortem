@@ -12,6 +12,7 @@
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
 #include "ttx/concept/abstract.hpp"
+#include "ttx/concept/bound.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
 
@@ -24,6 +25,101 @@ namespace Tetrodotoxin::Language {
 // evidence.
 class Definition {
  public:
+  // Consumers need declaration answers without acquiring the machinery used
+  // to author a declaration. Binding can therefore attach these operations to
+  // this Definition member or to a stored representation of the same facts.
+  struct Operations {
+    auto (*get_name)(const void*) -> Perimortem::Core::View::Bytes;
+    auto (*get_documentation)(const void*)
+        -> const Ttx::Concept::Documentation&;
+    auto (*get_visibility)(const void*) -> Visibility;
+    auto (*get_attributes)(const void*)
+        -> Perimortem::Core::View::Vector<Attribute>;
+    auto (*get_symbol_name)(const void*)
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
+    auto (*get_abi)(const void*)
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes>;
+  };
+
+  class Handle : public Ttx::Concept::Bound<Operations> {
+   public:
+    using Bound::Bound;
+
+    auto get_name() const -> Perimortem::Core::View::Bytes {
+      return operations.get_name(source);
+    }
+
+    auto get_documentation() const -> const Ttx::Concept::Documentation& {
+      return operations.get_documentation(source);
+    }
+
+    auto get_visibility() const -> Visibility {
+      return operations.get_visibility(source);
+    }
+
+    auto get_attributes() const -> Perimortem::Core::View::Vector<Attribute> {
+      return operations.get_attributes(source);
+    }
+
+    // A name is available only after its owner has a linkage identity. Package
+    // supplies the namespace for generated definitions before compilation.
+    // Foreign definitions can already supply their external symbol. Neither
+    // this query nor its consumer invents a replacement from a display name.
+    auto get_symbol_name() const
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+      return operations.get_symbol_name(source);
+    }
+
+    auto get_abi() const
+        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+      return operations.get_abi(source);
+    }
+  };
+
+  // Native owners share these member access thunks. A stored provider can
+  // supply the same operation table directly without owning a Definition or
+  // implementing any of its authoring methods.
+  template <typename Provider>
+  static auto provide(const Provider& provider) -> Ttx::Concept::Binding {
+    static const Operations operations = {
+      [](const void* source) -> Perimortem::Core::View::Bytes {
+        return static_cast<const Provider*>(source)
+            ->get_definition()
+            .get_name();
+      },
+      [](const void* source) -> const Ttx::Concept::Documentation& {
+        return static_cast<const Provider*>(source)
+            ->get_definition()
+            .get_documentation();
+      },
+      [](const void* source) -> Visibility {
+        return static_cast<const Provider*>(source)
+            ->get_definition()
+            .get_visibility();
+      },
+      [](const void* source) -> Perimortem::Core::View::Vector<Attribute> {
+        return static_cast<const Provider*>(source)
+            ->get_definition()
+            .get_attributes();
+      },
+      [](const void* source)
+          -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+        if constexpr (requires(const Provider& owner) { owner.get_symbol(); }) {
+          return static_cast<const Provider*>(source)->get_symbol();
+        }
+        return {};
+      },
+      [](const void* source)
+          -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
+        if constexpr (requires(const Provider& owner) { owner.get_abi(); }) {
+          return static_cast<const Provider*>(source)->get_abi();
+        }
+        return {};
+      },
+    };
+    return Ttx::Concept::Binding::provide<Definition>(&provider, operations);
+  }
+
   // Definition ordinarily consumes its own Attributes. An embedding
   // interpreter can provide the view it already consumed, while an engaged
   // empty view records that parsing has happened without inventing a value.

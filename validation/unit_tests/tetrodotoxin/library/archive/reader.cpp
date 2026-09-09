@@ -1,7 +1,6 @@
 // # Tetrodotoxin
 // Copyright (c) 2023-present Matt Kaes and contributors
 
-// START AI GENERATED
 #include "tetrodotoxin/library/archive/reader.hpp"
 
 #include "validation/unit_test.hpp"
@@ -225,4 +224,3 @@ PERIMORTEM_UNIT_TEST(ReaderTests, framing) {
   *optional_root.get_access()[10] = 1;
   EXPECT_NOT(Archive::Reader::read(arena, optional_root, language, host));
 }
-// END AI GENERATED

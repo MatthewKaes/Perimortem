@@ -7,8 +7,6 @@
 
 #include "perimortem/serialization/stream/binary.hpp"
 
-#include "tetrodotoxin/library/archive/writer.hpp"
-
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
 using namespace Perimortem::Serialization;
@@ -158,53 +156,12 @@ auto Shader::Archive::Writer::write(
 
 auto Shader::Archive::Writer::write(const Shader::Language::Program& program)
     -> Bool {
-  // Library writes the executable declaration surface through its own schema.
-  // Shader wraps those bytes with only the relationship facts it owns.
-  auto declarations = Library::Archive::Writer::encode_declarations(program);
-  BAIL_IF(!declarations || program.get_bindings().get_size() > U32(-1));
-
-  auto record = begin(Tag::Program);
-  BAIL_IF(
-      !write(program.get_definition()) ||
-      !write(program.get_contract_reference().get_route()) ||
-      !write(declarations->get_view()));
-  BAIL_IF(program.get_bindings().get_size() > U32(-1));
-  write(U32(program.get_bindings().get_size()));
-  for (const Shader::Language::Binding& binding : program.get_bindings()) {
-    auto binding_record = begin(Tag::Binding);
-    BAIL_IF(!write(binding.get_field().get_name()));
-    write(U8(binding.get_kind()));
-    write(U8(binding.get_access()));
-    BAIL_IF(!finish(binding_record));
-  }
-
-  auto uniforms = program.get_uniforms();
-  BAIL_IF(uniforms.get_size() > U32(-1));
-  write(U32(uniforms.get_size()));
-  for (const Reference<Library::Language::Field>& uniform : uniforms) {
-    auto uniform_record = begin(Tag::Uniform);
-    BAIL_IF(!write(uniform.get().get_name()) || !finish(uniform_record));
-  }
-  return finish(record);
+  // Program declarations require the deferred Library projection serializer.
+  return False;
 }
 
 auto Shader::Archive::Writer::write(const Shader::Language::Bridge& bridge)
     -> Bool {
-  // Endpoint routes remain Library payloads because Generic arguments and
-  // literal facts belong to that Type system. Shader records only their policy.
-  auto cpu = Library::Archive::Writer::encode_type_reference(
-      bridge.get_cpu_reference());
-  auto gpu = Library::Archive::Writer::encode_type_reference(
-      bridge.get_gpu_reference());
-  BAIL_IF(!cpu || !gpu);
-
-  auto record = begin(Tag::Bridge);
-  BAIL_IF(
-      !write(bridge.get_definition().get_host().get_name()) ||
-      !write(bridge.get_definition()) || !write(cpu->get_view()) ||
-      !write(gpu->get_view()));
-  write(U8(bridge.get_direction()));
-  write(U8(bridge.get_marshaling()));
-  write(U8(bridge.get_synchronization()));
-  return finish(record);
+  // Bridge references require the deferred Package dependency serializer.
+  return False;
 }

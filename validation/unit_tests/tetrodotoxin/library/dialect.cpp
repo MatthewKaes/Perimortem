@@ -1133,11 +1133,9 @@ PERIMORTEM_UNIT_TEST(DialectTests, executable_source) {
   EXPECT_EQ((*complete)[4], U8(2));
   EXPECT_EQ((*complete)[6], U8(0));
   Allocator::Arena restored_arena;
-  // START AI GENERATED
   auto decoded = archive_dialect.decode(restored_arena, *complete, workspace);
   auto restored = decoded ? decoded->select<Language::Monograph>()
                           : Option<Language::Monograph&>();
-  // END AI GENERATED
   ASSERT(restored);
   ASSERT(restored->link_restored());
   ASSERT(restored->finalize_restored());

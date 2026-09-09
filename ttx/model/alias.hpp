@@ -45,6 +45,19 @@ class Alias : public Concept::Abstract {
   // chain without changing identity resolution.
   TTX_DOCUMENTATION(documentation);
 
+  // Preserve every Alias on the way to the implementation. In particular an
+  // Import can answer a boundary question even when ordinary resolution would
+  // lead through it to the acquired Library.
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Concept::Binding,
+                                     Concept::Binding::Failure> override {
+    if (!target) {
+      return Concept::Binding::Failure::Pending;
+    }
+
+    return target->get().bind_interface(requested);
+  }
+
   constexpr auto resolve() const -> const Abstract& override {
     if (!target) {
       return Concept::Unknown::get_unknown();

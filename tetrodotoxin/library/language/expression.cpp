@@ -3,8 +3,6 @@
 
 #include "tetrodotoxin/library/language/expression.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/language/constant.hpp"
 #include "tetrodotoxin/library/language/diagnostics.hpp"
 #include "tetrodotoxin/library/language/model/addressable.hpp"
@@ -12,7 +10,6 @@
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -94,9 +91,6 @@ auto Language::Expression::resolve() const -> const Abstract& {
 
 auto Language::Expression::resolve_concept(View::Bytes name) const
     -> const Abstract& {
-  if (name == "expression"_view) {
-    return *this;
-  }
   if (name != "folded"_view) {
     return Abstract::resolve_concept(name);
   }
@@ -112,20 +106,10 @@ auto Language::Expression::resolve_concept(View::Bytes name) const
       [](const Error&) -> const Abstract& { return None::get_none(); });
 }
 
-auto Language::Expression::get_concepts(Context& context) const
-    -> const Ttx::Concept::Pack& {
-  const Perimortem::Core::Static::Vector<Reference<const Abstract>, 2>
-      concepts = {{
-        *this,
-        resolve_concept("folded"_view),
-      }};
-  const Perimortem::Core::Static::Vector<View::Bytes, 2> names = {{
-    "expression"_view,
-    "folded"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Language::Expression::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  const Abstract& folded = resolve_concept("folded"_view);
+  visitor("folded"_view, folded);
 }
 
 auto Language::Expression::get_value_type(Count index) const

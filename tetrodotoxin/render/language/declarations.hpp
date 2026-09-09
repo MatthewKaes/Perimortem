@@ -45,8 +45,7 @@ class Declarations {
     return authority;
   }
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack&;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const -> void;
 
   static auto resolve_lexical_context(
       const Ttx::Concept::Abstract& context,
@@ -81,8 +80,8 @@ class Declarations {
 
     auto resolve_concept(Perimortem::Core::View::Bytes name) const
         -> const Ttx::Concept::Abstract& override;
-    auto get_concepts(Ttx::Concept::Context& context) const
-        -> const Ttx::Concept::Pack& override;
+    auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+        -> void override;
 
    private:
     const Declarations& owner;

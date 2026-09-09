@@ -129,42 +129,82 @@ auto Shader::Language::Monograph::get_layer(const Abstract& requested) const
              : Option<const Tetrodotoxin::Language::Monograph&>();
 }
 
-auto Shader::Language::Monograph::resolve_concept(View::Bytes route) const
-    -> const Abstract& {
-  if (route == "static"_view) {
-    return *this;
-  }
-  if (route == "instance"_view) {
-    return None::get_none();
-  }
-  for (const Reference<Program>& program : programs.get_view()) {
+static auto find_shader_member(const Shader::Language::Monograph& owner,
+                               View::Bytes route) -> Option<const Abstract&> {
+  for (const Reference<Shader::Language::Program>& program :
+       owner.get_programs()) {
     if (route == "Material"_view) {
       return program.get().get_instance();
     }
   }
-  for (const Reference<Bridge>& bridge : bridges.get_view()) {
+  for (const Reference<Shader::Language::Bridge>& bridge :
+       owner.get_bridges()) {
     if (bridge.get().get_name() == route) {
       return bridge.get();
     }
   }
+  return {};
+}
 
-  const Abstract& child = library.resolve_concept(route);
+auto Shader::Language::Monograph::resolve_concept(View::Bytes route) const
+    -> const Abstract& {
+  if (route == "static"_view) {
+    return static_scope;
+  }
+  return static_scope.resolve_concept(route);
+}
+
+auto Shader::Language::Monograph::Authority::resolve_concept(
+    View::Bytes route) const -> const Abstract& {
+  if (route == "static"_view || route == "instance"_view) {
+    return None::get_none();
+  }
+  auto local = find_shader_member(owner, route);
+  if (local) {
+    return *local;
+  }
+  const Abstract& child = owner.library.resolve_concept(route);
   return child.is<Unknown>() || child.is<None>()
-             ? Tetrodotoxin::Language::Monograph::resolve_concept(route)
+             ? owner.Tetrodotoxin::Language::Monograph::resolve_concept(route)
              : child;
+}
+
+auto Shader::Language::Monograph::visit_concepts(
+    Abstract::Visitor visitor) const -> void {
+  visitor("static"_view, static_scope);
+}
+
+auto Shader::Language::Monograph::Authority::visit_concepts(
+    Abstract::Visitor visitor) const -> void {
+  if (!owner.programs.is_empty()) {
+    visitor("Material"_view, owner.programs.at(0).get().get_instance());
+  }
+  for (const Reference<Bridge>& retained : owner.bridges.get_view()) {
+    const Bridge& bridge = retained.get();
+    const auto name = bridge.get_name();
+    if (&resolve_concept(name) == &bridge) {
+      visitor(name, bridge);
+    }
+  }
+
+  // Resolve the child's advertised names through Shader's overlay. Local
+  // members were already offered above, and only unshadowed Library answers
+  // belong to the remaining public surface.
+  auto receive = [&](View::Bytes name, const Abstract& candidate) {
+    if (!find_shader_member(owner, name) &&
+        &resolve_concept(name) == &candidate) {
+      visitor(name, candidate);
+    }
+  };
+  owner.library.resolve_concept("static"_view)
+      .visit_concepts(Abstract::Visitor(receive));
 }
 
 auto Shader::Language::Monograph::resolve_lexical_context(
     View::Bytes route) const -> const Abstract& {
-  for (const Reference<Program>& program : programs.get_view()) {
-    if (route == "Material"_view) {
-      return program.get().get_instance();
-    }
-  }
-  for (const Reference<Bridge>& bridge : bridges.get_view()) {
-    if (bridge.get().get_name() == route) {
-      return bridge.get();
-    }
+  auto local = find_shader_member(*this, route);
+  if (local) {
+    return *local;
   }
 
   const Abstract& child = library.resolve_lexical_context(route);

@@ -3,10 +3,6 @@
 
 #include "tetrodotoxin/render/language/declarations.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
-#include "perimortem/memory/dynamic/vector.hpp"
-
 #include "tetrodotoxin/render/language/alias.hpp"
 #include "tetrodotoxin/render/language/binding.hpp"
 #include "tetrodotoxin/render/language/monograph.hpp"
@@ -14,8 +10,6 @@
 #include "tetrodotoxin/render/language/structure.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem::Core;
 using namespace Perimortem::Memory;
@@ -62,38 +56,24 @@ auto Language::Declarations::Authority::resolve_concept(View::Bytes name) const
       name, Tetrodotoxin::Language::Visibility::Public);
 }
 
-auto Language::Declarations::Authority::get_concepts(Context& context) const
-    -> const Pack& {
-  Dynamic::Vector<Reference<const Abstract>> values;
-  Dynamic::Vector<View::Bytes> names;
-  auto retain = [&](View::Vector<Reference<Abstract>> declarations) {
+auto Language::Declarations::Authority::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  auto visit = [&](View::Vector<Reference<Abstract>> declarations) {
     for (const Reference<Abstract>& declaration : declarations) {
       auto publication = owner.published.find(&declaration.get());
       if (publication && publication->value) {
-        values.insert(declaration.get());
-        names.insert(declaration.get().get_name());
+        visitor(declaration.get().get_name(), declaration.get());
       }
     }
   };
-  retain(owner.types.get_view());
-  retain(owner.addressables.get_view());
-  retain(owner.callables.get_view());
-  Ttx::Model::Layouts::Fluid layout(values.get_view());
-  Ttx::Model::Layouts::Named named(layout, names.get_view());
-  return context.pack(named);
+  visit(owner.types.get_view());
+  visit(owner.addressables.get_view());
+  visit(owner.callables.get_view());
 }
 
-auto Language::Declarations::get_concepts(Context& context) const
-    -> const Pack& {
-  const Static::Vector<Reference<const Abstract>, 1> values = {{
-    authority,
-  }};
-  const Static::Vector<View::Bytes, 1> names = {{
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid layout(values);
-  Ttx::Model::Layouts::Named named(layout, names);
-  return context.pack(named);
+auto Language::Declarations::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  visitor("static"_view, authority);
 }
 
 auto Language::Declarations::retain_addressable(

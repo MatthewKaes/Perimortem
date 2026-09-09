@@ -13,7 +13,6 @@ cc_library(
     hdrs = ["dialect.hpp"],
     deps = [
         "//perimortem:headless",
-        "//tetrodotoxin/app/archive",
         "//tetrodotoxin/app/interpreter",
         "//tetrodotoxin/app/language",
         "//tetrodotoxin/language",

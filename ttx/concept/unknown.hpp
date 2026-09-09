@@ -24,6 +24,11 @@ class Unknown : public Abstract {
   TTX_NAME("Unknown"_view);
   TTX_EMPTY_DOCUMENTATION();
 
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Binding, Binding::Failure> override {
+    return Binding::Failure::Pending;
+  }
+
   constexpr auto resolve() const -> const Abstract& override { return *this; }
   constexpr auto get_type() const -> const Abstract& override { return *this; }
   constexpr auto resolve_concept(Perimortem::Core::View::Bytes) const

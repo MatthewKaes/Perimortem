@@ -11,9 +11,9 @@
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/monograph.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
+#include "tetrodotoxin/library/language/access/instance.hpp"
+#include "tetrodotoxin/library/language/access/static.hpp"
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "tetrodotoxin/library/language/types/instance.hpp"
-#include "tetrodotoxin/library/language/types/static.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
@@ -80,6 +80,16 @@ class Composite : public Model::Type {
 
  public:
   TTX_CONTRACT(Composite, Model::Type);
+
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    if (requested ==
+        Ttx::Concept::get_type_identity<Tetrodotoxin::Language::Definition>()) {
+      return Tetrodotoxin::Language::Definition::provide(*this);
+    }
+    return Model::Type::bind_interface(requested);
+  }
 
   Composite(const Composite&) = delete;
   Composite(Composite&&) = delete;
@@ -166,8 +176,8 @@ class Composite : public Model::Type {
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   virtual auto resolve_public_context(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract&;
@@ -204,11 +214,13 @@ class Composite : public Model::Type {
 
   auto is_published(const Ttx::Concept::Abstract& declaration) const -> Bool;
 
-  constexpr auto get_static_authority() const -> const Static& {
+  constexpr auto get_static_authority() const
+      -> const Tetrodotoxin::Library::Language::Access::Static& {
     return static_authority;
   }
 
-  constexpr auto get_instance_authority() const -> const Instance& {
+  constexpr auto get_instance_authority() const
+      -> const Tetrodotoxin::Library::Language::Access::Instance& {
     return instance_authority;
   }
 
@@ -233,8 +245,8 @@ class Composite : public Model::Type {
 
   Tetrodotoxin::Language::Definition& definition;
   Perimortem::Memory::Allocator::Arena& domain;
-  Static& static_authority;
-  Instance& instance_authority;
+  Tetrodotoxin::Library::Language::Access::Static& static_authority;
+  Tetrodotoxin::Library::Language::Access::Instance& instance_authority;
   Perimortem::Memory::Managed::Vector<
       Ttx::Concept::Reference<Ttx::Concept::Abstract>>
       addressables;

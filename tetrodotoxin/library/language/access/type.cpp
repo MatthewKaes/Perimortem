@@ -3,14 +3,9 @@
 
 #include "tetrodotoxin/library/language/access/type.hpp"
 
-#include "perimortem/core/static/vector.hpp"
-
 #include "tetrodotoxin/library/language/expressions/identifier.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/context.hpp"
-#include "ttx/model/layouts/fluid.hpp"
-#include "ttx/model/layouts/named.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
@@ -121,23 +116,16 @@ auto Language::Access::Type::resolve_concept(Core::View::Bytes route) const
              : selected.resolve_concept(route);
 }
 
-auto Language::Access::Type::get_concepts(Ttx::Concept::Context& context) const
-    -> const Ttx::Concept::Pack& {
-  const Core::Static::Vector<Reference<const Abstract>, 4> concepts = {{
-    *this,
-    Expression::resolve_concept("folded"_view),
-    resolve_concept("instance"_view),
-    resolve_concept("static"_view),
-  }};
-  const Core::Static::Vector<Core::View::Bytes, 4> names = {{
-    "expression"_view,
-    "folded"_view,
-    "instance"_view,
-    "static"_view,
-  }};
-  Ttx::Model::Layouts::Fluid values(concepts);
-  Ttx::Model::Layouts::Named named(values, names);
-  return context.pack(named);
+auto Language::Access::Type::visit_concepts(
+    Ttx::Concept::Abstract::Visitor visitor) const -> void {
+  // These queries can complete the expression. Capture the advertised answers
+  // together before entering receiver code, without copying their storage.
+  const Abstract& folded = Expression::resolve_concept("folded"_view);
+  const Abstract& instance = resolve_concept("instance"_view);
+  const Abstract& static_scope = resolve_concept("static"_view);
+  visitor("folded"_view, folded);
+  visitor("instance"_view, instance);
+  visitor("static"_view, static_scope);
 }
 
 auto Language::Access::Type::resolve_authored() const -> const Abstract& {

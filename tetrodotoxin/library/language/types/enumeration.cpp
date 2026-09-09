@@ -118,7 +118,8 @@ Tetrodotoxin::Library::Language::Types::Enumeration::Enumeration(
     Allocator::Arena& domain,
     Tetrodotoxin::Language::Definition& definition,
     TypeReference storage_reference)
-    : definition(definition),
+    : static_scope(*this),
+      definition(definition),
       domain(domain),
       storage_reference(storage_reference),
       source_cases(domain),
@@ -381,29 +382,58 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve() const
 auto Tetrodotoxin::Library::Language::Types::Enumeration::resolve_concept(
     Core::View::Bytes route) const -> const Abstract& {
   if (route == "static"_view) {
-    return *this;
+    return static_scope;
   }
   if (route == "instance"_view) {
     return Model::Type::resolve_concept("instance"_view);
   }
 
-  if (stage != Stage::Finalized) {
+  return static_scope.resolve_concept(route);
+}
+
+auto Types::Enumeration::Authority::resolve_concept(
+    Core::View::Bytes route) const -> const Abstract& {
+  if (owner.stage != Stage::Finalized) {
     return Unknown::get_unknown();
   }
 
-  auto case_view = cases.get_view();
-  for (Count i = 0; i < cases.get_size(); i++) {
+  auto case_view = owner.cases.get_view();
+  for (Count i = 0; i < case_view.get_size(); i++) {
     const Ttx::Model::Alias& alias = case_view.get_data()[i].get();
     if (alias.get_name() == route) {
       return alias;
     }
   }
 
-  if (generated_size && generated_size->get().get_name() == route) {
-    return generated_size->get();
+  if (owner.generated_size && owner.generated_size->get().get_name() == route) {
+    return owner.generated_size->get();
   }
 
   return None::get_none();
+}
+
+auto Types::Enumeration::visit_concepts(Abstract::Visitor visitor) const
+    -> void {
+  visitor("static"_view, static_scope);
+  const Abstract& instance = Model::Type::resolve_concept("instance"_view);
+  if (!instance.is<None>()) {
+    visitor("instance"_view, instance);
+  }
+}
+
+auto Types::Enumeration::Authority::visit_concepts(
+    Abstract::Visitor visitor) const -> void {
+  if (owner.stage != Stage::Finalized) {
+    return;
+  }
+  for (const auto& retained : owner.cases.get_view()) {
+    const auto& alias = retained.get();
+    visitor(alias.get_name(), alias);
+  }
+  if (owner.generated_size) {
+    const auto& size = owner.generated_size->get();
+    visitor(size.get_name(), size);
+  }
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::create_default(

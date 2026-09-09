@@ -53,8 +53,8 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
 
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   auto resolve_lexical_context(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;

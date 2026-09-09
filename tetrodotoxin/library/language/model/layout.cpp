@@ -183,8 +183,10 @@ auto Language::Model::Layout::link_restored(
 
     BAIL_IF(type->get_layout().is_empty());
     if (parameters) {
+      auto source = slot.type_reference ? slot.type_reference->get_interface()
+                                        : type->get_interface();
       auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
-          domain, slot.name, *type);
+          domain, slot.name, *type, source);
       BAIL_IF(!parameter);
       slot.edge = Reference<const Abstract>(*parameter);
     } else {
@@ -335,8 +337,10 @@ auto Language::Model::Layout::link(
       continue;
     }
 
+    auto source = slot.type_reference ? slot.type_reference->get_interface()
+                                      : type->get_interface();
     auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
-        domain, slot.name, *type);
+        domain, slot.name, *type, source);
     if (!parameter) {
       cursor.create_expression_error(
           slot.anchor,
@@ -374,8 +378,10 @@ auto Language::Model::Layout::resolve_named(
     if (!type || type->get_layout().is_empty()) {
       return Unknown::get_unknown();
     }
+    auto source = slot.type_reference ? slot.type_reference->get_interface()
+                                      : type->get_interface();
     auto parameter = Ttx::Model::Layouts::Addressable::create_authored(
-        domain, slot.name, *type);
+        domain, slot.name, *type, source);
     if (!parameter) {
       return Unknown::get_unknown();
     }
@@ -486,6 +492,30 @@ auto Language::Model::Layout::get_slot(Count index) const
 
 auto Language::Model::Layout::get_size() const -> Count {
   return slots.get_size();
+}
+
+auto Language::Model::Layout::get_interface() const
+    -> Ttx::Concept::Layout::Handle {
+  static const Ttx::Concept::Layout::Operations operations = {
+    [](const void* source) -> Count {
+      return static_cast<const Layout*>(source)->get_size();
+    },
+    [](const void* source, Count index) -> Option<Abstract::Handle> {
+      const auto& layout = *static_cast<const Layout*>(source);
+      auto slot = layout.get_slot(index);
+      if (!slot || !slot->edge) {
+        return {};
+      }
+      if (!layout.parameters && slot->type_reference) {
+        return slot->type_reference->get_interface();
+      }
+      return slot->edge->get().get_interface();
+    },
+    [](const void* source, Count index) -> Option<View::Bytes> {
+      return static_cast<const Layout*>(source)->get_name(index);
+    },
+  };
+  return Ttx::Concept::Layout::Handle(this, operations);
 }
 
 auto Language::Model::Layout::get_abstract(Count index) const

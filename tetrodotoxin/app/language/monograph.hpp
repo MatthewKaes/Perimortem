@@ -34,8 +34,6 @@ class Monograph : public Tetrodotoxin::Language::Monograph {
 
   auto link(Ttx::Lexical::Cursor& cursor) -> Bool override;
   auto finalize(Ttx::Lexical::Cursor& cursor) -> Bool override;
-  auto link_restored() -> Bool override;
-  auto finalize_restored() -> Bool override;
 
   TTX_NAME("App"_view);
 

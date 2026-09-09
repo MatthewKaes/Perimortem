@@ -27,7 +27,7 @@ class Reader {
       Perimortem::Core::View::Bytes payload,
       const Ttx::Concept::Abstract& language,
       Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Tetrodotoxin::Render::Language::Monograph&>;
+      -> Perimortem::Core::Option<Ttx::Concept::Abstract&>;
 
  private:
   class Record {

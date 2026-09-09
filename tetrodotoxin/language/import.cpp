@@ -11,7 +11,71 @@
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
-using namespace Tetrodotoxin;
+using namespace Tetrodotoxin::Language;
+
+static auto get_import_access(View::Bytes route, Count index)
+    -> Option<View::Bytes> {
+  if (route.is_empty()) {
+    return {};
+  }
+
+  Count first = 0;
+  Count selected = 0;
+  for (Count offset = 0; offset <= route.get_size(); offset++) {
+    const Bool terminal = offset == route.get_size();
+    const Bool separator = !terminal && offset + 1 < route.get_size() &&
+                           route[offset] == ':' && route[offset + 1] == ':';
+    if (!terminal && !separator) {
+      continue;
+    }
+
+    if (selected == index) {
+      return route.slice(first, offset - first);
+    }
+    selected++;
+    offset++;
+    first = offset + 1;
+  }
+  return {};
+}
+
+auto Import::bind_interface(U64 requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested != get_type_identity<Import>()) {
+    return Ttx::Model::Alias::bind_interface(requested);
+  }
+
+  static const Operations operations = {
+    [](const void* source) -> Kind {
+      return static_cast<const Import*>(source)->get_kind();
+    },
+    [](const void* source) -> View::Bytes {
+      return static_cast<const Import*>(source)->get_locator();
+    },
+    [](const void* source) -> Perimortem::System::Version {
+      return static_cast<const Import*>(source)->get_version();
+    },
+    [](const void* source) -> Count {
+      const auto route = static_cast<const Import*>(source)->get_route();
+      if (route.is_empty()) {
+        return 0;
+      }
+      Count count = 1;
+      for (Count index = 0; index + 1 < route.get_size(); index++) {
+        if (route[index] == ':' && route[index + 1] == ':') {
+          count++;
+          index++;
+        }
+      }
+      return count;
+    },
+    [](const void* source, Count index) -> Option<View::Bytes> {
+      return get_import_access(
+          static_cast<const Import*>(source)->get_route(), index);
+    },
+  };
+  return Binding::provide<Import>(this, operations);
+}
 
 static auto segment_anchor(
     Anchor route_anchor,
@@ -30,7 +94,7 @@ static auto segment_anchor(
   return Anchor::create(token, Span(token));
 }
 
-auto Language::Import::acquire(const Ttx::Model::Type& root) -> Bool {
+auto Import::acquire(const Ttx::Model::Type& root) -> Bool {
   if (acquired) {
     return &acquired->get() == &root;
   }
@@ -39,15 +103,14 @@ auto Language::Import::acquire(const Ttx::Model::Type& root) -> Bool {
   return True;
 }
 
-auto Language::Import::get_acquired() const -> Option<const Ttx::Model::Type&> {
+auto Import::get_acquired() const -> Option<const Ttx::Model::Type&> {
   return acquired.visit(
       []() -> Option<const Ttx::Model::Type&> { return {}; },
       [](const Reference<const Ttx::Model::Type>& selected)
           -> Option<const Ttx::Model::Type&> { return selected.get(); });
 }
 
-auto Language::Import::select_target(Option<Cursor&> cursor) const
-    -> const Abstract& {
+auto Import::select_target(Option<Cursor&> cursor) const -> const Abstract& {
   if (!acquired) {
     return Unknown::get_unknown();
   }
@@ -103,7 +166,7 @@ auto Language::Import::select_target(Option<Cursor&> cursor) const
   return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
 }
 
-auto Language::Import::validate(Cursor& cursor) -> Bool {
+auto Import::validate(Cursor& cursor) -> Bool {
   const Abstract& selected = select_target(cursor);
   if (selected.is<Unknown>() || selected.is<None>()) {
     auto report = cursor.create_report(expression_anchor);
@@ -134,7 +197,7 @@ auto Language::Import::validate(Cursor& cursor) -> Bool {
   return True;
 }
 
-auto Language::Import::validate_restored() -> Bool {
+auto Import::validate_restored() -> Bool {
   const Abstract& selected = select_target({});
   if (selected.is<Unknown>() || selected.is<None>()) {
     return False;
@@ -148,11 +211,11 @@ auto Language::Import::validate_restored() -> Bool {
   return True;
 }
 
-auto Language::Import::resolve() const -> const Abstract& {
+auto Import::resolve() const -> const Abstract& {
   return select_target({});
 }
 
-auto Language::Import::get_documentation() const -> const Documentation& {
+auto Import::get_documentation() const -> const Documentation& {
   return visible_documentation.visit(
       [&]() -> const Documentation& { return local_documentation; },
       [](const Documentation& selected) -> const Documentation& {

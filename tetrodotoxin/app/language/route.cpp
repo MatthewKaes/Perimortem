@@ -47,12 +47,6 @@ static auto resolve_route(View::Bytes spelling, const Abstract& context)
   return selected.get();
 }
 
-auto App::Language::Route::create_restored(
-    Perimortem::Memory::Allocator::Arena& arena,
-    View::Bytes spelling) -> Route {
-  return Route(arena.proxy(spelling), Anchor::create(Span()));
-}
-
 auto App::Language::Route::resolve(Cursor& cursor, const Abstract& context)
     const -> Option<const Abstract&> {
   auto selected = resolve_route(spelling, context);
@@ -66,9 +60,4 @@ auto App::Language::Route::resolve(Cursor& cursor, const Abstract& context)
   }
   cursor.get_associations().create(anchor, *selected);
   return *selected;
-}
-
-auto App::Language::Route::resolve_restored(const Abstract& context) const
-    -> Option<const Abstract&> {
-  return resolve_route(spelling, context);
 }

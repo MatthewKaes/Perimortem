@@ -10,11 +10,16 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/concept/unknown.hpp"
 
-namespace Tetrodotoxin::Library::Language::Types {
+namespace Tetrodotoxin::Library::Language::Access {
 
-// Static is one Composite's Type-level authority. Nested Types, static Fields,
-// immutable declarations, and Static Callables share one spelling space, so a
-// name always selects one exact semantic identity.
+// Access indexing is split for composite structures depending on the reciever.
+// Instance provides access to any abstracts associated with Type metadata:
+//
+// * Any Fields that has global static addressing.
+// * Any Callables that _doesn't_ take [self] as a parameter.
+// * Any Subtypes that are accessed with `::` addressing.
+//
+// Instance access then follow whenever you have `Type (access op) X`.
 class Static : public Ttx::Concept::Abstract {
  public:
   constexpr explicit Static(Perimortem::Memory::Allocator::Arena& arena)
@@ -31,8 +36,8 @@ class Static : public Ttx::Concept::Abstract {
       -> const Ttx::Concept::Abstract&;
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   constexpr auto complete() -> void { completed = True; }
 
@@ -46,36 +51,9 @@ class Static : public Ttx::Concept::Abstract {
     Bool published;
   };
 
-  class Surface : public Ttx::Concept::Layout {
-   public:
-    constexpr explicit Surface(const Static& owner) : owner(owner) {}
-
-    auto get_size() const -> Count override;
-    auto get_abstract(Count index) const
-        -> Perimortem::Core::Option<const Ttx::Concept::Abstract&> override;
-    auto get_name(Count index) const
-        -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> override;
-    auto fits_entry(
-        const Ttx::Concept::Layout& target,
-        Count source_index,
-        Count target_index) const -> Bool override;
-    auto fits_at(const Ttx::Concept::Layout& target, Count target_offset) const
-        -> Bool override;
-    auto get_fitted_at(
-        const Ttx::Concept::Layout& target,
-        Count target_offset,
-        Count target_index) const -> Perimortem::Utility::
-        Result<const Ttx::Concept::Abstract&, Errors> override;
-
-   private:
-    auto select(Count index) const -> const Binding*;
-
-    const Static& owner;
-  };
-
   Perimortem::Memory::Managed::Map<Perimortem::Core::View::Bytes, Binding>
       bindings;
   Bool completed = False;
 };
 
-}  // namespace Tetrodotoxin::Library::Language::Types
+}  // namespace Tetrodotoxin::Library::Language::Access

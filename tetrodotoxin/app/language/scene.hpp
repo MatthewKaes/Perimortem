@@ -31,16 +31,8 @@ class Scene : public Ttx::Concept::Abstract {
           transitions,
       Ttx::Lexical::Anchor anchor) -> Scene&;
 
-  static auto create_restored(
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Documentation& documentation,
-      Route initial,
-      Perimortem::Core::View::Vector<Ttx::Concept::Reference<Transition>>
-          transitions) -> Scene&;
-
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
-  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
 
   constexpr auto get_initial_route() const -> const Route& { return initial; }
   constexpr auto get_initial_scene() const -> Perimortem::Core::Option<

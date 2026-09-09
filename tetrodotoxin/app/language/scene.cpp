@@ -22,15 +22,6 @@ auto App::Language::Scene::create_authored(
   });
 }
 
-auto App::Language::Scene::create_restored(
-    Allocator::Arena& arena,
-    const Documentation& documentation,
-    Route initial,
-    View::Vector<Reference<Transition>> transitions) -> Scene& {
-  return create_authored(
-      arena, documentation, initial, transitions, Anchor::create(Span()));
-}
-
 auto App::Language::Scene::link(Cursor& cursor, const Abstract& context)
     -> Bool {
   auto selected = initial.resolve(cursor, context);
@@ -50,20 +41,6 @@ auto App::Language::Scene::link(Cursor& cursor, const Abstract& context)
     valid &= transition.get().link(cursor, context);
   }
   return valid;
-}
-
-auto App::Language::Scene::link_restored(const Abstract& context) -> Bool {
-  auto selected = initial.resolve_restored(context);
-  auto scene =
-      selected ? selected->select<Tetrodotoxin::Scene::Language::Monograph>()
-               : Option<const Tetrodotoxin::Scene::Language::Monograph&>();
-  BAIL_IF(!scene);
-  initial_scene =
-      Reference<const Tetrodotoxin::Scene::Language::Monograph>(*scene);
-  for (const Reference<Transition>& transition : transitions) {
-    BAIL_IF(!transition.get().link_restored(context));
-  }
-  return True;
 }
 
 auto App::Language::Scene::resolve_concept(View::Bytes route) const

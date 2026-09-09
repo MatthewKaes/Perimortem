@@ -23,7 +23,7 @@ class Reader {
       const Ttx::Concept::Abstract& language,
       const Tetrodotoxin::Library::Dialect& library,
       Ttx::Concept::Abstract& context)
-      -> Perimortem::Core::Option<Tetrodotoxin::Scene::Language::Monograph&>;
+      -> Perimortem::Core::Option<Ttx::Concept::Abstract&>;
 
  private:
   constexpr Reader(Perimortem::Core::View::Bytes payload) : payload(payload) {}

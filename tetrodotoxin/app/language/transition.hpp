@@ -43,17 +43,8 @@ class Transition : public Ttx::Concept::Abstract {
       Perimortem::Core::Option<Route> destination,
       Ttx::Lexical::Anchor anchor) -> Transition&;
 
-  static auto create_restored(
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Documentation& documentation,
-      Route source,
-      Perimortem::Core::View::Bytes signal_name,
-      Action action,
-      Perimortem::Core::Option<Route> destination) -> Transition&;
-
   auto link(Ttx::Lexical::Cursor& cursor, const Ttx::Concept::Abstract& context)
       -> Bool;
-  auto link_restored(const Ttx::Concept::Abstract& context) -> Bool;
 
   constexpr auto get_source_route() const -> const Route& { return source; }
   constexpr auto get_signal_name() const -> Perimortem::Core::View::Bytes {

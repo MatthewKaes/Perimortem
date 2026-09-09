@@ -32,13 +32,9 @@ auto Render::Dialect::encode(const Abstract& monograph) const
   return Render::Archive::Writer::encode(*render);
 }
 
-auto Render::Dialect::restore(
+auto Render::Dialect::decode(
     Allocator::Arena& arena,
     View::Bytes payload,
-    const Documentation&,
-    Abstract& context) -> Option<Tetrodotoxin::Language::Monograph&> {
-  auto restored =
-      Render::Archive::Reader::restore(arena, payload, *this, context);
-  return restored ? Option<Tetrodotoxin::Language::Monograph&>(*restored)
-                  : Option<Tetrodotoxin::Language::Monograph&>();
+    Abstract& context) -> Option<Abstract&> {
+  return Render::Archive::Reader::restore(arena, payload, *this, context);
 }

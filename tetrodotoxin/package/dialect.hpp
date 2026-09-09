@@ -14,13 +14,10 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
  public:
   TTX_CONTRACT(Dialect, Tetrodotoxin::Language::Dialect);
 
-  Dialect(
-      Perimortem::Core::View::Bytes name,
-      Tetrodotoxin::Library::Dialect& library)
-      : Tetrodotoxin::Language::Dialect(name), library(library) {}
+  explicit Dialect(Tetrodotoxin::Library::Dialect& library)
+      : library(library) {}
 
-  Dialect(Tetrodotoxin::Library::Dialect& library)
-      : Dialect("Package"_view, library) {}
+  TTX_NAME("Package"_view);
 
   auto interpret(
       Ttx::Lexical::Cursor& cursor,
@@ -29,11 +26,8 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
       Ttx::Concept::Abstract& context)
       -> Perimortem::Core::Option<Tetrodotoxin::Language::Monograph&> override;
 
-  auto produce(
-      Perimortem::Memory::Allocator::Arena& arena,
-      const Ttx::Concept::Abstract& graph,
-      const Tetrodotoxin::Language::Monograph& monograph) const
-      -> Perimortem::Core::Option<const Ttx::Concept::Pack&> override;
+  // Package encoding needs ownership of its source closure. It remains
+  // unsupported here until that responsibility moves out of Workspace.
 
   constexpr auto get_library() const -> Tetrodotoxin::Library::Dialect& {
     return library;

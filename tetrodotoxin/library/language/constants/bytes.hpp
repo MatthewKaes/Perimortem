@@ -10,6 +10,7 @@
 
 #include "tetrodotoxin/language/resource.hpp"
 #include "tetrodotoxin/library/language/constant.hpp"
+#include "tetrodotoxin/library/language/value.hpp"
 #include "ttx/concept/reference.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
@@ -24,6 +25,27 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
  public:
   TTX_CONTRACT(Bytes, Tetrodotoxin::Library::Language::Constant);
   using Value = Perimortem::Core::View::Bytes;
+
+  auto bind_interface(U64 requested) const
+      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
+                                     Ttx::Concept::Binding::Failure> override {
+    using Contract = Tetrodotoxin::Library::Language::Value;
+    if (requested != Ttx::Concept::get_type_identity<Contract>()) {
+      return Constant::bind_interface(requested);
+    }
+
+    static const Contract::Operations operations = {
+      [](const void* source) -> Ttx::Concept::Abstract::Handle {
+        return static_cast<const Bytes*>(source)->get_type().get_interface();
+      },
+      [](const void* source, Perimortem::Memory::Allocator::Arena&)
+          -> Perimortem::Core::View::Bytes {
+        return static_cast<const Bytes*>(source)->get_value();
+      },
+      [](const void*) -> Count { return 1; },
+    };
+    return Ttx::Concept::Binding::provide<Contract>(this, operations);
+  }
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -61,8 +83,8 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
 
   auto resolve_concept(Perimortem::Core::View::Bytes name) const
       -> const Ttx::Concept::Abstract& override;
-  auto get_concepts(Ttx::Concept::Context& context) const
-      -> const Ttx::Concept::Pack& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
 
   constexpr auto get_resource() const
       -> Perimortem::Core::Option<const Tetrodotoxin::Language::Resource&> {

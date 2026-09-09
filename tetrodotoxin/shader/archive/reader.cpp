@@ -7,7 +7,6 @@
 
 #include "perimortem/memory/managed/vector.hpp"
 
-#include "tetrodotoxin/library/archive/reader.hpp"
 #include "tetrodotoxin/library/language/field.hpp"
 #include "tetrodotoxin/render/language/attributes.hpp"
 #include "ttx/concept/unknown.hpp"
@@ -28,60 +27,6 @@ enum class ShaderReaderAttributeValue : U8 {
   Flag,
 };
 
-static auto find_attribute(
-    View::Vector<Tetrodotoxin::Language::Attribute> attributes,
-    View::Bytes key) -> Option<const Tetrodotoxin::Language::Attribute&> {
-  for (Count index = 0; index < attributes.get_size(); index++) {
-    const Tetrodotoxin::Language::Attribute& attribute =
-        attributes.get_data()[index];
-    if (attribute.get_key() == key) {
-      return attribute;
-    }
-  }
-  return {};
-}
-
-static auto bridge_attributes_match(
-    View::Vector<Tetrodotoxin::Language::Attribute> attributes,
-    Shader::Language::Bridge::Direction direction,
-    Shader::Language::Bridge::Marshaling marshaling,
-    Shader::Language::Bridge::Synchronization synchronization) -> Bool {
-  BAIL_IF(attributes.get_size() != 3);
-  auto direction_attribute = find_attribute(attributes, "direction"_view);
-  auto marshaling_attribute = find_attribute(attributes, "marshal"_view);
-  auto synchronization_attribute = find_attribute(attributes, "sync"_view);
-  BAIL_IF(
-      !direction_attribute || !marshaling_attribute ||
-      !synchronization_attribute);
-  const View::Bytes* direction_name =
-      direction_attribute->get_value().find<View::Bytes>();
-  const View::Bytes* marshaling_name =
-      marshaling_attribute->get_value().find<View::Bytes>();
-  const View::Bytes* synchronization_name =
-      synchronization_attribute->get_value().find<View::Bytes>();
-  BAIL_IF(!direction_name || !marshaling_name || !synchronization_name);
-
-  View::Bytes expected_direction =
-      direction == Shader::Language::Bridge::Direction::Upload ? "upload"_view
-      : direction == Shader::Language::Bridge::Direction::Download
-          ? "download"_view
-          : "bidirectional"_view;
-  View::Bytes expected_marshaling =
-      marshaling == Shader::Language::Bridge::Marshaling::Identity
-          ? "identity"_view
-      : marshaling == Shader::Language::Bridge::Marshaling::Copy ? "copy"_view
-                                                                 : "pack"_view;
-  View::Bytes expected_synchronization =
-      synchronization == Shader::Language::Bridge::Synchronization::None
-          ? "none"_view
-      : synchronization == Shader::Language::Bridge::Synchronization::Submission
-          ? "submission"_view
-          : "frame"_view;
-  return *direction_name == expected_direction &&
-         *marshaling_name == expected_marshaling &&
-         *synchronization_name == expected_synchronization;
-}
-
 auto Shader::Archive::Reader::Definition::create(
     Allocator::Arena& arena,
     Abstract& host) const -> Tetrodotoxin::Language::Definition& {
@@ -100,12 +45,12 @@ auto Shader::Archive::Reader::open(View::Bytes payload) -> Option<Reader> {
   return Reader(payload.slice(8));
 }
 
-auto Shader::Archive::Reader::restore(
-    Allocator::Arena& arena,
-    View::Bytes payload,
-    const Abstract& language,
-    const Library::Dialect& library,
-    Abstract& context) -> Option<Shader::Language::Monograph&> {
+auto Shader::Archive::Reader::restore(Allocator::Arena& arena,
+                                      View::Bytes payload,
+                                      const Abstract& language,
+                                      const Library::Dialect& library,
+                                      Abstract& context)
+    -> Option<Ttx::Concept::Abstract&> {
   // Shader and its Library child share one reconstruction Arena just as they
   // share one authored source transaction. Program records can then restore
   // Library declarations into the exact Shader subtype they describe.
@@ -303,147 +248,14 @@ auto Shader::Archive::Reader::read_program(
     Allocator::Arena& arena,
     Shader::Language::Monograph& monograph)
     -> Option<Shader::Language::Program&> {
-  // Shader owns the Definition and Render route while Library owns the opaque
-  // declaration payload. Constructing Program first preserves one identity for
-  // both contracts instead of restoring an ordinary Structure beside it.
-  auto record = read_record();
-  BAIL_IF(!record || record->get_tag() != U16(Tag::Program));
-  Reader contents(record->get_payload());
-  auto definition = contents.read_definition(arena);
-  auto contract = contents.read_bytes();
-  auto declarations = contents.read_bytes();
-  auto binding_count = contents.read_u32();
-  BAIL_IF(
-      !definition || !contract || contract->is_empty() || !declarations ||
-      !binding_count ||
-      !Render::Language::Attributes::accepts(
-          definition->get_attributes(),
-          Render::Language::Attributes::Placement::Structure));
-
-  auto& restored_definition =
-      definition->create(arena, monograph.edit_library().get_source());
-  auto contract_reference = Tetrodotoxin::Language::TypeReference::create(
-      arena.proxy(*contract),
-      Ttx::Lexical::Anchor::create(Ttx::Lexical::Span()));
-  auto& program = Shader::Language::Program::create_restored(
-      arena, restored_definition, contract_reference, monograph);
-  BAIL_IF(!Library::Archive::Reader::restore_declarations(
-      arena, *declarations, program));
-  program.complete_body();
-  BAIL_IF(!program.restore_runtime_surface());
-  BAIL_IF(
-      !monograph.edit_library().get_source().retain_definition(
-          program, Library::Language::Types::Composite::Category::Type,
-          False) ||
-      !monograph.retain_program(program));
-
-  for (Count index = 0; index < *binding_count; index++) {
-    // Binding records reconnect storage meaning to Fields already restored by
-    // Library. Their names select existing identities without another
-    // declaration inventory.
-    auto binding_record = contents.read_record();
-    BAIL_IF(!binding_record || binding_record->get_tag() != U16(Tag::Binding));
-    Reader binding_contents(binding_record->get_payload());
-    auto name = binding_contents.read_bytes();
-    auto kind = binding_contents.read_u8();
-    auto access = binding_contents.read_u8();
-    BAIL_IF(
-        !name || name->is_empty() || !kind ||
-        *kind > U8(Render::Language::Binding::Kind::Resource) || !access ||
-        *access > U8(Render::Language::Binding::Access::ReadWrite) ||
-        (*kind == U8(Render::Language::Binding::Kind::Resource)) !=
-            (*access != U8(Render::Language::Binding::Access::None)) ||
-        !binding_contents.is_complete());
-    Option<Library::Language::Field&> field;
-    for (const Reference<Abstract>& declaration : program.get_declarations()) {
-      auto candidate = declaration.get().select<Library::Language::Field>();
-      if (candidate && candidate->get_name() == *name) {
-        BAIL_IF(field);
-        field = *candidate;
-      }
-    }
-    BAIL_IF(!field);
-    program.retain_shader_binding(
-        *field, Render::Language::Binding::Kind(*kind),
-        Render::Language::Binding::Access(*access));
-  }
-
-  auto uniform_count = contents.read_u32();
-  BAIL_IF(!uniform_count);
-  for (Count index = 0; index < *uniform_count; index++) {
-    auto uniform_record = contents.read_record();
-    BAIL_IF(!uniform_record || uniform_record->get_tag() != U16(Tag::Uniform));
-    Reader uniform_contents(uniform_record->get_payload());
-    auto name = uniform_contents.read_bytes();
-    BAIL_IF(!name || name->is_empty() || !uniform_contents.is_complete());
-
-    Option<Library::Language::Field&> field;
-    for (const Reference<Abstract>& declaration :
-         program.get_parameters().get_declarations()) {
-      auto candidate = declaration.get().select<Library::Language::Field>();
-      if (candidate && candidate->get_name() == *name) {
-        BAIL_IF(field);
-        field = *candidate;
-      }
-    }
-    BAIL_IF(!field);
-    program.retain_uniform(*field);
-  }
-  BAIL_IF(!contents.is_complete());
-  return program;
+  // Program declarations require the deferred Library projection decoder.
+  return {};
 }
 
 auto Shader::Archive::Reader::read_bridge(
     Allocator::Arena& arena,
     Shader::Language::Monograph& monograph)
     -> Option<Shader::Language::Bridge&> {
-  // A Bridge belongs to the Program that authored it, but its Type routes use
-  // the complete Shader context so CPU and GPU endpoints can cross members.
-  auto record = read_record();
-  BAIL_IF(!record || record->get_tag() != U16(Tag::Bridge));
-  Reader contents(record->get_payload());
-  auto host_name = contents.read_bytes();
-  BAIL_IF(!host_name || host_name->is_empty());
-  Option<Shader::Language::Program&> host;
-  for (const Reference<Shader::Language::Program>& program :
-       monograph.get_programs()) {
-    if (program.get().get_name() == *host_name) {
-      BAIL_IF(host);
-      host = program.get();
-    }
-  }
-  BAIL_IF(!host);
-  auto definition = contents.read_definition(arena);
-  auto cpu_payload = contents.read_bytes();
-  auto gpu_payload = contents.read_bytes();
-  auto direction = contents.read_u8();
-  auto marshaling = contents.read_u8();
-  auto synchronization = contents.read_u8();
-  BAIL_IF(
-      !definition || !cpu_payload || !gpu_payload || !direction ||
-      *direction > U8(Shader::Language::Bridge::Direction::Bidirectional) ||
-      !marshaling ||
-      *marshaling > U8(Shader::Language::Bridge::Marshaling::Pack) ||
-      !synchronization ||
-      *synchronization > U8(Shader::Language::Bridge::Synchronization::Frame) ||
-      !contents.is_complete());
-  auto selected_direction = Shader::Language::Bridge::Direction(*direction);
-  auto selected_marshaling = Shader::Language::Bridge::Marshaling(*marshaling);
-  auto selected_synchronization =
-      Shader::Language::Bridge::Synchronization(*synchronization);
-  BAIL_IF(!bridge_attributes_match(
-      definition->get_attributes(), selected_direction, selected_marshaling,
-      selected_synchronization));
-  auto cpu = Library::Archive::Reader::restore_type_reference(
-      arena, *cpu_payload, monograph);
-  auto gpu = Library::Archive::Reader::restore_type_reference(
-      arena, *gpu_payload, monograph);
-  BAIL_IF(!cpu || !gpu);
-
-  auto& restored_definition = definition->create(arena, *host);
-  auto& bridge = Shader::Language::Bridge::create(
-      arena, restored_definition, *cpu, *gpu, selected_direction,
-      selected_marshaling, selected_synchronization);
-  BAIL_IF(!monograph.retain_bridge(bridge));
-  return bridge;
+  // Bridge references require the deferred Package dependency decoder.
+  return {};
 }
