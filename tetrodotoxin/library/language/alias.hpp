@@ -19,8 +19,9 @@ namespace Tetrodotoxin::Library::Language {
 // a Type. Those facts remain visible even before the selected Type completes.
 // They cannot belong to transparent TTX Alias, whose entire surface is the
 // referent's answer. The declaration therefore retains its own Definition and
-// a borrowed native Type identity, without exposing reference machinery as a
-// semantic category.
+// delegates other questions through its TypeReference, where the supplying
+// policy remains visible. Its borrowed native Type is the separate answer
+// needed by compilation, rather than a shortcut for that delegation.
 class Alias : public Ttx::Concept::Abstract {
  private:
   constexpr Alias(

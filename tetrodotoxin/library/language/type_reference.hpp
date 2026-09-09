@@ -19,9 +19,11 @@
 namespace Tetrodotoxin::Library::Language {
 
 // TypeReference keeps the authored access sequence and the edge it establishes
-// when its context becomes ready. Native linking uses the selected Type, while
-// boundary queries follow the retained reference and can stop at its Import.
-// Resolving a Type therefore does not discard how another source supplies it.
+// when its context becomes ready. Native linking needs the selected Type, but
+// that Type need not answer questions with the policy of the name that supplied
+// it. Keeping the encountered subject beside the Type lets later binding and
+// navigation follow that relationship instead of bypassing an Import or an
+// authored declaration to reach its implementation.
 //
 // The reference remains a value in its owner's syntax storage. Its bound view
 // borrows that value, so the owner finishes moving or growing its storage
@@ -33,9 +35,16 @@ class TypeReference {
   // still answers policy questions along its authored access sequence. The
   // first Import encountered owns that dependency. Later accesses remain
   // relative to it, rather than becoming declarations copied from its source.
+  // The bound reference resolves to itself so it cannot erase this policy edge.
+  // Native and bound navigation both ask the retained subject, while the
+  // resolve operations below return the native answer needed for compilation.
   auto get_interface() const -> Ttx::Concept::Abstract::Handle;
   auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
       Utility::Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure>;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract&;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const -> void;
+
   using Argument = Perimortem::Core::Static::
       Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 
@@ -177,6 +186,10 @@ class TypeReference {
   mutable Perimortem::Core::Option<Tetrodotoxin::Language::Import::Handle>
       dependency;
   mutable Count dependency_suffix = 0;
+  // Two imports can select the same native Type while answering differently.
+  // A completed reference commits both identities so revisiting its route
+  // cannot silently exchange the policy behind a previously borrowed view.
+  mutable const Ttx::Concept::Abstract* subject = nullptr;
   mutable const Ttx::Concept::Abstract* target = nullptr;
   Perimortem::Core::View::Bytes route;
   Ttx::Lexical::Anchor anchor;

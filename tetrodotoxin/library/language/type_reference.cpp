@@ -58,29 +58,24 @@ auto Language::TypeReference::get_interface() const -> Abstract::Handle {
       return Documentation::get_empty().get_interface().get_abi();
     },
     [](const void* source) -> ttx_abstract {
-      const auto& reference = *static_cast<const TypeReference*>(source);
-      return reference.target
-                 ? reference.target->resolve().get_interface().get_abi()
-                 : Unknown::get_unknown().get_interface().get_abi();
+      return static_cast<const TypeReference*>(source)
+          ->get_interface()
+          .get_abi();
     },
     [](const void* source, perimortem_view_bytes name) -> ttx_abstract {
-      const auto& reference = *static_cast<const TypeReference*>(source);
-      const auto& target =
-          reference.target ? *reference.target : Unknown::get_unknown();
-      return target.resolve_concept({name.data, name.size})
+      return static_cast<const TypeReference*>(source)
+          ->resolve_concept({name.data, name.size})
           .get_interface()
           .get_abi();
     },
     [](const void* source, ttx_concept_visitor visitor) {
-      const auto& reference = *static_cast<const TypeReference*>(source);
-      const auto& target =
-          reference.target ? *reference.target : Unknown::get_unknown();
       auto receive = [&](Core::View::Bytes name, const Abstract& value) {
         visitor.receive(
             visitor.source, {name.get_data(), name.get_size()},
             value.get_interface().get_abi());
       };
-      target.visit_concepts(Abstract::Visitor(receive));
+      static_cast<const TypeReference*>(source)->visit_concepts(
+          Abstract::Visitor(receive));
     },
   };
   return Abstract::Handle(this, operations);
@@ -90,10 +85,10 @@ auto Language::TypeReference::bind_interface(Perimortem::System::Uuid requested)
     const -> Perimortem::Utility::Result<Binding, Binding::Failure> {
   using Import = Tetrodotoxin::Language::Import;
   if (requested != Import::contract_id || !dependency) {
-    if (!target) {
+    if (!subject) {
       return Binding::Failure::Pending;
     }
-    return target->bind_interface(requested);
+    return subject->bind_interface(requested);
   }
 
   // An imported generator needs its argument recipe as well as a name path.
@@ -134,6 +129,18 @@ auto Language::TypeReference::bind_interface(Perimortem::System::Uuid requested)
     },
   };
   return Binding::provide<Import>(this, operations);
+}
+
+auto Language::TypeReference::resolve_concept(Core::View::Bytes name) const
+    -> const Abstract& {
+  return subject ? subject->resolve_concept(name) : Unknown::get_unknown();
+}
+
+auto Language::TypeReference::visit_concepts(Abstract::Visitor visitor) const
+    -> void {
+  if (subject) {
+    subject->visit_concepts(visitor);
+  }
 }
 
 static auto is_missing(const Abstract& abstract) -> Bool {
@@ -341,9 +348,12 @@ auto Language::TypeReference::resolve_with_root(
       cursor->get_associations().create(
           Anchor::create(token, Span(token)), *selected);
     }
-    if (target && target != &resolved) {
+    if (target && (target != &resolved || subject != selected)) {
       return Failure(Failure::Type::Unavailable, anchor);
     }
+    // Native selection can step past an Import or authored declaration. Keep
+    // the subject that supplied that answer for all later semantic questions.
+    subject = selected;
     target = &resolved;
     dependency = encountered;
     dependency_suffix = suffix;
@@ -412,6 +422,7 @@ auto Language::TypeReference::resolve_with_root(
         if (target && target != &type) {
           return Failure(Failure::Type::Unavailable, anchor);
         }
+        subject = &type;
         target = &type;
         dependency = encountered;
         dependency_suffix = suffix;

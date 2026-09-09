@@ -104,11 +104,11 @@ auto Alias::get_type() const -> const Abstract& {
 
 auto Alias::resolve_concept(Perimortem::Core::View::Bytes name) const
     -> const Abstract& {
-  return resolve().resolve_concept(name);
+  return target_reference.resolve_concept(name);
 }
 
 auto Alias::visit_concepts(Abstract::Visitor visitor) const -> void {
-  resolve().visit_concepts(visitor);
+  target_reference.visit_concepts(visitor);
 }
 
 auto Alias::bind_interface(Perimortem::System::Uuid requested) const
@@ -116,5 +116,5 @@ auto Alias::bind_interface(Perimortem::System::Uuid requested) const
   if (requested == Tetrodotoxin::Language::Definition::contract_id) {
     return Tetrodotoxin::Language::Definition::provide(*this);
   }
-  return resolve().bind_interface(requested);
+  return target_reference.bind_interface(requested);
 }
