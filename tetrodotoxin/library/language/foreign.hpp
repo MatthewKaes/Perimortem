@@ -45,14 +45,14 @@ class Foreign final : public Ttx::Concept::Abstract {
    public:
     TTX_CONTRACT(State, Model::Addressable);
 
-    auto bind_interface(U64 requested) const -> Perimortem::Utility::
-        Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override {
-      if (requested == Ttx::Concept::get_type_identity<
-                           Tetrodotoxin::Language::Definition>()) {
+    auto bind_interface(Perimortem::System::Uuid requested) const
+        -> Perimortem::Utility::Result<
+            Ttx::Concept::Binding,
+            Ttx::Concept::Binding::Failure> override {
+      if (requested == Tetrodotoxin::Language::Definition::contract_id) {
         return Tetrodotoxin::Language::Definition::provide(*this);
       }
-      if (requested ==
-          Ttx::Concept::get_type_identity<Ttx::Model::Addressable>()) {
+      if (requested == Ttx::Model::Addressable::contract_id) {
         static const Ttx::Model::Addressable::Operations operations = {
           [](const void* source) -> Ttx::Concept::Abstract::Handle {
             return static_cast<const State*>(source)
@@ -144,10 +144,11 @@ class Foreign final : public Ttx::Concept::Abstract {
    public:
     TTX_CONTRACT(Function, Model::Callable);
 
-    auto bind_interface(U64 requested) const -> Perimortem::Utility::
-        Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override {
-      if (requested == Ttx::Concept::get_type_identity<
-                           Tetrodotoxin::Language::Definition>()) {
+    auto bind_interface(Perimortem::System::Uuid requested) const
+        -> Perimortem::Utility::Result<
+            Ttx::Concept::Binding,
+            Ttx::Concept::Binding::Failure> override {
+      if (requested == Tetrodotoxin::Language::Definition::contract_id) {
         return Tetrodotoxin::Language::Definition::provide(*this);
       }
       return Model::Callable::bind_interface(requested);

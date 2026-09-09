@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/system/uuid.hpp"
+
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/bound.hpp"
 #include "ttx/concept/visitor.hpp"
@@ -14,6 +16,11 @@ namespace Ttx::Concept {
 // Import therefore happens before another lookup or resolution crosses it.
 class Scope {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e7bd7,
+    0xabaeff0d3e4e0a2e,
+  };
+
   using Visitor = Concept::Visitor<Abstract::Handle>;
 
   struct Operations {

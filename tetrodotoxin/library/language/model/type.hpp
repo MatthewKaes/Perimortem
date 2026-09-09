@@ -34,8 +34,10 @@ class Type : public Ttx::Model::Type {
 
   TTX_CONTRACT(Type, Ttx::Model::Type);
 
-  auto bind_interface(U64 requested) const -> Perimortem::Utility::
-      Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override;
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override;
 
   auto resolve_concept(Perimortem::Core::View::Bytes route) const
       -> const Ttx::Concept::Abstract& override;

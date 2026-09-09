@@ -9,6 +9,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 #include "tetrodotoxin/language/attribute.hpp"
 #include "tetrodotoxin/language/visibility.hpp"
 #include "ttx/concept/abstract.hpp"
@@ -25,6 +27,11 @@ namespace Tetrodotoxin::Language {
 // evidence.
 class Definition {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e7c80,
+    0xa249b2ca85b10a3d,
+  };
+
   // Consumers need declaration answers without acquiring the machinery used
   // to author a declaration. Binding can therefore attach these operations to
   // this Definition member or to a stored representation of the same facts.

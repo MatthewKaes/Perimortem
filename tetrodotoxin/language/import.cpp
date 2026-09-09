@@ -39,9 +39,9 @@ static auto get_import_access(View::Bytes route, Count index)
   return {};
 }
 
-auto Import::bind_interface(U64 requested) const
+auto Import::bind_interface(Perimortem::System::Uuid requested) const
     -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-  if (requested != get_type_identity<Import>()) {
+  if (requested != Import::contract_id) {
     return Ttx::Model::Alias::bind_interface(requested);
   }
 

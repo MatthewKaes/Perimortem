@@ -45,11 +45,11 @@ class Enumeration : public Model::Type {
  public:
   TTX_CONTRACT(Enumeration, Model::Type);
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
-                                     Ttx::Concept::Binding::Failure> override {
-    if (requested ==
-        Ttx::Concept::get_type_identity<Tetrodotoxin::Language::Definition>()) {
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override {
+    if (requested == Tetrodotoxin::Language::Definition::contract_id) {
       return Tetrodotoxin::Language::Definition::provide(*this);
     }
     return Model::Type::bind_interface(requested);

@@ -8,8 +8,8 @@
 #include "perimortem/serialization/stream/textual.hpp"
 
 #include "tetrodotoxin/library/language/constant.hpp"
-#include "tetrodotoxin/library/language/value.hpp"
 #include "tetrodotoxin/library/language/model/types/real.hpp"
+#include "tetrodotoxin/library/language/value.hpp"
 
 namespace Tetrodotoxin::Library::Language::Constants {
 
@@ -25,11 +25,12 @@ class Real : public Tetrodotoxin::Library::Language::Constant {
   TTX_CONTRACT(Real, Tetrodotoxin::Library::Language::Constant);
   using Value = R64;
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
-                                     Ttx::Concept::Binding::Failure> override {
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override {
     using Contract = Tetrodotoxin::Library::Language::Value;
-    if (requested == Ttx::Concept::get_type_identity<Contract>()) {
+    if (requested == Contract::contract_id) {
       return Contract::scalar(*this);
     }
     return Constant::bind_interface(requested);

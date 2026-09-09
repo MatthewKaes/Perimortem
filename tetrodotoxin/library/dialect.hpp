@@ -19,8 +19,10 @@ class Dialect : public Tetrodotoxin::Language::Dialect {
 
   TTX_NAME("Library"_view);
 
-  auto bind_interface(U64 requested) const -> Perimortem::Utility::
-      Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override;
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override;
 
   auto interpret(
       Ttx::Lexical::Cursor& cursor,

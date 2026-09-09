@@ -2,21 +2,21 @@
 // Copyright (c) 2023-present Matt Kaes and contributors
 
 #include "tetrodotoxin/library/language/model/type.hpp"
-#include "tetrodotoxin/library/language/initialization.hpp"
-#include "tetrodotoxin/library/language/value.hpp"
 
 #include "perimortem/core/diagnostics/log.hpp"
 
+#include "tetrodotoxin/library/language/initialization.hpp"
 #include "tetrodotoxin/library/language/model/callable.hpp"
+#include "tetrodotoxin/library/language/value.hpp"
 #include "ttx/concept/unknown.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Tetrodotoxin::Library;
 
-auto Language::Model::Type::bind_interface(U64 requested) const
-    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-  if (requested != get_type_identity<Language::Initialization>()) {
+auto Language::Model::Type::bind_interface(Perimortem::System::Uuid requested)
+    const -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested != Language::Initialization::contract_id) {
     return Ttx::Model::Type::bind_interface(requested);
   }
   if (resolve().is<Unknown>()) {

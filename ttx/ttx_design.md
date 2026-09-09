@@ -160,6 +160,67 @@ a wrapper, clone, registry entry, or second identity. A consumer that needs
 source or declaration facts proves the concrete owner and inspects the complete
 value retained there rather than asking every Abstract for a shared fragment.
 
+## Binding across loaded providers
+
+An operation contract owns one declared `Perimortem::System::Uuid contract_id`.
+The identifier names its operations, payload representation, failure behavior,
+and borrowing rules. It is generated once when that revision is authored and
+retained as a literal value. Loading a provider or constructing an object does
+not generate a new identifier. An incompatible revision needs a different ID.
+
+The C carrier in `perimortem/system/uuid.h` contains the numeric high and low
+64 bit words and is also the C++ Uuid's sole storage. Its get_value operation
+returns that carrier directly. Both languages use the same scalar declarations
+from `perimortem/core/perimortem.h`. Native field byte order remains distinct
+from persistent serialization. A UUID's timestamp does not establish interface
+compatibility. The v7 generator uses Unix milliseconds with a random suffix, so it does not promise
+strict ordering within a millisecond or across backward clock adjustments.
+
+Native `is`, `select`, and `visit` retain a separate address based proof of an
+actual C++ base subobject. Those tokens are local to a compatible native linkage
+environment. A public UUID match supplies an operation table, not permission to
+cast the provider's state to a consumer's implementation class.
+
+`ttx/concept/abstract.h` defines the foreign Abstract ingress. The state and
+operation table are borrowed, and its bind, name, documentation, and resolve
+operations use the platform C ABI. The initial supported representation uses
+Linux with 64 bit pointers. Its transitive value contracts are a two word UUID,
+a pointer and 64 bit byte count, a separate documentation view, and an erased
+binding pair. The exact Abstract ID covers this whole table and the documentation
+table it returns. A supplying entry point establishes that ID agreement before
+the caller uses the table. A retained handle does not own module code or state.
+
+Bind returns an 8 bit status. Satisfied writes the caller's output pair, while
+Unsupported, Pending, and Rejected leave it untouched. Only Unsupported permits
+policy fallback. The C++ facade rejects unknown statuses and a successful result
+without an operation table. It constructs Perimortem Result locally after reading
+the C status, so Result's C++ storage does not cross the foreign boundary.
+
+Every Abstract handle already satisfies Abstract. Binding that ID returns the
+same view, including for a subject whose other contracts remain pending. Names
+remain borrowed for the Abstract's promised lifetime. Documentation has its own
+borrowed state and table, preserving ordered lines without copying prose or
+allocating a native wrapper around a foreign object.
+
+After binding, a contract's Handle calls the selected table with its state.
+TTX requires no further negotiation, metadata traversal, or dispatch allocation
+per operation. The provider may compose other calls and perform any work its
+contract permits. Binding selects that implementation without evaluating the
+value operation. Provider code and returned views remain the responsibility of
+the owner retaining their lifetime.
+
+The C ingress does not make every payload offered through it a C contract.
+Scope, Layout, Type, Callable, Addressable, Definition, Import, Value,
+Initialization, and Library Simulacra currently declare native C++ operation
+payloads. Their IDs require the same native payload ABI on both sides. A C
+representation of any such contract needs its own declared agreement and ID.
+The common ingress can already carry an independently declared C operation
+table, without making the provider inherit a native Abstract.
+
+Live subject identity and durable export identity remain separate questions.
+The existing Handle token identifies its stable source state for one borrowed
+lifetime. It is neither the operation contract's UUID nor a durable package key.
+
 ## Reference and graph lifetime
 
 A Reference is a nonnull borrowed edge to one exact semantic object. It remains

@@ -116,12 +116,14 @@ cc_library(
         "core/access/*.hpp",
         "core/static/*.hpp",
         "core/view/*.hpp",
+        "core/view/*.h",
         "core/algorithm/*.hpp",
         "core/reader/*.hpp",
         "core/writer/*.hpp",
         "core/diagnostics/*.hpp",
         "core/thread/*.hpp",
         "core/*.hpp",
+        "core/*.h",
     ]),
     includes = ["."],
 )
@@ -192,6 +194,7 @@ cc_library(
     hdrs = glob(
         [
             "system/*.hpp",
+            "system/*.h",
         ],
         exclude = [
             "system/window.hpp",

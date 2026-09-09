@@ -7,10 +7,10 @@
 
 using namespace Ttx;
 
-auto Model::Type::bind_interface(U64 requested) const
-    -> Perimortem::Utility::Result<Concept::Binding,
-                                   Concept::Binding::Failure> {
-  if (requested != Concept::get_type_identity<Type>()) {
+auto Model::Type::bind_interface(Perimortem::System::Uuid requested) const
+    -> Perimortem::Utility::
+        Result<Concept::Binding, Concept::Binding::Failure> {
+  if (requested != Type::contract_id) {
     return Abstract::bind_interface(requested);
   }
 

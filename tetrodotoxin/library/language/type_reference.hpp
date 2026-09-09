@@ -10,11 +10,11 @@
 
 #include "perimortem/utility/result.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/generic.hpp"
 #include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "tetrodotoxin/language/import.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
@@ -34,9 +34,8 @@ class TypeReference {
   // first Import encountered owns that dependency. Later accesses remain
   // relative to it, rather than becoming declarations copied from its source.
   auto get_interface() const -> Ttx::Concept::Abstract::Handle;
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
-                                     Ttx::Concept::Binding::Failure>;
+  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
+      Utility::Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure>;
   using Argument = Perimortem::Core::Static::
       Union<const TypeReference&, const Ttx::Concept::Abstract&>;
 

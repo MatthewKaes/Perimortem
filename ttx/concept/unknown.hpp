@@ -24,7 +24,7 @@ class Unknown : public Abstract {
   TTX_NAME("Unknown"_view);
   TTX_EMPTY_DOCUMENTATION();
 
-  auto bind_interface(U64 requested) const
+  auto bind_interface(Perimortem::System::Uuid requested) const
       -> Perimortem::Utility::Result<Binding, Binding::Failure> override {
     return Binding::Failure::Pending;
   }

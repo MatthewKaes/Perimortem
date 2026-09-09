@@ -7,11 +7,13 @@
 
 namespace Ttx::Concept {
 
-// Returns one opaque identity for a C++ type in the current program. The local
-// static is shared by every translation unit that instantiates the same type,
-// while distinct specializations own distinct live objects. Encoding its
-// address as an integer keeps callers from treating the carrier as an object.
-// This identity ends with the process and must never enter a durable format.
+// Native inheritance checks compare a token for the actual C++ class. The
+// linker unifies this local static across translation units in one linked
+// image, but independently loaded modules need not share its address.
+//
+// Public binding uses the interface's declared UUID instead. Keeping the
+// native proof separate prevents a foreign interface match from authorizing
+// a cast to a C++ base subobject that the provider may not contain.
 template <typename Target>
 inline auto get_type_identity() -> ::U64 {
   static_assert(

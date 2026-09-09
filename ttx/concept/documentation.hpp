@@ -5,6 +5,8 @@
 
 #include "perimortem/core/view/bytes.hpp"
 
+#include "ttx/concept/documentation.h"
+
 namespace Ttx::Concept {
 
 // Documentation is the presentation contract shared by every Abstract without
@@ -24,6 +26,35 @@ namespace Ttx::Concept {
 // owners that need them.
 class Documentation {
  public:
+  // Foreign documentation already knows how to supply its lines. Wrapping it
+  // in a native Documentation subclass would add an object solely to forward
+  // those calls. This handle borrows the table directly, while native owners
+  // expose their existing methods through the same table.
+  class Handle {
+   public:
+    using Operations = ttx_documentation_ops;
+
+    explicit constexpr Handle(ttx_documentation value) : value(value) {}
+
+    constexpr auto get_abi() const -> ttx_documentation { return value; }
+
+    auto get_line(Count index) const -> Perimortem::Core::View::Bytes {
+      const auto line = value.operations->get_line(value.source, index);
+      return {line.data, line.size};
+    }
+
+    auto line_count() const -> Count {
+      return value.operations->line_count(value.source);
+    }
+
+    auto is_empty() const -> Bool { return line_count() == 0; }
+
+   private:
+    ttx_documentation value;
+  };
+
+  auto get_interface() const -> Handle;
+
   constexpr virtual ~Documentation() = default;
 
   static auto get_empty() -> const Documentation&;

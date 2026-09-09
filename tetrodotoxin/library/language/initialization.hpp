@@ -5,6 +5,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/bound.hpp"
 
@@ -16,6 +18,11 @@ namespace Tetrodotoxin::Library::Language {
 // provide an implementation must remain distinct from that completed absence.
 class Initialization {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e75e5,
+    0xb7c5566278c41d66,
+  };
+
   using Answer = Perimortem::Utility::Result<
       Perimortem::Core::Option<Ttx::Concept::Abstract::Handle>,
       Ttx::Concept::Binding::Failure>;

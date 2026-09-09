@@ -36,11 +36,10 @@ class Addressable : public Ttx::Model::Addressable {
   TTX_NAME(name);
   TTX_EMPTY_DOCUMENTATION();
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Concept::Binding,
-                                     Concept::Binding::Failure> override {
+  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
+      Utility::Result<Concept::Binding, Concept::Binding::Failure> override {
     using Contract = Ttx::Model::Addressable;
-    if (requested != Concept::get_type_identity<Contract>()) {
+    if (requested != Contract::contract_id) {
       return Contract::bind_interface(requested);
     }
     static const Contract::Operations operations = {
@@ -58,8 +57,8 @@ class Addressable : public Ttx::Model::Addressable {
  private:
   constexpr Addressable(
       Perimortem::Core::View::Bytes name,
-                        const Ttx::Model::Type& type,
-                        Concept::Abstract::Handle source)
+      const Ttx::Model::Type& type,
+      Concept::Abstract::Handle source)
       : name(name), type(type), source(source) {}
 
   Perimortem::Core::View::Bytes name;

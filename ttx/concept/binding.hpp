@@ -5,6 +5,8 @@
 
 #include "perimortem/core/perimortem.hpp"
 
+#include "ttx/concept/binding.h"
+
 namespace Ttx::Concept {
 
 // The dispatch boundary receives a runtime contract identity, so its return
@@ -19,16 +21,23 @@ namespace Ttx::Concept {
 class Binding {
  public:
   enum class Failure : U8 {
-    Unsupported,
-    Pending,
-    Rejected,
+    Unsupported = TTX_BINDING_UNSUPPORTED,
+    Pending = TTX_BINDING_PENDING,
+    Rejected = TTX_BINDING_REJECTED,
   };
 
+  // The ingress checks the status before accepting this successful pair.
+  // Keeping its C value directly avoids a second representation of the state
+  // and table when a native provider returns through that same ingress.
+  explicit constexpr Binding(ttx_binding value) : value(value) {}
+
+  constexpr auto get_abi() const -> ttx_binding { return value; }
+
   template <typename Contract>
-  static constexpr auto provide(const void* source,
-                                const typename Contract::Operations& operations)
-      -> Binding {
-    return Binding(source, &operations);
+  static constexpr auto provide(
+      const void* source,
+      const typename Contract::Operations& operations) -> Binding {
+    return Binding({source, &operations});
   }
 
   // The dispatch owner must have matched Contract's identity before supplying
@@ -37,15 +46,12 @@ class Binding {
   template <typename Contract>
   constexpr auto get() const -> typename Contract::Handle {
     return typename Contract::Handle(
-        source, *static_cast<const typename Contract::Operations*>(operations));
+        value.source,
+        *static_cast<const typename Contract::Operations*>(value.operations));
   }
 
  private:
-  constexpr Binding(const void* source, const void* operations)
-      : source(source), operations(operations) {}
-
-  const void* source;
-  const void* operations;
+  ttx_binding value;
 };
 
 }  // namespace Ttx::Concept

@@ -48,9 +48,8 @@ class Alias : public Concept::Abstract {
   // Preserve every Alias on the way to the implementation. In particular an
   // Import can answer a boundary question even when ordinary resolution would
   // lead through it to the acquired Library.
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Concept::Binding,
-                                     Concept::Binding::Failure> override {
+  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
+      Utility::Result<Concept::Binding, Concept::Binding::Failure> override {
     if (!target) {
       return Concept::Binding::Failure::Pending;
     }

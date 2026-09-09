@@ -26,11 +26,12 @@ class Bytes : public Tetrodotoxin::Library::Language::Constant {
   TTX_CONTRACT(Bytes, Tetrodotoxin::Library::Language::Constant);
   using Value = Perimortem::Core::View::Bytes;
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Ttx::Concept::Binding,
-                                     Ttx::Concept::Binding::Failure> override {
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override {
     using Contract = Tetrodotoxin::Library::Language::Value;
-    if (requested != Ttx::Concept::get_type_identity<Contract>()) {
+    if (requested != Contract::contract_id) {
       return Constant::bind_interface(requested);
     }
 

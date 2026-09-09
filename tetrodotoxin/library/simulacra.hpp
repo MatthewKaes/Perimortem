@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/system/uuid.hpp"
+
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/initialization.hpp"
@@ -32,6 +34,11 @@ namespace Tetrodotoxin::Library {
 // responsibility. This object is deliberately not a restored source graph.
 class Simulacra {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e7540,
+    0xa67e2e9f59d89bf2,
+  };
+
   using Failure = Ttx::Concept::Binding::Failure;
 
   static auto project(Ttx::Concept::Abstract::Handle source)

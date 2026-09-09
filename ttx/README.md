@@ -24,6 +24,13 @@ Tetrodotoxin platform.
 
 ## Why TTX exists
 
+Contract binding also has a small [loaded provider boundary](ttx_design.md#binding-across-loaded-providers).
+Interfaces declare UUIDs independently of native C++ inheritance tokens. The
+Abstract C table returns borrowed state and operations, while C++ handles add
+named methods without a second dispatch system. Only interfaces whose complete
+payload agreement is specified for C are foreign contracts. A stable ID alone
+does not make a native C++ table portable.
+
 One way to make several languages cooperate is to translate all of them into one
 common declaration tree or target IR. That makes the shared representation the
 authority and asks every language to surrender distinctions that do not fit it.

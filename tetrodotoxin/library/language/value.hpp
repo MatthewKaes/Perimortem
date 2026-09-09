@@ -5,6 +5,8 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/bound.hpp"
 
@@ -21,6 +23,11 @@ namespace Tetrodotoxin::Library::Language {
 // interpret the byte size as well as the Type identity.
 class Value {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e71df,
+    0x97a600c071d507aa,
+  };
+
   struct Operations {
     auto (*get_type)(const void*) -> Ttx::Concept::Abstract::Handle;
     auto (*get_bytes)(const void*, Perimortem::Memory::Allocator::Arena&)
@@ -70,8 +77,9 @@ class Value {
           const U8 byte = value ? 1 : 0;
           return arena.proxy(Perimortem::Core::View::Bytes(&byte, 1));
         }
-        return arena.proxy(Perimortem::Core::View::Bytes(
-            reinterpret_cast<const U8*>(&value), sizeof(value)));
+        return arena.proxy(
+            Perimortem::Core::View::Bytes(
+                reinterpret_cast<const U8*>(&value), sizeof(value)));
       },
       [](const void* source) -> Count {
         if constexpr (__is_same(Scalar, Bool)) {

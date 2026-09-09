@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "perimortem/system/uuid.hpp"
+
 #include "ttx/concept/abstract.hpp"
 #include "ttx/concept/bound.hpp"
 
@@ -13,6 +15,11 @@ namespace Ttx::Concept {
 // the concrete owner decides how their shapes fit a receiving Layout.
 class Layout {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e7be3,
+    0x9067f72064c8876f,
+  };
+
   // The observational interface retains slot identity, order and names.
   // Fitting is a separate operation with its own domain rules. A stored
   // description can supply these answers without constructing a native
@@ -78,14 +85,15 @@ class Layout {
       -> Perimortem::Core::Option<Perimortem::Core::View::Bytes> {
     return {};
   }
-  virtual constexpr auto fits_entry(const Layout& target,
-                                    Count source_index,
-                                    Count target_index) const -> Bool = 0;
+  virtual constexpr auto fits_entry(
+      const Layout& target,
+      Count source_index,
+      Count target_index) const -> Bool = 0;
   constexpr auto fits(const Layout& target) const -> Bool {
     return get_size() == target.get_size() && fits_at(target, 0);
   }
-  virtual constexpr auto fits_at(const Layout& target,
-                                 Count target_offset) const -> Bool = 0;
+  virtual constexpr auto fits_at(const Layout& target, Count target_offset)
+      const -> Bool = 0;
   constexpr auto get_fitted(const Layout& target, Count target_index) const
       -> Perimortem::Utility::Result<const Abstract&, Errors> {
     if (target_index >= get_size()) {
@@ -98,16 +106,17 @@ class Layout {
 
     return get_fitted_at(target, 0, target_index);
   }
-  virtual constexpr auto get_fitted_at(const Layout& target,
-                                       Count target_offset,
-                                       Count target_index) const
+  virtual constexpr auto get_fitted_at(
+      const Layout& target,
+      Count target_offset,
+      Count target_index) const
       -> Perimortem::Utility::Result<const Abstract&, Errors> = 0;
 
   constexpr auto is_empty() const -> Bool { return get_size() == 0; }
 
  protected:
-  constexpr auto has_target_segment(const Layout& target,
-                                    Count target_offset) const -> Bool {
+  constexpr auto has_target_segment(const Layout& target, Count target_offset)
+      const -> Bool {
     return target_offset <= target.get_size() &&
            get_size() <= target.get_size() - target_offset;
   }

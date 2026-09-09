@@ -29,6 +29,7 @@ cc_library(
         "concept/**/*.cpp",
     ]),
     hdrs = glob([
+        "concept/**/*.h",
         "concept/**/*.hpp",
     ]),
     deps = [

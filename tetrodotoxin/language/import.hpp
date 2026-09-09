@@ -5,6 +5,7 @@
 
 #include "perimortem/memory/allocator/arena.hpp"
 
+#include "perimortem/system/uuid.hpp"
 #include "perimortem/system/version.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
@@ -23,6 +24,11 @@ namespace Tetrodotoxin::Language {
 // second lookup or Type surface.
 class Import : public Ttx::Model::Alias {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e7fd8,
+    0xaec36a6045311647,
+  };
+
   enum class Kind : U8 {
     Source,
     Package,
@@ -65,8 +71,10 @@ class Import : public Ttx::Model::Alias {
     }
   };
 
-  auto bind_interface(U64 requested) const -> Perimortem::Utility::
-      Result<Ttx::Concept::Binding, Ttx::Concept::Binding::Failure> override;
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override;
 
   class Description {
    public:

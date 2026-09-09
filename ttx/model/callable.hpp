@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "ttx/concept/bound.hpp"
+#include "perimortem/system/uuid.hpp"
 
 #include "ttx/concept/abstract.hpp"
+#include "ttx/concept/bound.hpp"
 #include "ttx/concept/layout.hpp"
 
 namespace Ttx::Model {
@@ -17,6 +18,11 @@ namespace Ttx::Model {
 // rules that give the Callable its richer meaning.
 class Callable : public Concept::Abstract {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e765a,
+    0x804612a14f04eeb0,
+  };
+
   TTX_CONTRACT(Callable, Abstract);
 
   struct Operations {
@@ -37,9 +43,8 @@ class Callable : public Concept::Abstract {
     }
   };
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Concept::Binding,
-                                     Concept::Binding::Failure> override;
+  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
+      Utility::Result<Concept::Binding, Concept::Binding::Failure> override;
 
   virtual constexpr auto get_parameters() const -> const Concept::Layout& = 0;
   virtual constexpr auto get_results() const -> const Concept::Layout& = 0;

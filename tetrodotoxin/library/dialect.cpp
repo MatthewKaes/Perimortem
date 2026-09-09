@@ -13,9 +13,9 @@ using namespace Ttx::Concept;
 using namespace Ttx::Lexical;
 using namespace Tetrodotoxin;
 
-auto Library::Dialect::bind_interface(U64 requested) const
+auto Library::Dialect::bind_interface(Perimortem::System::Uuid requested) const
     -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-  if (requested != get_type_identity<Simulacra>()) {
+  if (requested != Simulacra::contract_id) {
     return Tetrodotoxin::Language::Dialect::bind_interface(requested);
   }
 

@@ -3,8 +3,9 @@
 
 #pragma once
 
-#include "ttx/concept/bound.hpp"
+#include "perimortem/system/uuid.hpp"
 
+#include "ttx/concept/bound.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Ttx::Model {
@@ -17,6 +18,11 @@ namespace Ttx::Model {
 // address can be written, invoked as a receiver, or observed only as a value.
 class Addressable : public Concept::Abstract {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    0x01a084b0c85e726c,
+    0x959c2ca55345d1cd,
+  };
+
   TTX_CONTRACT(Addressable, Abstract);
 
   struct Operations {
@@ -35,10 +41,9 @@ class Addressable : public Concept::Abstract {
     }
   };
 
-  auto bind_interface(U64 requested) const
-      -> Perimortem::Utility::Result<Concept::Binding,
-                                     Concept::Binding::Failure> override {
-    if (requested != Concept::get_type_identity<Addressable>()) {
+  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
+      Utility::Result<Concept::Binding, Concept::Binding::Failure> override {
+    if (requested != Addressable::contract_id) {
       return Abstract::bind_interface(requested);
     }
     static const Operations operations = {

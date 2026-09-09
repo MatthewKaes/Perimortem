@@ -33,30 +33,45 @@ using namespace Tetrodotoxin::Library;
 
 auto Language::TypeReference::get_interface() const -> Abstract::Handle {
   static const Abstract::Operations operations = {
-    [](const void* source, U64 requested)
-        -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-      return static_cast<const TypeReference*>(source)->bind_interface(
-          requested);
+    [](const void* source, perimortem_uuid requested,
+       ttx_binding* result) -> ttx_binding_status {
+      if (requested.high == TTX_ABSTRACT_ID_HIGH &&
+          requested.low == TTX_ABSTRACT_ID_LOW) {
+        *result = {source, &operations};
+        return TTX_BINDING_SATISFIED;
+      }
+      return static_cast<const TypeReference*>(source)
+          ->bind_interface(System::Uuid(requested))
+          .visit(
+              [&](const Binding& binding) -> ttx_binding_status {
+                *result = binding.get_abi();
+                return TTX_BINDING_SATISFIED;
+              },
+              [](Binding::Failure failure) -> ttx_binding_status {
+                return static_cast<ttx_binding_status>(failure);
+              });
     },
-    [](const void* source) -> Core::View::Bytes {
-      return static_cast<const TypeReference*>(source)->get_route();
+    [](const void* source) -> perimortem_view_bytes {
+      const auto route = static_cast<const TypeReference*>(source)->get_route();
+      return {route.get_data(), route.get_size()};
     },
-    [](const void*) -> const Documentation& {
-      return Documentation::get_empty();
+    [](const void*) -> ttx_documentation {
+      return Documentation::get_empty().get_interface().get_abi();
     },
-    [](const void* source) -> Abstract::Handle {
+    [](const void* source) -> ttx_abstract {
       const auto& reference = *static_cast<const TypeReference*>(source);
-      return reference.target ? reference.target->resolve().get_interface()
-                              : Unknown::get_unknown().get_interface();
+      return reference.target
+                 ? reference.target->resolve().get_interface().get_abi()
+                 : Unknown::get_unknown().get_interface().get_abi();
     },
   };
   return Abstract::Handle(this, operations);
 }
 
-auto Language::TypeReference::bind_interface(U64 requested) const
-    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+auto Language::TypeReference::bind_interface(Perimortem::System::Uuid requested)
+    const -> Perimortem::Utility::Result<Binding, Binding::Failure> {
   using Import = Tetrodotoxin::Language::Import;
-  if (requested != get_type_identity<Import>() || !dependency) {
+  if (requested != Import::contract_id || !dependency) {
     if (!target) {
       return Binding::Failure::Pending;
     }

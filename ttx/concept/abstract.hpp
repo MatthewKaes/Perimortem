@@ -6,8 +6,11 @@
 #include "perimortem/core/view/bytes.hpp"
 #include "perimortem/core/option.hpp"
 
+#include "perimortem/system/uuid.hpp"
+
 #include "perimortem/utility/result.hpp"
 
+#include "ttx/concept/abstract.h"
 #include "ttx/concept/binding.hpp"
 #include "ttx/concept/documentation.hpp"
 #include "ttx/concept/type_identity.hpp"
@@ -30,6 +33,11 @@ namespace Ttx::Concept {
 // editors, compilers, and runtimes one graph to share throughout completion.
 class Abstract {
  public:
+  static constexpr Perimortem::System::Uuid contract_id{
+    TTX_ABSTRACT_ID_HIGH,
+    TTX_ABSTRACT_ID_LOW,
+  };
+
   // Graph edges can cross language and ABI lines meaning they may not leverage
   // the C++ Abstract base directly. This view lets an owner expose such an edge
   // directly from its own storage using thunks.
@@ -52,18 +60,19 @@ class Abstract {
   // establish binding.
   class Handle {
    public:
-    struct Operations {
-      auto (*bind)(const void*, U64)
-          -> Perimortem::Utility::Result<Binding, Binding::Failure>;
-      auto (*get_name)(const void*) -> Perimortem::Core::View::Bytes;
-      auto (*get_documentation)(const void*) -> const Documentation&;
-      auto (*resolve)(const void*) -> Handle;
-    };
+    using Operations = ttx_abstract_ops;
 
     constexpr Handle(const void* source, const Operations& operations)
         : source(source), operations(&operations) {}
 
+    explicit constexpr Handle(ttx_abstract value)
+        : source(value.source), operations(value.operations) {}
+
     Handle(const Abstract& source) : Handle(source.get_interface()) {}
+
+    constexpr auto get_abi() const -> ttx_abstract {
+      return {source, operations};
+    }
 
     template <typename Contract>
     auto bind() const -> Perimortem::Utility::
@@ -76,25 +85,36 @@ class Abstract {
 
       // If not then we use a dynamic dispatch from the bind to try and extract
       // a workable contract.
-      using Answer = Perimortem::Utility::Result<
-          typename Contract::Handle, Binding::Failure>;
-      return operations->bind(source, get_type_identity<Contract>())
-          .visit(
-              [](const Binding& binding) -> Answer {
-                return binding.template get<Contract>();
-              },
-              [](Binding::Failure failure) -> Answer { return failure; });
+      ttx_binding result = {};
+      const auto status =
+          operations->bind(source, Contract::contract_id.get_value(), &result);
+      switch (status) {
+      case TTX_BINDING_SATISFIED:
+        if (result.operations) {
+          return Binding(result).template get<Contract>();
+        }
+        return Binding::Failure::Rejected;
+      case TTX_BINDING_UNSUPPORTED:
+        return Binding::Failure::Unsupported;
+      case TTX_BINDING_PENDING:
+        return Binding::Failure::Pending;
+      default:
+        return Binding::Failure::Rejected;
+      }
     }
 
     auto get_name() const -> Perimortem::Core::View::Bytes {
-      return operations->get_name(source);
+      const auto name = operations->get_name(source);
+      return {name.data, name.size};
     }
 
-    auto get_documentation() const -> const Documentation& {
-      return operations->get_documentation(source);
+    auto get_documentation() const -> Documentation::Handle {
+      return Documentation::Handle(operations->get_documentation(source));
     }
 
-    auto resolve() const -> Handle { return operations->resolve(source); }
+    auto resolve() const -> Handle {
+      return Handle(operations->resolve(source));
+    }
 
     // This token identifies an encountered policy during one observation.
     // Package assigns its own durable identities after gathering the edges.
@@ -109,24 +129,7 @@ class Abstract {
 
   // Provides a Handle to the Abstract allowing it be provided for binding
   // across compilation units.
-  auto get_interface() const -> Handle {
-    static const Operations operations = {
-      [](const void* source, U64 requested)
-          -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-        return static_cast<const Abstract*>(source)->bind_interface(requested);
-      },
-      [](const void* source) -> Perimortem::Core::View::Bytes {
-        return static_cast<const Abstract*>(source)->get_name();
-      },
-      [](const void* source) -> const Documentation& {
-        return static_cast<const Abstract*>(source)->get_documentation();
-      },
-      [](const void* source) -> Handle {
-        return static_cast<const Abstract*>(source)->resolve().get_interface();
-      },
-    };
-    return Handle(this, operations);
-  }
+  auto get_interface() const -> Handle;
 
   using ClassCatagory = Abstract;
 
@@ -143,15 +146,13 @@ class Abstract {
     return get_interface().template bind<Contract>();
   }
 
-  virtual auto bind_interface(U64 requested) const
+  virtual auto bind_interface(Perimortem::System::Uuid requested) const
       -> Perimortem::Utility::Result<Binding, Binding::Failure>;
 
-  // Proves a semantic contract without C++ RTTI or a central class registry.
-  // Derived contracts recognize their live type identity and then delegate to
-  // their base contract.
+  // Proves a native C++ base relationship without RTTI. These local tokens
+  // remain separate from the UUIDs used to negotiate operation tables across
+  // providers. Matching a public contract does not establish this native proof.
   //
-  // These identities describe interfaces only and are similar to COM's GUIDs.
-  // Object identity and durable names continue to come from the Abstract graph.
   // A native implementation may return true only for public C++ base contracts,
   // each represented by one unique accessible base subobject. This invariant
   // makes visitor dispatch well defined.
