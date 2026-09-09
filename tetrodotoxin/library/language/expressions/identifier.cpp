@@ -9,25 +9,22 @@
 #include "tetrodotoxin/library/language/model/addressable.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem;
 using namespace Ttx::Concept;
 using namespace Ttx::Model;
 using namespace Tetrodotoxin::Library;
 
-static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Tetrodotoxin::Language::Import>(
-      [](const Tetrodotoxin::Language::Import& import) -> const Abstract& {
-        return import.resolve();
-      },
-      [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
-              return alias.resolve();
-            },
-            [](const Abstract& direct) -> const Abstract& { return direct; });
-      });
+// A native Type identity can be useful before its full resolve answer becomes
+// factual. Import supplies that Type through its own operation, while other
+// declarations and transparent references follow ordinary resolution.
+static auto select_native(const Abstract& candidate) -> const Abstract& {
+  if (candidate.is<Ttx::Model::Type>()) {
+    return candidate;
+  }
+  const Abstract& resolved = candidate.resolve();
+  return resolved.is<Tetrodotoxin::Language::Import>() ? resolved.get_type()
+                                                       : resolved;
 }
 
 auto Language::Expressions::Identifier::link(
@@ -37,7 +34,7 @@ auto Language::Expressions::Identifier::link(
   (void)token;
   (void)access_scope;
   const Abstract& candidate =
-      resolve_alias(lexical_context.resolve_concept(name));
+      select_native(lexical_context.resolve_concept(name));
   const Abstract& selected = candidate.is<Language::Model::Type>() ||
                                      candidate.is<Ttx::Model::Addressable>()
                                  ? candidate
@@ -78,7 +75,7 @@ auto Language::Expressions::Identifier::link_restored(
     const Abstract& lexical_context,
     Core::Option<const Abstract&>) -> Bool {
   const Abstract& candidate =
-      resolve_alias(lexical_context.resolve_concept(name));
+      select_native(lexical_context.resolve_concept(name));
   const Abstract& selected = candidate.is<Language::Model::Type>() ||
                                      candidate.is<Ttx::Model::Addressable>()
                                  ? candidate
@@ -141,5 +138,5 @@ auto Language::Expressions::Identifier::resolve_authored() const
       block && token
           ? block->resolve_authored_context(name, Count(token.get_offset()))
           : context.resolve_concept(name);
-  return resolve_alias(candidate);
+  return select_native(candidate);
 }

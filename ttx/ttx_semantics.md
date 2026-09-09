@@ -118,13 +118,15 @@ The closed identity categories are:
   completes.
 * `Constant` proves one complete immutable axiomatic graph fact.
 * `None` is the shared Constant proving completed absence.
-* `Alias` provides a local identity that redirects to one borrowed target.
 * `Type` provides a semantic domain and one total Layout.
 * `Addressable` provides a named address whose total Type edge returns
   `Unknown` while incomplete and one exact Type once established.
 * `Callable` provides complete parameter and result Layouts.
 
-`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
+Alias carries a required reference through these categories without adding a
+category of its own. Every semantic observation forwards to its referent.
+
+`Documentation`, `Layout`, `Pack`, `Interface`, and `Reference` are
 supporting contracts and values that carry no semantic identity. Pack carries
 named semantic flow over the exact Abstracts identified by its Layout.
 
@@ -148,12 +150,13 @@ according to its own domain. Concrete operators split qualified syntax and ask
 the identity selected by each preceding name. They never flatten a qualified
 route into one lookup key or encode access and invocation as shared route modes.
 
-`get_concepts(context)` returns one fresh, factual, unordered snapshot. Context
-is only the caller-owned lifetime domain for those results. Its sole
-construction authority is `pack(layout)`, which copies snapshot names and
-shape, borrows the real Abstract identities, and retains the Pack for the
-Context lifetime. A snapshot may omit an incomplete question or retain an
-explicit Unknown answer. Consumers infer no semantic order from its Layout.
+`visit_concepts(visitor)` synchronously advertises visible names and their
+answers. Native visitors receive Abstract references, while bound visitors
+receive foreign-capable Handles through the same navigation agreement. Names
+may be temporary during a callback, so consumers copy names they retain or
+sort. Abstract values retain their ordinary provider lifetime. The provider
+cannot retain the visitor, and the receiver cannot invalidate the traversed
+state. Discovery has no semantic order and requires no Pack snapshot.
 
 An incomplete answer returns `Unknown`, never a null graph edge. A completed
 unsupported question returns `None`. Later construction may replace an Unknown
@@ -187,20 +190,33 @@ future answer may materialize; Unknown carries that meaning.
 
 ## Alias
 
-Alias retains a local name, local Documentation, and one borrowed target. The
-immediate target is opaque: consumers cannot inspect or bypass an Alias edge.
-`resolve()` is the sole traversal operation. It follows only Alias edges and
-returns the first non Alias target identity without invoking that target's own
-`resolve()` operation. Every other operation, including
-`resolve_concept(name)`, returns None once the Alias is bound and Unknown while
-it is incomplete. A consumer that needs context first resolves the Alias,
-proves the returned owner, and invokes that owner's operation explicitly.
+Alias provides transparent forwarding to one required referent. It initially
+forwards through canonical Unknown and can commit to one exact subject. Name,
+documentation, named lookup, synchronous visitation, type questions, semantic
+satisfaction, and interface binding all return the referent's answers. Resolve
+returns the retained referent. Alias contributes no public Alias interface or
+semantic category for a consumer to discover.
 
-A concrete graph owner may reserve an Alias identity before its target is
-known. An unbound Alias resolves to Unknown, and its target may be bound only
-once. Repeating the same binding is harmless while changing it fails. The
-owner preserves target lifetime and prevents Alias cycles before publishing
-the completed graph.
+Commitment spot-resolves the supplied subject and retains canonical Unknown
+or an exact self-resolved subject. None is rejected because absence cannot
+fulfill the promise of a referent. Another transparent Alias supplies its
+referent, so no Alias chain is retained or traversed through native type tests.
+A different exact commitment fails without changing the current referent.
+Repeating the same commitment is harmless, while Unknown cannot erase an exact
+commitment. The owner retains the referent's lifetime and orders commitment
+against queries. Each observation captures one referent and completes through it.
+
+An authored declaration may own a name, documentation, visibility, and a route
+recipe. That is a concrete language subject rather than a transparent Alias.
+Native declaration linking can retain a reserved Type identity before that
+Type's full resolve answer is factual. Consumers must not infer a public Alias
+category from the native representation used for that declaration.
+
+Import is an interrogable dependency policy. It resolves to itself, answers
+its dependency contract first, and delegates other applicable questions to the
+selected export. Asking for the factual imported Type is separate from erasing
+the import subject. Lookup and visitation follow the same policy path, and
+Pending or Rejected binding answers do not fall through to another provider.
 
 ## Type
 
@@ -487,7 +503,8 @@ offsets, or treat a Terminal Type as the original semantic Type.
 5. Incomplete semantic queries return Unknown, while completed absence returns
    None; neither answer is a null edge.
 6. Later construction never changes an identity already returned successfully.
-7. Alias preserves local identity while redirecting represented identity.
+7. Alias transparently forwards to one required, spot-resolved referent and
+   cannot replace an exact commitment.
 8. TTX Type and Addressable impose no Static or Self receiver routing policy.
 9. An atomic Type exposes itself as one terminal `Value` Layout entry.
    Every Type admitted to value flow has a nonempty Layout, Addressable reaches

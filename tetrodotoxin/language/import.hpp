@@ -9,20 +9,26 @@
 #include "perimortem/system/version.hpp"
 
 #include "tetrodotoxin/language/visibility.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/concept/bound.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 #include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Language {
 
-// Import is one authored Alias whose external source or Package root is
-// acquired by Environment. Its optional Type route resolves over that root,
-// then the Alias represents the exact selected identity without forwarding a
-// second lookup or Type surface.
-class Import : public Ttx::Model::Alias {
+// Import keeps the dependency boundary visible while an acquired export
+// answers its semantic questions. Resolving to the export would erase where
+// the edge crosses into another source, so Import resolves to itself and
+// answers its own dependency binding before delegating other contracts.
+//
+// The enclosing declaration owner controls whether this import is published.
+// Its selected export controls the names reachable through it. Lookup and
+// visitation use that same path, allowing an import policy to restrict a name
+// without discovery exposing the fallback answer. Acquisition borrows a native
+// Type in this implementation, and the source owner keeps that Type alive.
+class Import : public Ttx::Concept::Abstract {
  public:
   static constexpr Perimortem::System::Uuid contract_id{
     0x01a084b0c85e7fd8,
@@ -144,9 +150,7 @@ class Import : public Ttx::Model::Alias {
   constexpr Import(
       Perimortem::Memory::Allocator::Arena& domain,
       const Description& description)
-      : Ttx::Model::Alias(
-            description.get_name(),
-            description.get_documentation()),
+      : name(description.get_name()),
         domain(domain),
         local_documentation(description.get_documentation()),
         visibility(description.get_visibility()),
@@ -158,7 +162,9 @@ class Import : public Ttx::Model::Alias {
         expression_anchor(description.get_expression_anchor()),
         route_anchor(description.get_route_anchor()) {}
 
-  TTX_CONTRACT(Import, Ttx::Model::Alias);
+  TTX_CONTRACT(Import, Ttx::Concept::Abstract);
+
+  TTX_NAME(name);
 
   constexpr auto get_visibility() const -> Visibility { return visibility; }
   constexpr auto get_kind() const -> Kind { return kind; }
@@ -188,12 +194,22 @@ class Import : public Ttx::Model::Alias {
 
   auto resolve() const -> const Ttx::Concept::Abstract& override;
 
+  // The native compiler needs the selected Type even while that Type is still
+  // completing. This factual edge belongs to Import, so obtaining it does not
+  // redefine resolve or make the dependency subject disappear.
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
+
   auto get_documentation() const -> const Ttx::Concept::Documentation& override;
 
  private:
   auto select_target(Perimortem::Core::Option<Ttx::Lexical::Cursor&> cursor)
       const -> const Ttx::Concept::Abstract&;
 
+  Perimortem::Core::View::Bytes name;
   Perimortem::Memory::Allocator::Arena& domain;
   const Ttx::Concept::Documentation& local_documentation;
   Perimortem::Core::Option<const Ttx::Concept::Documentation&>

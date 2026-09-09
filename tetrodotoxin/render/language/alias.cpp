@@ -22,12 +22,52 @@ auto Language::Alias::link(Cursor& cursor, const Abstract& context) -> Bool {
   const Abstract& root =
       Declarations::resolve_lexical_context(context, target.get_root());
   auto selected = target.resolve_selected(cursor, root);
-  return selected && bind_target(*selected);
+  if (!selected) {
+    return False;
+  }
+  if (selected_type && &selected_type->get() != &*selected) {
+    return False;
+  }
+  selected_type = Reference<const Ttx::Model::Type>(*selected);
+  return True;
 }
 
 auto Language::Alias::link_restored(const Abstract& context) -> Bool {
   const Abstract& root =
       Declarations::resolve_lexical_context(context, target.get_root());
   auto selected = target.resolve_restored_selected(root);
-  return selected && bind_target(*selected);
+  if (!selected) {
+    return False;
+  }
+  if (selected_type && &selected_type->get() != &*selected) {
+    return False;
+  }
+  selected_type = Reference<const Ttx::Model::Type>(*selected);
+  return True;
+}
+
+auto Language::Alias::resolve() const -> const Abstract& {
+  return selected_type ? static_cast<const Abstract&>(selected_type->get())
+                       : Unknown::get_unknown();
+}
+
+auto Language::Alias::get_type() const -> const Abstract& {
+  return resolve();
+}
+
+auto Language::Alias::resolve_concept(Perimortem::Core::View::Bytes name) const
+    -> const Abstract& {
+  return resolve().resolve_concept(name);
+}
+
+auto Language::Alias::visit_concepts(Abstract::Visitor visitor) const -> void {
+  resolve().visit_concepts(visitor);
+}
+
+auto Language::Alias::bind_interface(Perimortem::System::Uuid requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested == Tetrodotoxin::Language::Definition::contract_id) {
+    return Tetrodotoxin::Language::Definition::provide(*this);
+  }
+  return resolve().bind_interface(requested);
 }

@@ -642,7 +642,8 @@ auto Types::Composite::resolve_binding(
   case Category::Callable:
     return selected.is<Model::Callable>() ? selected : Unknown::get_unknown();
   case Category::Type:
-    return selected.is<Model::Type>() || selected.is<Ttx::Model::Alias>()
+    return selected.is<Model::Type>() || selected.is<Alias>() ||
+                   selected.is<Tetrodotoxin::Language::Import>()
                ? selected
                : Unknown::get_unknown();
   }

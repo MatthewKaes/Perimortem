@@ -7,7 +7,6 @@
 #include "tetrodotoxin/language/monograph.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem::Core;
 using namespace Ttx::Concept;
@@ -18,18 +17,16 @@ static auto is_missing(const Abstract& abstract) -> Bool {
   return abstract.is<Unknown>() || abstract.is<None>();
 }
 
-static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Language::Import>(
-      [](const Language::Import& import) -> const Abstract& {
-        return import.resolve();
-      },
-      [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
-              return alias.resolve();
-            },
-            [](const Abstract& direct) -> const Abstract& { return direct; });
-      });
+// A native Type identity can be useful before its full resolve answer becomes
+// factual. Import supplies that Type through its own operation, while other
+// declarations and transparent references follow ordinary resolution.
+static auto select_native(const Abstract& candidate) -> const Abstract& {
+  if (candidate.is<Ttx::Model::Type>()) {
+    return candidate;
+  }
+  const Abstract& resolved = candidate.resolve();
+  return resolved.is<Tetrodotoxin::Language::Import>() ? resolved.get_type()
+                                                       : resolved;
 }
 
 static auto segment_anchor(
@@ -83,12 +80,7 @@ static auto resolve_route(
       queried = &selected->resolve_concept(name);
     }
 
-    const Abstract& represented = resolve_alias(*queried);
-    const Abstract* candidate =
-        queried->is<Ttx::Model::Type>() && !queried->is<Language::Import>()
-            ? queried
-            : &represented;
-    if (is_missing(*candidate)) {
+    if (is_missing(*queried)) {
       if (cursor) {
         auto report = cursor->create_report(anchor);
         report << "Type route `"_view << route
@@ -103,7 +95,7 @@ static auto resolve_route(
       cursor->get_associations().create(
           segment_anchor(anchor, route, name), *queried);
     }
-    selected = candidate;
+    selected = queried;
     segment++;
 
     if (separator) {
@@ -125,7 +117,7 @@ static auto resolve_route(
       terminal_name = route.slice(terminal_start, index - terminal_start);
     }
   }
-  const Abstract& resolved = resolve_alias(*selected);
+  const Abstract& resolved = select_native(*selected);
   auto type = resolved.select<Ttx::Model::Type>();
   if (!type) {
     if (cursor) {

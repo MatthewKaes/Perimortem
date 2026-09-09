@@ -116,6 +116,24 @@ class Abstract {
       return Handle(operations->resolve(source));
     }
 
+    using Visitor = Concept::Visitor<Handle>;
+
+    auto resolve_concept(Perimortem::Core::View::Bytes name) const -> Handle {
+      return Handle(operations->resolve_concept(
+          source, {name.get_data(), name.get_size()}));
+    }
+
+    auto visit_concepts(Visitor visitor) const -> void {
+      const ttx_concept_visitor receiver = {
+        &visitor,
+        [](void* source, perimortem_view_bytes name, ttx_abstract value) {
+          (*static_cast<Visitor*>(source))(
+              {name.data, name.size}, Handle(value));
+        },
+      };
+      operations->visit_concepts(source, receiver);
+    }
+
     // This token identifies an encountered policy during one observation.
     // Package assigns its own durable identities after gathering the edges.
     auto get_identity() const -> const void* { return source; }

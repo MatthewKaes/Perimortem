@@ -42,7 +42,16 @@ static auto get_import_access(View::Bytes route, Count index)
 auto Import::bind_interface(Perimortem::System::Uuid requested) const
     -> Perimortem::Utility::Result<Binding, Binding::Failure> {
   if (requested != Import::contract_id) {
-    return Ttx::Model::Alias::bind_interface(requested);
+    const Abstract& selected = get_type();
+    if (selected.is<Unknown>()) {
+      return Binding::Failure::Pending;
+    }
+
+    if (selected.is<None>()) {
+      return Binding::Failure::Rejected;
+    }
+
+    return selected.bind_interface(requested);
   }
 
   static const Operations operations = {
@@ -117,8 +126,7 @@ auto Import::select_target(Option<Cursor&> cursor) const -> const Abstract& {
 
   const Abstract* selected = &acquired->get();
   if (route.is_empty()) {
-    const Abstract& resolved = selected->resolve();
-    return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
+    return *selected;
   }
 
   Count start = 0;
@@ -131,11 +139,9 @@ auto Import::select_target(Option<Cursor&> cursor) const -> const Abstract& {
     }
 
     View::Bytes selected_name = route.slice(start, index - start);
-    const Abstract& context = selected->resolve();
-    if (!context.is<Ttx::Model::Type>()) {
-      return context.is<Unknown>()
-                 ? context
-                 : static_cast<const Abstract&>(None::get_none());
+    const Abstract& context = *selected;
+    if (context.is<Unknown>() || context.is<None>()) {
+      return context;
     }
 
     const Abstract& static_context = context.resolve_concept("static"_view);
@@ -162,8 +168,12 @@ auto Import::select_target(Option<Cursor&> cursor) const -> const Abstract& {
     return *selected;
   }
 
-  const Abstract& resolved = selected->resolve();
-  return resolved.is<Ttx::Model::Type>() ? resolved : None::get_none();
+  const Abstract& represented = selected->resolve();
+  const Abstract& resolved =
+      represented.is<Import>() ? represented.get_type() : represented;
+  return resolved.is<Ttx::Model::Type>() || resolved.is<Unknown>()
+             ? resolved
+             : None::get_none();
 }
 
 auto Import::validate(Cursor& cursor) -> Bool {
@@ -181,8 +191,6 @@ auto Import::validate(Cursor& cursor) -> Bool {
         << "Publish every selected Type before importing this source."_view;
     return False;
   }
-
-  BAIL_IF(!bind_target(selected));
 
   const Documentation& target_documentation = selected.get_documentation();
   if (local_documentation.is_empty()) {
@@ -203,8 +211,6 @@ auto Import::validate_restored() -> Bool {
     return False;
   }
 
-  BAIL_IF(!bind_target(selected));
-
   const Documentation& target_documentation = selected.get_documentation();
   visible_documentation = local_documentation.is_empty() ? target_documentation
                                                          : local_documentation;
@@ -212,7 +218,32 @@ auto Import::validate_restored() -> Bool {
 }
 
 auto Import::resolve() const -> const Abstract& {
+  return *this;
+}
+
+auto Import::get_type() const -> const Abstract& {
   return select_target({});
+}
+
+auto Import::resolve_concept(View::Bytes name) const -> const Abstract& {
+  return get_type().resolve_concept(name);
+}
+
+auto Import::visit_concepts(Abstract::Visitor visitor) const -> void {
+  const Abstract& selected = get_type();
+  if (selected.is<Unknown>() || selected.is<None>()) {
+    return;
+  }
+  // The selected export owns visibility. Resolving each advertised name through
+  // the import keeps lookup and discovery on the same path if this policy
+  // restricts a route, rather than exposing the referent's candidate directly.
+  auto receive = [&](View::Bytes name, const Abstract&) {
+    const Abstract& answer = resolve_concept(name);
+    if (!answer.is<Unknown>() && !answer.is<None>()) {
+      visitor(name, answer);
+    }
+  };
+  selected.visit_concepts(Abstract::Visitor(receive));
 }
 
 auto Import::get_documentation() const -> const Documentation& {

@@ -27,7 +27,8 @@ Tetrodotoxin platform.
 Contract binding also has a small [loaded provider boundary](ttx_design.md#binding-across-loaded-providers).
 Interfaces declare UUIDs independently of native C++ inheritance tokens. The
 Abstract C table returns borrowed state and operations, while C++ handles add
-named methods without a second dispatch system. Only interfaces whose complete
+named methods without a second dispatch system. Named lookup and synchronous
+visitation use that same Abstract table for native and foreign subjects. Only interfaces whose complete
 payload agreement is specified for C are foreign contracts. A stable ID alone
 does not make a native C++ table portable.
 
@@ -113,20 +114,23 @@ Abstract
 ├── Unknown
 ├── Constant
 │   └── None
-├── Alias
 ├── Type
 ├── Addressable
 └── Callable
 ```
 
-`Layout`, `Pack`, `Context`, `Interface`, `Documentation`, and `Reference`
+Alias forwards through one required referent without adding a category.
+
+`Layout`, `Pack`, `Interface`, `Documentation`, and `Reference`
 describe, negotiate, or connect those objects without becoming separate
 language objects themselves.
 
 A `Type` exposes one complete Layout. An `Addressable` names typed data. A
 `Pack` is an identity-free view whose Layout names the exact producers. A
-`Callable` exposes parameter and result Layouts. An `Alias` keeps its own local
-name and Documentation while resolving to another identity. `Unknown` is a
+`Callable` exposes parameter and result Layouts. An `Alias` forwards every
+semantic question to its one required referent. Authored names, documentation,
+and dependency policy belong to the concrete declaration around that
+relationship. `Unknown` is a
 provisional answer, `Constant` is an immutable axiomatic fact, and `None` proves
 completed absence.
 

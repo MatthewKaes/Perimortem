@@ -41,7 +41,7 @@ would no longer give every consumer the original semantic fact.
 
 The shared vocabulary contains relationships that are genuinely cross domain
 rather than source features owned by one language.
-A Library Object, a Package Alias, a Scene signal, and a Shader resource
+A Library Object, a Package import, a Scene signal, and a Shader resource
 can all expose exact TTX identities while retaining their richer rules in their
 own domains.
 
@@ -125,13 +125,14 @@ Abstract
 ├── Unknown
 ├── Constant
 │   └── None
-├── Alias
 ├── Type
 ├── Addressable
 └── Callable
 ```
 
-`Documentation`, `Layout`, `Pack`, `Context`, `Interface`, and `Reference` are
+Alias forwards through one required referent without adding a category.
+
+`Documentation`, `Layout`, `Pack`, `Interface`, and `Reference` are
 supporting values.
 They describe, negotiate, or connect identities without acquiring another
 semantic identity. Complete
@@ -139,12 +140,14 @@ declaration structure, source provenance, visibility, and publication remain
 facts of each concrete language owner rather than a lossy Abstract projection.
 
 The graph is not a tree of declarations. One Type may be reached through a
-Package Alias, a source Alias, a Generic materialization, and a direct local
+Package import, a source import, a Generic materialization, and a direct local
 route. Those paths retain one Type and do not give it a required parent.
 
 Structural similarity therefore says nothing about identity. Two Types may
-have equal Layouts and still mean different things. Two Alias objects may have
-different local names and Documentation while representing the same target.
+have equal Layouts and still mean different things. Two declarations may own
+different local names and documentation while referring to the same target.
+Transparent Alias forwards those questions to its referent instead of adding
+declaration facts of its own.
 One Addressable keeps its own identity while its total Type query changes only
 from `Unknown` to one exact Type. A Pack borrows the exact producer identities
 exposed by its Layout. A Callable
@@ -182,12 +185,13 @@ environment. A public UUID match supplies an operation table, not permission to
 cast the provider's state to a consumer's implementation class.
 
 `ttx/concept/abstract.h` defines the foreign Abstract ingress. The state and
-operation table are borrowed, and its bind, name, documentation, and resolve
-operations use the platform C ABI. The initial supported representation uses
+operation table are borrowed. Its bind, name, documentation, resolve, named
+lookup, and visitation operations use the platform C ABI. The initial supported representation uses
 Linux with 64 bit pointers. Its transitive value contracts are a two word UUID,
 a pointer and 64 bit byte count, a separate documentation view, and an erased
-binding pair. The exact Abstract ID covers this whole table and the documentation
-table it returns. A supplying entry point establishes that ID agreement before
+binding pair. The exact Abstract ID covers this whole table, the documentation
+table it returns, and its synchronous visitor. A supplying entry point
+establishes that ID agreement before
 the caller uses the table. A retained handle does not own module code or state.
 
 Bind returns an 8 bit status. Satisfied writes the caller's output pair, while
@@ -210,12 +214,20 @@ value operation. Provider code and returned views remain the responsibility of
 the owner retaining their lifetime.
 
 The C ingress does not make every payload offered through it a C contract.
-Scope, Layout, Type, Callable, Addressable, Definition, Import, Value,
+Layout, Type, Callable, Addressable, Definition, Import, Value,
 Initialization, and Library Simulacra currently declare native C++ operation
 payloads. Their IDs require the same native payload ABI on both sides. A C
 representation of any such contract needs its own declared agreement and ID.
 The common ingress can already carry an independently declared C operation
 table, without making the provider inherit a native Abstract.
+
+Named lookup and visitation are operations of Abstract itself, including for
+foreign providers. There is no separate Scope binding that can select a
+different navigation authority. The native reference visitor and the bound
+handle visitor coexist without converting arbitrary foreign state into a
+native Abstract reference. The six-operation table has its own declared ID.
+A provider of the former four-operation agreement must be rejected at admission
+before a consumer accesses the navigation entries.
 
 Live subject identity and durable export identity remain separate questions.
 The existing Handle token identifies its stable source state for one borrowed
@@ -227,10 +239,11 @@ A Reference is a nonnull borrowed edge to one exact semantic object. It remains
 valid for the lifetime established by the graph owner and carries no absent
 state.
 
-A Reference preserves the exact object it receives. Alias hides its immediate
-Reference and `resolve()` is the only operation that follows Alias edges.
-Proving a Type or reaching the Type of an Addressable remains an explicit
-operation performed by the consumer whose contract requires it.
+A Reference preserves the exact object it receives. Alias uses that borrowed
+edge to forward every semantic observation through one spot-resolved referent.
+Alias exposes neither a raw target accessor nor a public semantic category for
+its private forwarding machinery. A concrete declaration owns any additional
+name, documentation, or policy that remains visible around the relationship.
 
 The graph owner guarantees the lifetime of every borrowed identity. A process
 address may serve as local identity while that owner keeps the object stable.
@@ -254,8 +267,10 @@ concrete operator splits qualified syntax and asks each selected result about
 the next name, so a route can cross Package, source, and Type contexts without
 flattening those contexts into one key or converting them into one common
 category. Monograph retains lifetime and never becomes an authored route
-segment. Alias remains opaque to contextual lookup: the caller resolves it
-before asking the selected identity to interpret the next name.
+segment. Alias forwards the lookup itself, while an Import remains present to
+apply its dependency policy. Selecting a native Type too early would bypass
+that policy on later route segments, so a native compiler selects the required
+Type after the full access path has answered.
 
 Access and invocation remain concrete language operations assembled from the
 same concept graph. Library, for example, waits for an Addressable's total Type
@@ -280,15 +295,20 @@ an ambiguous ownership path.
 ## Progressive construction
 
 A graph owner may reserve a stable identity before all of its edges are ready.
-An Alias reserved this way binds its borrowed target once after the defining
-pass. The immediate edge remains opaque and only Alias resolution traverses
-it. An incomplete total query returns the shared `Unknown` object. Completion
+An Alias starts at Unknown and can commit to one exact self-resolved referent.
+Its owner spot-resolves the supplied subject, rejects None, and refuses a
+second different exact commitment. Every semantic question forwards through
+the referent captured for that observation. An incomplete total query returns
+the shared `Unknown` object. Completion
 may make that unanswered query valid, while every successful identity remains
 stable. Completed absence returns the axiomatic `None` Constant.
 
-Concept exploration produces fresh Pack snapshots in a caller-owned Context.
-The snapshot may omit incomplete questions or carry Unknown explicitly. It has
-no stable order and no identity to stage or replace.
+Concept exploration calls the Abstract's synchronous visitor directly. The
+provider can enumerate its own storage without constructing a Pack or member
+snapshot. Names may be temporary within the callback, while returned Abstracts
+keep their ordinary provider lifetime. A consumer that sorts or retains names
+copies them for that purpose. The provider cannot retain the visitor, and the
+receiver cannot invalidate the state being traversed.
 
 This supports recursive declarations and source groups without adding an
 Incomplete Layout or a universal publication bit to every Abstract. The

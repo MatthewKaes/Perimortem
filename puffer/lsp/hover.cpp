@@ -8,11 +8,12 @@
 #include "perimortem/serialization/json/blueprint.hpp"
 #include "perimortem/serialization/stream/textual.hpp"
 
+#include "tetrodotoxin/language/definition.hpp"
+#include "tetrodotoxin/language/import.hpp"
 #include "ttx/concept/constant.hpp"
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
@@ -95,15 +96,37 @@ static auto append_layout(
 static auto append_identity(
     Serialization::Stream::Textual<Memory::Managed::Bytes>& output,
     const Abstract& semantic) -> Bool {
-  auto alias = semantic.select<Ttx::Model::Alias>();
-  if (alias) {
-    output << "alias "_view;
-    append_name(output, alias->get_name());
-    const Abstract& target = alias->resolve();
-    if (!target.is<Unknown>() && !target.is<None>()) {
+  auto imported = semantic.select<Tetrodotoxin::Language::Import>();
+  if (imported) {
+    output << "import "_view;
+    append_name(output, imported->get_name());
+    const Abstract& type = imported->get_type();
+    if (!type.is<Unknown>() && !type.is<None>()) {
       output << " = "_view;
-      append_name(output, target.get_name());
+      append_name(output, type.get_name());
     }
+    return True;
+  }
+
+  // A concrete declaration can retain its authored spelling while resolving
+  // to another semantic value. Ask for that declaration's own facts rather
+  // than testing whether its reference machinery is an Alias.
+  Bool declaration = False;
+  if (&semantic.resolve() != &semantic) {
+    semantic.bind<Tetrodotoxin::Language::Definition>().visit(
+        [&](const Tetrodotoxin::Language::Definition::Handle& definition) {
+          append_name(output, definition.get_name());
+          const Abstract& value = semantic.resolve();
+          if (!value.is<Unknown>() && !value.is<None>()) {
+            output << " = "_view;
+            append_name(output, value.get_name());
+          }
+          declaration = True;
+        },
+        [](Binding::Failure) {});
+  }
+
+  if (declaration) {
     return True;
   }
 

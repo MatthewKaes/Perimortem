@@ -4,7 +4,6 @@
 #include "ttx/concept/abstract.hpp"
 
 #include "ttx/concept/none.hpp"
-#include "ttx/concept/scope.hpp"
 #include "ttx/concept/unknown.hpp"
 
 using namespace Ttx::Concept;
@@ -48,32 +47,28 @@ auto Abstract::get_interface() const -> Handle {
           .get_interface()
           .get_abi();
     },
-  };
-  return Handle(this, operations);
-}
-
-auto Abstract::bind_interface(Perimortem::System::Uuid requested) const
-    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
-  if (requested != Scope::contract_id) {
-    return Binding::Failure::Unsupported;
-  }
-
-  static const Scope::Operations operations = {
-    [](const void* source,
-       Perimortem::Core::View::Bytes name) -> Abstract::Handle {
+    [](const void* source, perimortem_view_bytes name) -> ttx_abstract {
       return static_cast<const Abstract*>(source)
-          ->resolve_concept(name)
-          .get_interface();
+          ->resolve_concept({name.data, name.size})
+          .get_interface()
+          .get_abi();
     },
-    [](const void* source, Scope::Visitor visitor) -> void {
+    [](const void* source, ttx_concept_visitor visitor) {
       auto receive = [&](Perimortem::Core::View::Bytes name,
                          const Abstract& value) {
-        visitor(name, value.get_interface());
+        visitor.receive(
+            visitor.source, {name.get_data(), name.get_size()},
+            value.get_interface().get_abi());
       };
       static_cast<const Abstract*>(source)->visit_concepts(Visitor(receive));
     },
   };
-  return Binding::provide<Scope>(this, operations);
+  return Handle(this, operations);
+}
+
+auto Abstract::bind_interface(Perimortem::System::Uuid) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  return Binding::Failure::Unsupported;
 }
 
 auto Abstract::get_type() const -> const Abstract& {

@@ -303,15 +303,15 @@ auto Llvm::Lowering::Types::complete_declaration(
   auto storage = enumeration->get_storage_type();
   BAIL_IF(!storage);
   for (Count index = 0; index < enumeration->get_case_count(); index++) {
-    const Ttx::Model::Alias& alias =
+    const Ttx::Concept::Abstract& declaration =
         enumeration->get_cases().get_data()[index].get();
     auto value = enumeration->get_case_value(index);
     BAIL_IF(!value);
     Bool completed = storage->is<Model::Types::Signed>()
                          ? program.get_debug().signed_enumerator(
-                               program, type, alias, S64(*value))
+                               program, type, declaration, S64(*value))
                          : program.get_debug().unsigned_enumerator(
-                               program, type, alias, *value);
+                               program, type, declaration, *value);
     BAIL_IF(!completed);
   }
   return True;

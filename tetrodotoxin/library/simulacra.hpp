@@ -10,7 +10,6 @@
 #include "tetrodotoxin/library/language/initialization.hpp"
 #include "tetrodotoxin/library/language/value.hpp"
 #include "ttx/concept/bound.hpp"
-#include "ttx/concept/scope.hpp"
 #include "ttx/model/addressable.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
@@ -35,8 +34,8 @@ namespace Tetrodotoxin::Library {
 class Simulacra {
  public:
   static constexpr Perimortem::System::Uuid contract_id{
-    0x01a084b0c85e7540,
-    0xa67e2e9f59d89bf2,
+    0x01a08522d86b76da,
+    0xb75c623dbd37ec5a,
   };
 
   using Failure = Ttx::Concept::Binding::Failure;
@@ -74,11 +73,6 @@ class Simulacra {
     return addressable;
   }
 
-  auto get_scope() const
-      -> Perimortem::Core::Option<Ttx::Concept::Scope::Handle> {
-    return scope;
-  }
-
   auto get_initialization() const
       -> Perimortem::Core::Option<Language::Initialization::Handle> {
     return initialization;
@@ -111,7 +105,6 @@ class Simulacra {
   Perimortem::Core::Option<Ttx::Model::Callable::Handle> callable;
   Perimortem::Core::Option<Language::Value::Handle> value;
   Perimortem::Core::Option<Ttx::Model::Addressable::Handle> addressable;
-  Perimortem::Core::Option<Ttx::Concept::Scope::Handle> scope;
   Perimortem::Core::Option<Language::Initialization::Handle> initialization;
 };
 

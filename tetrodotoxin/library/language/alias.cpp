@@ -42,13 +42,11 @@ auto Alias::link() -> Bool {
   auto target = selected->select<Ttx::Model::Type>();
   BAIL_IF(!target);
 
-  if (!bind_target(*target)) {
-    return False;
-  }
+  this->target = Reference<const Ttx::Model::Type>(*target);
 
-  // Alias never copies or exposes its target. Documentation is the one local
-  // fact it can extend, so the merged view preserves both authored explanations
-  // while every semantic query still observes only resolve().
+  // The declaration can explain why this name was introduced without changing
+  // the selected Type's own documentation. Borrowing a merged view preserves
+  // both explanations without moving that policy into transparent Alias.
   const Documentation& local = get_definition().get_documentation();
   if (local.is_empty()) {
     documentation = target->get_documentation();
@@ -90,4 +88,33 @@ auto Alias::get_documentation() const -> const Documentation& {
       [](const Documentation& selected) -> const Documentation& {
         return selected;
       });
+}
+
+// Source closes declaration routes before all Types have linked their bodies.
+// Retaining the native Type here preserves that construction order. A caller
+// asking whether the Type itself is complete still uses the Type's resolve.
+auto Alias::resolve() const -> const Abstract& {
+  return target ? static_cast<const Abstract&>(target->get())
+                : Unknown::get_unknown();
+}
+
+auto Alias::get_type() const -> const Abstract& {
+  return resolve();
+}
+
+auto Alias::resolve_concept(Perimortem::Core::View::Bytes name) const
+    -> const Abstract& {
+  return resolve().resolve_concept(name);
+}
+
+auto Alias::visit_concepts(Abstract::Visitor visitor) const -> void {
+  resolve().visit_concepts(visitor);
+}
+
+auto Alias::bind_interface(Perimortem::System::Uuid requested) const
+    -> Perimortem::Utility::Result<Binding, Binding::Failure> {
+  if (requested == Tetrodotoxin::Language::Definition::contract_id) {
+    return Tetrodotoxin::Language::Definition::provide(*this);
+  }
+  return resolve().bind_interface(requested);
 }

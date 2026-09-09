@@ -9,99 +9,89 @@
 
 namespace Ttx::Model {
 
-// Alias gives one authored local name and its Documentation to an existing
-// semantic identity. Resolution follows an Alias chain to the first concrete
-// identity, where the consumer can use that owner's real contract.
+// Alias makes one required referent shareable before its identity is known.
+// Every semantic question goes to that referent, so a consumer can use the
+// relationship without knowing that an Alias carries it. Names, documentation,
+// and policy belong to concrete declarations rather than to this forwarding
+// machinery. There is no Alias contract to discover through binding.
 //
-// Local Documentation leads the target Documentation through Merged. When the
-// Alias adds no local prose, it can borrow the target Documentation directly
-// and avoid an empty wrapper.
+// Unknown represents the initial promise. Commitment spot resolves the supplied
+// subject and retains one exact answer, leaving no Alias chain to walk later.
+// None cannot fulfill a required relationship, and a different exact answer
+// cannot replace one already observed. A new source generation needs a new
+// Alias rather than rebinding an existing commitment.
 //
-// Some declaration owners reserve an Alias before its target has completed.
-// They bind that target once during graph construction and keep it alive beside
-// the Alias. Repeating the same binding is harmless, while a changed target or
-// a cycle makes publication fail.
+// The constructing owner keeps the referent alive and orders commitment against
+// queries. Each forwarding operation captures its referent once, so a callback
+// cannot turn one observation into a mixture of the old and new answers.
 class Alias : public Concept::Abstract {
  public:
-  TTX_CONTRACT(Alias, Abstract);
+  Alias() : target(Concept::Unknown::get_unknown()) {}
 
-  constexpr Alias(
-      Perimortem::Core::View::Bytes name,
-      const Concept::Abstract& target)
-      : Alias(name, target, target.get_documentation()) {}
-
-  constexpr Alias(
-      Perimortem::Core::View::Bytes name,
-      const Concept::Abstract& target,
-      const Concept::Documentation& documentation)
-      : name(name),
-        target(Concept::Reference<const Concept::Abstract>(target)),
-        documentation(documentation) {}
-
-  TTX_NAME(name);
-
-  // Local prose leads the target's visible documentation. Because the target
-  // may itself be an Alias, this naturally accumulates the complete authored
-  // chain without changing identity resolution.
-  TTX_DOCUMENTATION(documentation);
-
-  // Preserve every Alias on the way to the implementation. In particular an
-  // Import can answer a boundary question even when ordinary resolution would
-  // lead through it to the acquired Library.
-  auto bind_interface(Perimortem::System::Uuid requested) const -> Perimortem::
-      Utility::Result<Concept::Binding, Concept::Binding::Failure> override {
-    if (!target) {
-      return Concept::Binding::Failure::Pending;
+  // A failed commitment preserves the current referent. Unknown can leave the
+  // promise open, while repeating the same exact commitment is harmless.
+  constexpr auto commit(const Concept::Abstract& subject) -> Bool {
+    const Concept::Abstract& selected = subject.resolve();
+    if (&selected == this || &selected == &Concept::None::get_none() ||
+        &selected.resolve() != &selected) {
+      return False;
     }
 
-    return target->get().bind_interface(requested);
-  }
-
-  constexpr auto resolve() const -> const Abstract& override {
-    if (!target) {
-      return Concept::Unknown::get_unknown();
+    const Concept::Abstract& current = target.get();
+    if (&current != &Concept::Unknown::get_unknown()) {
+      return &current == &selected;
     }
-
-    return target->get().visit<Alias>(
-        [](const Alias& alias) -> const Concept::Abstract& {
-          return alias.resolve();
-        },
-        [](const Concept::Abstract& direct) -> const Concept::Abstract& {
-          return direct;
-        });
-  }
-
-  // Context belongs to the selected target rather than its local name.
-  // Resolving the Alias first makes that ownership visible to the consumer.
-  constexpr auto resolve_concept(Perimortem::Core::View::Bytes) const
-      -> const Abstract& override {
-    return target
-               ? static_cast<const Abstract&>(Concept::None::get_none())
-               : static_cast<const Abstract&>(Concept::Unknown::get_unknown());
-  }
-
- protected:
-  // A declaration owner can use staged construction when its target settles in
-  // a later definition pass. Callers that already know the target use the
-  // complete public constructors.
-  constexpr Alias(
-      Perimortem::Core::View::Bytes name,
-      const Concept::Documentation& documentation)
-      : name(name), documentation(documentation) {}
-
-  constexpr auto bind_target(const Concept::Abstract& selected) -> Bool {
-    if (target) {
-      return &target->get() == &selected;
-    }
-
     target = Concept::Reference<const Concept::Abstract>(selected);
     return True;
   }
 
+  constexpr auto get_name() const -> Perimortem::Core::View::Bytes override {
+    const Concept::Abstract& current = target.get();
+    return current.get_name();
+  }
+
+  constexpr auto get_documentation() const
+      -> const Concept::Documentation& override {
+    const Concept::Abstract& current = target.get();
+    return current.get_documentation();
+  }
+
+  constexpr auto resolve() const -> const Concept::Abstract& override {
+    return target.get();
+  }
+
+  constexpr auto get_type() const -> const Concept::Abstract& override {
+    const Concept::Abstract& current = target.get();
+    return current.get_type();
+  }
+
+  constexpr auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Concept::Abstract& override {
+    const Concept::Abstract& current = target.get();
+    return current.resolve_concept(name);
+  }
+
+  constexpr auto visit_concepts(Concept::Abstract::Visitor visitor) const
+      -> void override {
+    const Concept::Abstract& current = target.get();
+    current.visit_concepts(visitor);
+  }
+
+  constexpr auto satisfies(const Concept::Abstract& requirement) const
+      -> Bool override {
+    const Concept::Abstract& current = target.get();
+    return current.satisfies(requirement);
+  }
+
+  constexpr auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::
+          Result<Concept::Binding, Concept::Binding::Failure> override {
+    const Concept::Abstract& current = target.get();
+    return current.bind_interface(requested);
+  }
+
  private:
-  Perimortem::Core::View::Bytes name;
-  Perimortem::Core::Option<Concept::Reference<const Concept::Abstract>> target;
-  const Concept::Documentation& documentation;
+  Concept::Reference<const Concept::Abstract> target;
 };
 
 }  // namespace Ttx::Model

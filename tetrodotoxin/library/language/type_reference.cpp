@@ -23,7 +23,6 @@
 #include "ttx/concept/none.hpp"
 #include "ttx/concept/reference.hpp"
 #include "ttx/concept/unknown.hpp"
-#include "ttx/model/alias.hpp"
 #include "ttx/model/layouts/fluid.hpp"
 
 using namespace Perimortem;
@@ -63,6 +62,25 @@ auto Language::TypeReference::get_interface() const -> Abstract::Handle {
       return reference.target
                  ? reference.target->resolve().get_interface().get_abi()
                  : Unknown::get_unknown().get_interface().get_abi();
+    },
+    [](const void* source, perimortem_view_bytes name) -> ttx_abstract {
+      const auto& reference = *static_cast<const TypeReference*>(source);
+      const auto& target =
+          reference.target ? *reference.target : Unknown::get_unknown();
+      return target.resolve_concept({name.data, name.size})
+          .get_interface()
+          .get_abi();
+    },
+    [](const void* source, ttx_concept_visitor visitor) {
+      const auto& reference = *static_cast<const TypeReference*>(source);
+      const auto& target =
+          reference.target ? *reference.target : Unknown::get_unknown();
+      auto receive = [&](Core::View::Bytes name, const Abstract& value) {
+        visitor.receive(
+            visitor.source, {name.get_data(), name.get_size()},
+            value.get_interface().get_abi());
+      };
+      target.visit_concepts(Abstract::Visitor(receive));
     },
   };
   return Abstract::Handle(this, operations);
@@ -122,18 +140,16 @@ static auto is_missing(const Abstract& abstract) -> Bool {
   return abstract.is<Unknown>() || abstract.is<None>();
 }
 
-static auto resolve_alias(const Abstract& binding) -> const Abstract& {
-  return binding.visit<Tetrodotoxin::Language::Import>(
-      [](const Tetrodotoxin::Language::Import& import) -> const Abstract& {
-        return import.resolve();
-      },
-      [](const Abstract& candidate) -> const Abstract& {
-        return candidate.visit<Ttx::Model::Alias>(
-            [](const Ttx::Model::Alias& alias) -> const Abstract& {
-              return alias.resolve();
-            },
-            [](const Abstract& direct) -> const Abstract& { return direct; });
-      });
+// A native Type identity can be useful before its full resolve answer becomes
+// factual. Import supplies that Type through its own operation, while other
+// declarations and transparent references follow ordinary resolution.
+static auto select_native(const Abstract& candidate) -> const Abstract& {
+  if (candidate.is<Ttx::Model::Type>()) {
+    return candidate;
+  }
+  const Abstract& resolved = candidate.resolve();
+  return resolved.is<Tetrodotoxin::Language::Import>() ? resolved.get_type()
+                                                       : resolved;
 }
 
 auto Language::TypeReference::get_size() const -> Count {
@@ -290,10 +306,10 @@ auto Language::TypeReference::resolve_with_root(
     if (boundary_failure) {
       return Failure(Failure::Type::Unavailable, anchor, i - 1);
     }
-    // Alias resolution reveals the identity that can answer the next ordinary
-    // context query. Keeping that step visible also preserves Alias opacity for
-    // every other consumer.
-    const Abstract& route_context = resolve_alias(*selected);
+    // Navigation stays on the encountered subject so Import can apply its
+    // policy. A native Type is selected only after the full access path has
+    // answered, otherwise the compiler could bypass a restricted route.
+    const Abstract& route_context = *selected;
     if (is_missing(route_context)) {
       return Failure(Failure::Type::Route, anchor, i - 1);
     }
@@ -314,7 +330,7 @@ auto Language::TypeReference::resolve_with_root(
     return Failure(Failure::Type::Unavailable, anchor, get_size() - 1);
   }
   if (!arguments) {
-    const Abstract& direct = resolve_alias(*selected);
+    const Abstract& direct = select_native(*selected);
     const Abstract& resolved = direct;
     if (is_missing(resolved)) {
       return Failure(Failure::Type::Route, anchor, get_size() - 1);
@@ -334,7 +350,7 @@ auto Language::TypeReference::resolve_with_root(
     return resolved;
   }
 
-  const Abstract& resolved = resolve_alias(*selected);
+  const Abstract& resolved = select_native(*selected);
   if (is_missing(resolved)) {
     return Failure(Failure::Type::Route, anchor, get_size() - 1);
   }
@@ -367,7 +383,7 @@ auto Language::TypeReference::resolve_with_root(
       reference->resolve_with_root(context, root, cursor)
           .visit(
               [&](const Abstract& resolved) {
-                nested = resolve_alias(resolved);
+                nested = select_native(resolved);
               },
               [&](const Failure& failure) { nested_failure = failure; });
       if (nested_failure) {

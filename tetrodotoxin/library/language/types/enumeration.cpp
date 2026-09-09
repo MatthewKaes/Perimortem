@@ -169,8 +169,10 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::retain_restored_case(
       });
   const Abstract& constant =
       Constants::Enumeration::create_synthetic(domain, *this, value);
-  cases.insert(
-      domain.construct<Ttx::Model::Alias>(name, constant, documentation));
+  auto& declaration = Tetrodotoxin::Language::Definition::create_synthetic(
+      domain, documentation, *this, name,
+      Tetrodotoxin::Language::Visibility::Public, Anchor::create(Span()));
+  cases.insert(domain.construct<Member>(declaration, constant));
   return True;
 }
 
@@ -216,8 +218,9 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::link_types(
   storage_type = Reference<const Model::Type>(*selected_type);
   stage = Stage::StorageLinked;
   // Cases are immutable Type members whose literal storage is already known at
-  // this barrier. Publishing them here lets Function bodies use the exact Alias
-  // identities without waiting for the later constant cache finalization pass.
+  // this barrier. Publishing them here lets Function bodies use the exact
+  // declaration identities without waiting for the later constant cache
+  // finalization pass.
   return finalize(cursor);
 }
 
@@ -284,8 +287,8 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
   Bool failed = False;
 
   // Parsing and width checks finish for the complete inventory before any
-  // Constant or Alias becomes queryable. One bad case therefore leaves the
-  // Enumeration with no partial lookup surface.
+  // Constant or declaration becomes queryable. One bad case therefore leaves
+  // the Enumeration with no partial lookup surface.
   if (type.is<Tetrodotoxin::Library::Language::Model::Types::Signed>()) {
     for (Count i = 0; i < source_cases.get_size(); i++) {
       const Case& source_case = source_cases[i];
@@ -361,9 +364,11 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::finalize(
                              : value.unsigned_value;
     const Abstract& constant = Constants::Enumeration::create_authored(
         domain, *this, representation, source_case.value_anchor);
-    const Ttx::Model::Alias& alias = domain.construct<Ttx::Model::Alias>(
-        source_case.name, constant, source_case.documentation);
-    cases.insert(alias);
+    auto& declaration = Tetrodotoxin::Language::Definition::create_authored(
+        cursor, source_case.documentation, *this, {}, {},
+        Tetrodotoxin::Language::Visibility::Public, {}, source_case.name,
+        source_case.name_anchor.get_token(), {}, source_case.anchor);
+    cases.insert(domain.construct<Member>(declaration, constant));
   }
 
   stage = Stage::Finalized;
@@ -399,9 +404,9 @@ auto Types::Enumeration::Authority::resolve_concept(
 
   auto case_view = owner.cases.get_view();
   for (Count i = 0; i < case_view.get_size(); i++) {
-    const Ttx::Model::Alias& alias = case_view.get_data()[i].get();
-    if (alias.get_name() == route) {
-      return alias;
+    const Abstract& member = case_view.get_data()[i].get();
+    if (member.get_name() == route) {
+      return member;
     }
   }
 
@@ -427,8 +432,8 @@ auto Types::Enumeration::Authority::visit_concepts(
     return;
   }
   for (const auto& retained : owner.cases.get_view()) {
-    const auto& alias = retained.get();
-    visitor(alias.get_name(), alias);
+    const auto& member = retained.get();
+    visitor(member.get_name(), member);
   }
   if (owner.generated_size) {
     const auto& size = owner.generated_size->get();
@@ -451,7 +456,7 @@ auto Tetrodotoxin::Library::Language::Types::Enumeration::get_storage_type()
 }
 
 auto Tetrodotoxin::Library::Language::Types::Enumeration::get_cases() const
-    -> Core::View::Vector<Reference<const Ttx::Model::Alias>> {
+    -> Core::View::Vector<Reference<const Abstract>> {
   return cases;
 }
 

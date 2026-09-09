@@ -82,17 +82,8 @@ auto Simulacra::project(Abstract::Handle source)
     return *failure;
   }
 
-  // A namespace can contribute only discovery. Its Scope still has to be
-  // supplied by the provider, just like every other role.
-  failure = collect<Scope>(source, projection.scope);
-  if (failure) {
-    return *failure;
-  }
-
-  if (!projection.definition && !projection.type && !projection.callable &&
-      !projection.value && !projection.addressable && !projection.scope &&
-      !projection.initialization) {
-    return Failure::Unsupported;
-  }
+  // Every Abstract already supplies navigation. A namespace can therefore
+  // contribute only its source view, including an empty context, without an
+  // additional role or a traversal just to decide whether it is acceptable.
   return projection;
 }

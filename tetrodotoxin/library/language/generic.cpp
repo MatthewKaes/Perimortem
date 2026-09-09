@@ -5,12 +5,12 @@
 
 #include "perimortem/memory/dynamic/vector.hpp"
 
+#include "tetrodotoxin/language/import.hpp"
 #include "tetrodotoxin/library/language/constants/signed.hpp"
 #include "tetrodotoxin/library/language/constants/unsigned.hpp"
 #include "tetrodotoxin/library/language/model/types/flag.hpp"
 #include "ttx/concept/unknown.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 
 using namespace Perimortem;
 using namespace Tetrodotoxin::Library;
@@ -65,23 +65,23 @@ auto Language::Generic::normalize_argument(
     const Ttx::Concept::Abstract& argument) const -> Core::Option<Argument> {
   switch (parameter) {
   case Parameters::Type: {
-    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
-        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
-          return alias.resolve();
-        },
-        [](const Ttx::Concept::Abstract& direct)
-            -> const Ttx::Concept::Abstract& { return direct; });
+    const Ttx::Concept::Abstract& represented =
+        argument.is<Ttx::Model::Type>() ? argument : argument.resolve();
+    const Ttx::Concept::Abstract& selected =
+        represented.is<Tetrodotoxin::Language::Import>()
+            ? represented.get_type()
+            : represented;
     auto type = selected.select<Language::Model::Type>();
     BAIL_IF(!type);
     return Argument(*type);
   }
   case Parameters::SemanticType: {
-    const Ttx::Concept::Abstract& selected = argument.visit<Ttx::Model::Alias>(
-        [](const Ttx::Model::Alias& alias) -> const Ttx::Concept::Abstract& {
-          return alias.resolve();
-        },
-        [](const Ttx::Concept::Abstract& direct)
-            -> const Ttx::Concept::Abstract& { return direct; });
+    const Ttx::Concept::Abstract& represented =
+        argument.is<Ttx::Model::Type>() ? argument : argument.resolve();
+    const Ttx::Concept::Abstract& selected =
+        represented.is<Tetrodotoxin::Language::Import>()
+            ? represented.get_type()
+            : represented;
     auto type = selected.select<Ttx::Model::Type>();
     BAIL_IF(!type);
     return Argument(SemanticType::create(*type));

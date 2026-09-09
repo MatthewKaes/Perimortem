@@ -15,8 +15,8 @@ namespace Ttx::Concept {
 // optional metadata table beside the graph.
 //
 // Implementations can borrow authored lines, generate stable prose, or compose
-// several sources. Alias can therefore place local explanation before the
-// target documentation while both semantic identities remain unchanged. Empty
+// several sources. A declaration can therefore place local explanation before
+// its target's documentation without changing that target's own prose. Empty
 // Documentation means that no prose is available rather than that a semantic
 // query failed.
 //

@@ -15,13 +15,12 @@
 #include "ttx/concept/reference.hpp"
 #include "ttx/lexical/anchor.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
 
 namespace Tetrodotoxin::Library::Language::Types {
 
 // Enumeration is one authored Library Type whose cases are named immutable
 // values. It keeps source facts private until one exact integer storage Type
-// and every Alias backed Constant are complete.
+// and every named Constant declaration are complete.
 class Enumeration : public Model::Type {
  public:
   // Case retains exactly the authored spelling and Documentation needed to
@@ -122,7 +121,7 @@ class Enumeration : public Model::Type {
   }
 
   auto get_cases() const -> Perimortem::Core::View::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>;
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>;
 
   auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
       -> void override;
@@ -143,6 +142,53 @@ class Enumeration : public Model::Type {
   auto find_case_name(U64 value) const -> Perimortem::Core::View::Bytes;
 
  private:
+  // A case is a real declaration of an enum value. Its authored facts belong
+  // to Definition, while the constant supplies its value and Type questions.
+  // Keeping that declaration here preserves labels without teaching transparent
+  // Alias to retain names or introducing another member registry.
+  class Member : public Ttx::Concept::Abstract {
+   public:
+    constexpr Member(
+        Tetrodotoxin::Language::Definition& definition,
+        const Ttx::Concept::Abstract& value)
+        : definition(definition), value(value) {}
+
+    TTX_NAME(definition.get_name());
+    TTX_DOCUMENTATION(definition.get_documentation());
+
+    constexpr auto get_definition() const
+        -> const Tetrodotoxin::Language::Definition& {
+      return definition;
+    }
+    auto resolve() const -> const Ttx::Concept::Abstract& override {
+      return value.get().resolve();
+    }
+    auto get_type() const -> const Ttx::Concept::Abstract& override {
+      return value.get().get_type();
+    }
+    auto resolve_concept(Perimortem::Core::View::Bytes name) const
+        -> const Ttx::Concept::Abstract& override {
+      return value.get().resolve_concept(name);
+    }
+    auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+        -> void override {
+      value.get().visit_concepts(visitor);
+    }
+    auto bind_interface(Perimortem::System::Uuid requested) const
+        -> Perimortem::Utility::Result<
+            Ttx::Concept::Binding,
+            Ttx::Concept::Binding::Failure> override {
+      if (requested == Tetrodotoxin::Language::Definition::contract_id) {
+        return Tetrodotoxin::Language::Definition::provide(*this);
+      }
+      return value.get().bind_interface(requested);
+    }
+
+   private:
+    Tetrodotoxin::Language::Definition& definition;
+    Ttx::Concept::Reference<const Ttx::Concept::Abstract> value;
+  };
+
   // Static lookup has its own subject while the Enumeration keeps its cases
   // and completion state. The scope borrows those facts directly, so exposing
   // it requires no second case inventory or publication lifecycle.
@@ -177,7 +223,7 @@ class Enumeration : public Model::Type {
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Type>>
       storage_type;
   Perimortem::Memory::Managed::Vector<
-      Ttx::Concept::Reference<const Ttx::Model::Alias>>
+      Ttx::Concept::Reference<const Ttx::Concept::Abstract>>
       cases;
   Perimortem::Core::Option<Ttx::Concept::Reference<const Model::Addressable>>
       generated_size;

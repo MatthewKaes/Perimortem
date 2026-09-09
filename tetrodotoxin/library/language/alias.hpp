@@ -9,30 +9,42 @@
 
 #include "tetrodotoxin/language/definition.hpp"
 #include "tetrodotoxin/library/language/type_reference.hpp"
+#include "ttx/concept/abstract.hpp"
 #include "ttx/lexical/cursor.hpp"
-#include "ttx/model/alias.hpp"
+#include "ttx/model/type.hpp"
 
 namespace Tetrodotoxin::Library::Language {
 
-// Alias is one authored Library Type namespace redirection. Parsing reserves
-// its stable identity and TypeReference. Link binds one exact target only after
-// every surrounding Type identity exists. TTX Alias remains opaque, so no
-// consumer can inspect or operate on the stored target edge directly.
-class Alias : public Ttx::Model::Alias {
+// This declaration owns the authored name, documentation, and route selecting
+// a Type. Those facts remain visible even before the selected Type completes.
+// They cannot belong to transparent TTX Alias, whose entire surface is the
+// referent's answer. The declaration therefore retains its own Definition and
+// a borrowed native Type identity, without exposing reference machinery as a
+// semantic category.
+class Alias : public Ttx::Concept::Abstract {
  private:
   constexpr Alias(
       Perimortem::Memory::Allocator::Arena& domain,
       Tetrodotoxin::Language::Definition& definition,
       TypeReference target_reference)
-      : Ttx::Model::Alias(
-            definition.get_name(),
-            definition.get_documentation()),
-        definition(definition),
+      : definition(definition),
         domain(domain),
         target_reference(target_reference) {}
 
  public:
-  TTX_CONTRACT(Alias, Ttx::Model::Alias);
+  TTX_CONTRACT(Alias, Ttx::Concept::Abstract);
+  TTX_NAME(definition.get_name());
+
+  auto resolve() const -> const Ttx::Concept::Abstract& override;
+  auto get_type() const -> const Ttx::Concept::Abstract& override;
+  auto resolve_concept(Perimortem::Core::View::Bytes name) const
+      -> const Ttx::Concept::Abstract& override;
+  auto visit_concepts(Ttx::Concept::Abstract::Visitor visitor) const
+      -> void override;
+  auto bind_interface(Perimortem::System::Uuid requested) const
+      -> Perimortem::Utility::Result<
+          Ttx::Concept::Binding,
+          Ttx::Concept::Binding::Failure> override;
 
   static auto create_authored(
       Perimortem::Memory::Allocator::Arena& domain,
@@ -56,7 +68,7 @@ class Alias : public Ttx::Model::Alias {
   }
 
   // Source orders Alias completion across its whole declaration tree. Alias
-  // itself resolves its retained route and binds the resulting TTX Type. A
+  // itself resolves its retained route and retains the resulting TTX Type. A
   // value consumer separately proves the narrower Library Type protocol.
   auto link() -> Bool;
   auto report_unresolved(Ttx::Lexical::Cursor& cursor) const -> void;
@@ -72,6 +84,8 @@ class Alias : public Ttx::Model::Alias {
   Perimortem::Memory::Allocator::Arena& domain;
   TypeReference target_reference;
   Perimortem::Core::Option<const Ttx::Concept::Documentation&> documentation;
+  Perimortem::Core::Option<Ttx::Concept::Reference<const Ttx::Model::Type>>
+      target;
   Bool linked = False;
 };
 

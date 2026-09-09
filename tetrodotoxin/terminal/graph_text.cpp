@@ -13,9 +13,9 @@
 
 #include "ttx/concept/constant.hpp"
 #include "ttx/concept/none.hpp"
+#include "ttx/concept/reference.hpp"
 #include "ttx/concept/unknown.hpp"
 #include "ttx/model/addressable.hpp"
-#include "ttx/model/alias.hpp"
 #include "ttx/model/callable.hpp"
 #include "ttx/model/type.hpp"
 
@@ -189,9 +189,6 @@ static auto write_contracts(
   output << "  contracts abstract"_view;
   if (abstract.is<Constant>()) {
     output << " constant"_view;
-  }
-  if (abstract.is<Ttx::Model::Alias>()) {
-    output << " alias"_view;
   }
   if (abstract.is<Ttx::Model::Type>()) {
     output << " type"_view;
